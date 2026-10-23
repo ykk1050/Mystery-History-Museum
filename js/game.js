@@ -26,7 +26,7 @@
   };
   const found = new Set(store.get('found_v2', []));
   let cleared = store.get('cleared_v2', false);
-  const settings = Object.assign({ sound: true, voice: true, low: false, easy: false, theme: null }, store.get('settings', {}));
+  const settings = Object.assign({ sound: true, voice: true, low: false, invertX: false, invertY: false, theme: null }, store.get('settings', {}));
 
   /* ---------- 분위기: 밝은 박물관 / 으스스한 박물관 ----------
      전시물은 그대로 두고 조명·안개·벽·바닥·해설사·소리·화면 효과만 바꾼다 */
@@ -568,7 +568,7 @@
         note = { good: true, a: had, isNew, roomName };
       }
     } else {
-      S.streak = settings.easy ? Math.max(S.checkpoint, S.streak - 1) : S.checkpoint;
+      S.streak = S.checkpoint;
       S.mistakes++;
       note = { good: false, a: had, roomName, to: S.streak };
     }
@@ -709,8 +709,9 @@
       look.x = e.clientX; look.y = e.clientY;
       look.moved += Math.abs(dx) + Math.abs(dy);
       const sens = e.pointerType === 'mouse' ? 0.0045 : 0.006;
-      S.yaw -= dx * sens;
-      S.pitch = Math.max(-0.55, Math.min(0.55, S.pitch + dy * sens * 0.8));
+      // 기본: 오른쪽으로 끌면 오른쪽, 위로 끌면 위를 본다. 메뉴에서 좌우·상하를 따로 반대로 바꿀 수 있다.
+      S.yaw -= dx * sens * (settings.invertX ? -1 : 1);
+      S.pitch = Math.max(-0.55, Math.min(0.55, S.pitch + dy * sens * 0.8 * (settings.invertY ? -1 : 1)));
     } else if (e.pointerType === 'mouse' && S.mode === 'play') {
       hoverAt(e.clientX, e.clientY);
     }
@@ -823,13 +824,14 @@
     found.clear(); cleared = false; store.set('found_v2', []); store.set('cleared_v2', false);
     openRecord(recordReturn);
   };
-  const opts = { optSound: 'sound', optVoice: 'voice', optLow: 'low', optEasy: 'easy' };
+  const opts = { optSound: 'sound', optVoice: 'voice', optLow: 'low', optInvX: 'invertX', optInvY: 'invertY' };
   Object.keys(opts).forEach(id => { $(id).checked = settings[opts[id]]; });
   SFX.setEnabled(settings.sound); SFX.setVoice(settings.voice);
   $('optSound').onchange = e => { settings.sound = e.target.checked; SFX.setEnabled(settings.sound); store.set('settings', settings); };
   $('optVoice').onchange = e => { settings.voice = e.target.checked; SFX.setVoice(settings.voice); store.set('settings', settings); };
   $('optLow').onchange = e => { settings.low = e.target.checked; applyPixelRatio(); applyLow(); store.set('settings', settings); };
-  $('optEasy').onchange = e => { settings.easy = e.target.checked; store.set('settings', settings); };
+  $('optInvX').onchange = e => { settings.invertX = e.target.checked; store.set('settings', settings); };
+  $('optInvY').onchange = e => { settings.invertY = e.target.checked; store.set('settings', settings); };
   function applyLow() { $('grain').style.display = settings.low ? 'none' : 'block'; }
   applyLow();
 
