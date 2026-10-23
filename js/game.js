@@ -15,6 +15,9 @@
   const GOAL = 17;       // 제0~16 전시실을 모두 지나면 출구
   const CHECK_EVERY = 4; // 중간 저장 간격
   const MAX_SAME = 3;    // 같은 주제가 연속으로 나올 수 있는 최대 횟수
+  const MIN_VIEWS = 3;   // 전시물을 이만큼 자세히 봐야 문이 열린다
+  const LAMP_AFTER = 2;  // 같은 주제에서 연속으로 이만큼 틀리면 힌트 등불
+  const WHISPER_AFTER = 3; // 같은 주제에서 연속으로 이만큼 틀리면 해설사의 귀띔
   const ANOMALY_RATE = 0.55;
   const INSPECT_RANGE = 6.5;
   const CX = -1.95, CZ = -27;  // 가운데 모형 자리
@@ -91,6 +94,7 @@
   const lamps = [];
   let signTex, rulesTex, farSignMesh, exitGroup, farTunnel, wallMat, centerModel = null, fireFx = null;
   let floorMat, ceilMat, endMat, tunnelMat, tunnelBackMat, texSet;
+  const lampGlow = {};
 
   function addPlane(w, h, mat, x, y, z, ry, parent) {
     const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
@@ -229,6 +233,15 @@
     addPlane(2.4, 2.6, washMat, -HW + 0.05, 2.3, -4.2, Math.PI / 2);
 
     signTex = tex(ART.drawSign(0, ROOMS[0].name));
+    const lampGlowMat = () => new THREE.MeshBasicMaterial({ color: 0xffc850, transparent: true, opacity: 0, depthWrite: false, side: THREE.DoubleSide });
+    lampGlow.left = addPlane(40, 3.2, lampGlowMat(), -HW + 0.66, 1.7, -27, Math.PI / 2);
+    lampGlow.right = addPlane(40, 3.2, lampGlowMat(), HW - 0.12, 1.8, -27, -Math.PI / 2);
+    lampGlow.center = new THREE.Mesh(new THREE.CylinderGeometry(1.7, 1.7, 3.6, 24, 1, true), lampGlowMat());
+    lampGlow.center.position.set(CX, 1.8, CZ); scene.add(lampGlow.center);
+    lampGlow.docent = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex(ART.glowTex('rgba(255,200,80,0.9)')), transparent: true, opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending }));
+    lampGlow.docent.scale.set(2.2, 3, 1); scene.add(lampGlow.docent);
+    Object.values(lampGlow).forEach(m => { m.visible = false; m.renderOrder = 3; });
+
     const sign = addPlane(2.4, 0.7, new THREE.MeshBasicMaterial({ map: signTex }), 0, 3.35, -6.5, 0);
     sign.userData.key = 'sign'; pickables.push(sign);
     addPlane(2.4, 0.7, new THREE.MeshBasicMaterial({ map: tex(ART.drawSmallSign('← 지나온 전시실', 'BACK', '#c9b48a')) }), 0, 3.35, -6.52, Math.PI);
@@ -380,6 +393,10 @@
     checkpoint: 0,          // 중간 저장된 전시실 번호
     forcedRoom: null,
     elapsed: 0,
+    viewed: new Set(),      // 이번 전시실에서 자세히 본 전시물
+    wrongStreak: {},        // 주제별 연속 오답 수
+    lampReady: false, lampTarget: null, helped: false, helpCount: 0,
+    review: false,          // 정상 전시 다시 보기 중
     anomaly: null,
     lastAnomalyId: null,
     firstGallery: true,
@@ -511,6 +528,12 @@
     farSignMesh.visible = !S.exitRoom;
     S.z = -2; S.yaw = 0; S.pitch = 0; S.turning = 0;
     S.docZ = -L + 1.5; S.spoke = false;
+    S.review = false;
+    resetHelp();
+    const wrongs = S.exitRoom ? 0 : (S.wrongStreak[S.roomIdx] || 0);
+    S.lampReady = wrongs >= LAMP_AFTER;
+    if (wrongs >= WHISPER_AFTER) setTimeout(() => { if (S.mode === 'play') whisper(); }, 2600);
+    updateHelpHud();
     docent.visible = !S.exitRoom;
     docentHit.visible = !S.exitRoom;
     docentGlow.intensity = S.exitRoom ? 0 : 0.9;
@@ -547,30 +570,52 @@
 
   function exitGallery(dir) {
     if (S.mode !== 'play') return;
-    S.mode = 'trans';
-    keys.fwd = keys.back = false;
-    SFX.whoosh(); SFX.stopSpeak();
-    const had = S.anomaly;
-    const roomName = S.exitRoom ? '' : `제 ${S.streak} 전시실 · ${room().name}`;
-
+    keys.fwd = keys.back = keys.run = false;
+    // 정상 전시 다시 보기를 마치면 원래 가려던 다음 전시실로
+    if (S.review) {
+      S.mode = 'trans'; SFX.whoosh(); SFX.stopSpeak();
+      fadeTo(1, 700).then(() => { newGallery(); setTimeout(() => { S.mode = 'play'; fadeTo(0, 900); }, 350); });
+      return;
+    }
     if (S.exitRoom && dir === 'forward') {
+      S.mode = 'trans'; SFX.whoosh(); SFX.stopSpeak();
       fadeTo(1, 900).then(showEnding);
       return;
     }
-    const correct = dir === 'forward' ? !had : !!had;
+    if (dir === 'back' && !S.exitRoom) {
+      // 되돌아갈 때는 어느 전시물이 이상했는지 근거를 고르게 한다
+      S.mode = 'pick'; SFX.stopSpeak();
+      showPick(key => judge('back', key), () => { S.z = -1.4; S.mode = 'play'; });
+      return;
+    }
+    judge(dir, null);
+  }
+
+  function judge(dir, picked) {
+    S.mode = 'trans';
+    SFX.whoosh(); SFX.stopSpeak();
+    const had = S.anomaly;
+    const roomName = S.exitRoom ? '' : `제 ${S.streak} 전시실 · ${room().name}`;
+    const roomIdx = S.roomIdx;
+    // 앞으로: 이상 현상이 없어야 정답 / 되돌아가기: 이상 현상이 있고, 고른 전시물까지 맞아야 정답
+    const correct = dir === 'forward' ? !had : (!!had && picked === had.target);
+    const helped = S.helped;
     let note = null;
     if (correct) {
       S.streak++;
+      S.wrongStreak[roomIdx] = 0;
       if (had) {
         const isNew = !found.has(had.id);
         found.add(had.id); store.set('found_v2', Array.from(found));
         S.foundThisRun++;
-        note = { good: true, a: had, isNew, roomName };
+        note = { good: true, a: had, isNew, roomName, helped };
       }
     } else {
       S.streak = S.checkpoint;
       S.mistakes++;
-      note = { good: false, a: had, roomName, to: S.streak };
+      S.wrongStreak[roomIdx] = (S.wrongStreak[roomIdx] || 0) + 1;
+      const pickedWrong = dir === 'back' && !!had && picked !== had.target;
+      note = { good: false, a: had, roomName, to: S.streak, roomIdx, helped, pickedWrong, picked: picked ? exhibitName(room().exhibits[picked], picked) : '' };
     }
 
     fadeTo(1, 700).then(() => {
@@ -594,9 +639,15 @@
     const card = $('noteCard');
     const back = !n.to ? '처음부터 다시.' : `제 ${n.to} 전시실${n.to === S.checkpoint ? '(중간 저장)' : ''}부터 다시.`;
     let html = n.roomName ? `<div class="k" style="margin-top:0">${n.roomName}</div>` : '';
+    if (n.helped) html += `<div class="k" style="margin-top:4px">🏮 힌트 등불 도움 받음</div>`;
     if (n.good) {
       html += `<h2 class="good">${isBright() ? '이상 현상을 찾았어요!' : '이상 현상을 발견했다'}${n.isNew ? '' : ' (이미 기록됨)'}</h2>
         <div class="k">이상했던 점</div><p class="wrongtxt">${n.a.wrong}</p>
+        <div class="k">교과서 속 사실</div><p class="right">${n.a.right}</p>`;
+    } else if (n.pickedWrong) {
+      html += `<h2 class="bad">${isBright() ? '되돌아간 건 맞았지만, 고른 전시물이 달라요!' : '…되돌아간 것은 맞았다. 하지만 고른 전시물이 틀렸다.'} ${back}</h2>
+        <div class="k">내가 고른 전시물</div><p>${n.picked}</p>
+        <div class="k">이 전시실의 진짜 이상 현상</div><p class="wrongtxt">${n.a.wrong}</p>
         <div class="k">교과서 속 사실</div><p class="right">${n.a.right}</p>`;
     } else if (n.a) {
       html += `<h2 class="bad">${isBright() ? '앗, 놓쳤어요!' : '…놓쳤다.'} ${back}</h2>
@@ -607,12 +658,16 @@
         <p>이 전시실에는 이상한 전시가 하나도 없었다.<br>교과서 내용과 꼼꼼히 비교해 보면, 다음엔 헷갈리지 않을 것이다.</p>
         <p style="margin-top:10px;color:#7a6a4e">${back}</p>`;
     }
+    if (!n.good && n.roomIdx != null) html += `<button class="btn ghost" id="noteReview" style="margin-top:16px;width:100%">🔍 이 주제의 정상 전시 다시 보기</button>`;
     html += `<button class="btn" id="noteOk">계속</button>`;
     card.innerHTML = html;
+    card.scrollTop = 0;
     $('note').classList.add('on');
-    const ok = () => { $('note').classList.remove('on'); window.removeEventListener('keydown', onKey); done(); };
+    const close = () => { $('note').classList.remove('on'); window.removeEventListener('keydown', onKey); };
+    const ok = () => { close(); done(); };
     const onKey = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); ok(); } };
     $('noteOk').onclick = ok;
+    if ($('noteReview')) $('noteReview').onclick = () => { close(); startReview(n.roomIdx); };
     setTimeout(() => window.addEventListener('keydown', onKey), 300);
   }
 
@@ -628,7 +683,7 @@
     $('endStat').innerHTML = `
       당신은 박물관을 빠져나왔다.<br>
       걸린 시간: ${Math.floor(sec / 60)}분 ${sec % 60}초 · 놓친 횟수: ${S.mistakes}번<br>
-      이번에 발견한 이상 현상: ${S.foundThisRun}개<br>
+      이번에 발견한 이상 현상: ${S.foundThisRun}개${S.helpCount ? ` · 힌트 등불 도움: ${S.helpCount}번` : ''}<br>
       전체 기록: ${found.size} / ${window.ANOMALIES.length}개<br>
       ${remain ? `<b>아직 ${remain}개의 이상 현상이 박물관 어딘가에 남아 있다…</b>` : '<b>모든 이상 현상을 발견했다!</b>'}
       ${firstClear ? '<br><span style="font-size:15px">다시 들어가면 안내판의 내용이 달라져 있을지도…</span>' : ''}`;
@@ -766,10 +821,10 @@
     if (!h) return;
     if (h.distance > (h.object.userData.key === 'docent' ? 9 : INSPECT_RANGE)) { showHint('더 가까이 다가가세요…', 1600); return; }
     const u = h.object.userData;
-    if (u.key === 'docent') { SFX.voice(S.docVoice, S.docSpeech); return openInspect(ART.drawDocentCard(S.docSpeech, isBright())); }
+    if (u.key === 'docent') { markViewed('docent'); SFX.voice(S.docVoice, S.docSpeech); return openInspect(ART.drawDocentCard(S.docSpeech, isBright())); }
     if (u.key === 'rules') return openInspect(rulesTex.image);
     if (u.key === 'sign') return openInspect(signTex.image);
-    if (u.slot && slots[u.slot]) openInspect(slots[u.slot].canvas);
+    if (u.slot && slots[u.slot]) { markViewed(slots[u.slot].key); openInspect(slots[u.slot].canvas); }
   }
   function openInspect(src) {
     if (!src) return;
@@ -787,13 +842,97 @@
 
   /* ---------- 자막 / 힌트 ---------- */
   let subTimer = 0;
-  function showSubtitle(text) {
+  function showSubtitle(text, who) {
     if (!text) return;
+    $('subWho').textContent = who || '— 해설사 —';
     $('subText').textContent = text;
     $('subtitle').classList.add('on');
     clearTimeout(subTimer);
-    subTimer = setTimeout(hideSubtitle, 6500);
-    SFX.voice(S.docVoice, text);
+    subTimer = setTimeout(hideSubtitle, who ? 9000 : 6500);
+    if (who) SFX.speak(text); else SFX.voice(S.docVoice, text);
+  }
+
+  /* ---------- 도움: 관람 수, 힌트 등불, 해설사의 귀띔, 정상 전시 다시 보기 ---------- */
+  function exhibitName(ex, key) { return key === 'docent' ? '해설사의 말' : ex.title; }
+  function markViewed(key) {
+    if (!key || S.review) return;
+    S.viewed.add(key);
+    updateHelpHud();
+  }
+  function resetHelp() {
+    S.viewed = new Set();
+    S.helped = false; S.lampTarget = null;
+    Object.values(lampGlow).forEach(m => { m.visible = false; });
+  }
+  function updateHelpHud() {
+    const playing = !S.exitRoom && !S.review;
+    const vc = $('viewCount');
+    vc.style.display = playing ? '' : 'none';
+    vc.textContent = S.viewed.size >= MIN_VIEWS ? `🔍 관람 ${S.viewed.size} · 문이 열렸습니다` : `🔍 관람 ${S.viewed.size}/${MIN_VIEWS}`;
+    vc.classList.toggle('done', S.viewed.size >= MIN_VIEWS);
+    $('lampBtn').style.display = playing && S.lampReady && !S.helped ? '' : 'none';
+  }
+  // 이상 현상이 있는 쪽(왼쪽 벽/오른쪽 벽/가운데/해설사)을 은은하게 비춘다
+  function useLamp() {
+    if (!S.lampReady || S.helped || S.mode !== 'play') return;
+    S.helped = true; S.helpCount++;
+    updateHelpHud();
+    const a = S.anomaly;
+    if (!a) { showHint('🏮 등불이 아무 곳도 비추지 않는다… 이 전시실에는 이상한 곳이 없는 것 같다.', 5000); return; }
+    const slot = a.target === 'docent' ? 'docent' : room().exhibits[a.target].slot;
+    const side = slot === 'docent' ? 'docent' : slot === 'C' ? 'center' : slot[0] === 'R' ? 'right' : 'left';
+    S.lampTarget = side;
+    lampGlow[side].visible = true;
+    showHint({ left: '🏮 왼쪽 벽이 은은하게 빛난다…', right: '🏮 오른쪽 벽이 은은하게 빛난다…', center: '🏮 가운데 전시물이 은은하게 빛난다…', docent: '🏮 해설사 주변이 은은하게 빛난다…' }[side], 5000);
+  }
+  $('lampBtn').addEventListener('click', e => { e.stopPropagation(); useLamp(); });
+  // 해설사의 귀띔: 어디인지는 알려 주지 않고 무엇을 살펴볼지만
+  function whisper() {
+    const p = S.anomaly ? S.anomaly.patch : null;
+    const tips = {
+      tag: '이름표에 적힌 시대나 나라를… 잘 확인해 보렴…',
+      visual: '유물의 생김새를… 설명과 잘 비교해 보렴…',
+      lines: '설명 문장을… 한 줄 한 줄 꼼꼼히 읽어 보렴…',
+      title: '전시물의 이름을… 잘 살펴보렴…',
+      sub: '설명판의 작은 제목까지… 잘 읽어 보렴…',
+      speech: '내가 하는 말도… 잘 들어 보렴…'
+    };
+    let key = p && Object.keys(tips).find(k => p[k] !== undefined);
+    if (!key) key = Object.keys(tips)[Math.floor(Math.random() * 5)];   // 정상 전시실이어도 귀띔은 한다
+    showSubtitle(tips[key], '— 해설사의 귀띔 —');
+  }
+  // 틀린 주제의 정상 전시(이상 현상 없음)를 시간 제한 없이 둘러보고 돌아온다
+  function startReview(roomIdx) {
+    S.review = true;
+    S.roomIdx = roomIdx;
+    S.anomaly = null;
+    resetHelp();
+    setupRoom();
+    signTex.image = ART.drawSign(S.streak, room().name + ' · 정상 전시', false); signTex.needsUpdate = true;
+    S.z = -2; S.yaw = 0; S.pitch = 0; S.turning = 0;
+    S.docZ = -L + 1.5; S.spoke = false;
+    updateHelpHud();
+    S.mode = 'play';
+    fadeTo(0, 900);
+    setTimeout(() => showHint('이상한 곳이 없는 원래 모습입니다. 다 둘러봤으면 아무 문으로나 나가세요.', 6000), 900);
+  }
+  // 어느 전시물이 이상했는지 고르기
+  const SLOT_ORDER = ['L0', 'L1', 'L2', 'C', 'L3', 'L4', 'M', 'R0', 'R1', 'R2', 'R3', 'R4'];
+  function showPick(onPick, onCancel) {
+    const ex = room().exhibits;
+    const keysInRoom = Object.keys(ex).filter(k => k !== 'docent')
+      .sort((a, b) => SLOT_ORDER.indexOf(ex[a].slot) - SLOT_ORDER.indexOf(ex[b].slot)).concat(['docent']);
+    const card = $('noteCard');
+    card.innerHTML = `<h2>${isBright() ? '어느 전시물이 이상했나요?' : '…무엇이 이상했지?'}</h2>
+      <p style="font-size:15px;color:#6d5a3a">이상하다고 생각한 전시물을 하나 고르세요. 틀리게 고르면 정답으로 인정되지 않습니다.</p>
+      <div class="pick-list">${keysInRoom.map(k => `<button class="pick" data-k="${k}">${S.viewed.has(k) ? '🔍 ' : ''}${exhibitName(ex[k], k)}</button>`).join('')}</div>
+      <button class="btn ghost" id="pickCancel" style="margin-top:14px;width:100%">← 전시실로 돌아가 다시 둘러보기</button>`;
+    card.scrollTop = 0;
+    $('note').classList.add('on');
+    card.querySelectorAll('.pick').forEach(b => {
+      b.onclick = () => { $('note').classList.remove('on'); onPick(b.dataset.k); };
+    });
+    $('pickCancel').onclick = () => { $('note').classList.remove('on'); onCancel(); };
   }
   function hideSubtitle() { $('subtitle').classList.remove('on'); }
   let hintTimer = 0;
@@ -917,6 +1056,11 @@
       } else if (input && !dir) {
         showHint('복도 쪽을 바라보고 걸으세요', 1200);
       }
+      const open = S.exitRoom || S.review || S.viewed.size >= MIN_VIEWS;
+      if (!open && (S.z > -1.1 || S.z < -L + 1.1)) {
+        S.z = Math.max(-L + 1.1, Math.min(-1.1, S.z));
+        showHint(`전시물을 ${MIN_VIEWS}개 이상 자세히 봐야 문이 열립니다 (${S.viewed.size}/${MIN_VIEWS})`, 1800);
+      }
       if (S.z > -0.25) { S.z = -0.25; exitGallery('back'); }
       else if (S.z < -L + 0.25) { S.z = -L + 0.25; exitGallery('forward'); }
     }
@@ -945,7 +1089,15 @@
       docent.position.set(1.35 + Math.sin(now / 900) * 0.02, 0.96, S.docZ);
       docentHit.position.set(1.35, 1.05, S.docZ);
       docentGlow.position.set(1.55, 1.1, S.docZ + 0.3);
+      lampGlow.docent.position.set(1.35, 1.0, S.docZ);
       if (!S.spoke && Math.abs(S.docZ - S.z) < 5 && active) { S.spoke = true; showSubtitle(S.docSpeech); }
+    }
+
+    // 힌트 등불 빛
+    if (S.lampTarget) {
+      const k = 0.5 + 0.5 * Math.sin(now / 450);
+      const m = lampGlow[S.lampTarget].material;
+      m.opacity = S.lampTarget === 'docent' ? 0.5 + 0.4 * k : (isBright() ? 0.14 : 0.08) + 0.12 * k;
     }
 
     // 모닥불
@@ -1086,6 +1238,7 @@
   window.MHM = {
     state: S,
     show(id) { S.anomaly = window.ANOMALIES.find(a => a.id === id) || null; setupRoom(); },
-    goRoom(n) { S.forcedRoom = n; newGallery(); S.anomaly = null; setupRoom(); }
+    goRoom(n) { S.forcedRoom = n; newGallery(); S.anomaly = null; setupRoom(); },
+    view(n) { room(); Object.keys(room().exhibits).slice(0, n).forEach(markViewed); }
   };
 })();
