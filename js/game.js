@@ -1,30 +1,32 @@
 /* =========================================================
    미스터리 역사 박물관 - 게임 본체 (three.js)
+   제 n 전시실 = ROOMS[n] (교과서 순서), 마지막 전시실을 지나면 출구
    ========================================================= */
 (function () {
   const $ = id => document.getElementById(id);
+  const ROOMS = window.ROOMS;
 
   /* ---------- 기본 치수 ---------- */
   const L = 48;          // 전시실 길이
   const HW = 3.5;        // 전시실 폭의 절반
   const H = 4.2;         // 천장 높이
   const EYE = 1.6;       // 눈 높이
-  const GOAL = 8;        // 출구까지 필요한 연속 정답 수
+  const GOAL = ROOMS.length;   // 이 수만큼 연속으로 맞히면 출구
   const ANOMALY_RATE = 0.55;
   const INSPECT_RANGE = 6.5;
+  const CX = -1.95, CZ = -27;  // 가운데 모형 자리
 
   /* ---------- 저장 (실패해도 게임은 동작) ---------- */
   const store = {
     get(k, d) { try { const v = localStorage.getItem('mhm_' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
     set(k, v) { try { localStorage.setItem('mhm_' + k, JSON.stringify(v)); } catch (e) {} }
   };
-  const found = new Set(store.get('found', []));
-  let cleared = store.get('cleared', false);
-  const settings = Object.assign({ sound: true, voice: true, low: false }, store.get('settings', {}));
+  const found = new Set(store.get('found_v2', []));
+  let cleared = store.get('cleared_v2', false);
+  const settings = Object.assign({ sound: true, voice: true, low: false, easy: false }, store.get('settings', {}));
 
   const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
   const coarse = window.matchMedia && matchMedia('(pointer: coarse)').matches;
-  if (settings.low == null) settings.low = false;
 
   /* ---------- 렌더러 ---------- */
   const canvasEl = $('c');
@@ -44,9 +46,15 @@
   camera.rotation.order = 'YXZ';
   scene.add(camera);
 
+  // 조명 개수가 바뀌면 셰이더를 다시 만들어 끊기므로, 조명은 늘 그대로 두고 밝기만 바꾼다
   scene.add(new THREE.AmbientLight(0x6b5c4c, 0.42));
   const lantern = new THREE.PointLight(0xffd9a0, 1.15, 15, 1.6);
-  scene.add(lantern);
+  const docentGlow = new THREE.PointLight(0xffb070, 0.9, 5, 2);
+  const fireLight = new THREE.PointLight(0xff8a3a, 0, 9, 1.6);
+  const exitLight = new THREE.PointLight(0xfff0d0, 0, 12, 1.2);
+  fireLight.position.set(CX, 1.0, CZ);
+  exitLight.position.set(0, 2, -L - 2);
+  scene.add(lantern, docentGlow, fireLight, exitLight);
 
   const maxAniso = renderer.capabilities.getMaxAnisotropy();
   function tex(cnv, repeatX, repeatY) {
@@ -56,47 +64,50 @@
     return t;
   }
 
-  /* ---------- 전시실 만들기 ---------- */
+  /* ---------- 전시실 뼈대 ---------- */
   const pickables = [];
-  const exhibitObj = {};     // key -> { mesh, texture, draw }
+  const slots = {};          // L0~L4, R0~R4, M, C → { group, mesh, texture, draw, key }
   const lamps = [];
-  let signTex, signBackTex, rulesTex, farSignMesh, exitGroup, farTunnel;
+  let signTex, rulesTex, farSignMesh, exitGroup, farTunnel, wallMat, centerModel = null, fireFx = null;
 
-  function addPlane(w, h, mat, x, y, z, ry) {
+  function addPlane(w, h, mat, x, y, z, ry, parent) {
     const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
     m.position.set(x, y, z); m.rotation.y = ry || 0;
-    scene.add(m);
+    (parent || scene).add(m);
     return m;
   }
-  function addBox(w, h, d, mat, x, y, z) {
+  function addBox(w, h, d, mat, x, y, z, parent) {
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
-    m.position.set(x, y, z); scene.add(m);
+    m.position.set(x, y, z); (parent || scene).add(m);
     return m;
   }
 
   const wood = new THREE.MeshLambertMaterial({ color: 0x2a1c12 });
   const darkMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+  let glowFloor, washMat;
 
   function buildMuseum() {
+    glowFloor = tex(ART.glowTex('rgba(255,215,160,0.55)'));
+    washMat = new THREE.MeshBasicMaterial({ map: tex(ART.glowTex('rgba(255,210,150,0.45)')), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.55 });
+
     // 바닥, 천장, 벽
-    const floorMat = new THREE.MeshLambertMaterial({ map: tex(ART.floorTex(), 2, (L + 8) / 4) });
-    const floor = addPlane(HW * 2, L + 8, floorMat, 0, 0, -L / 2);
+    const floor = addPlane(HW * 2, L + 8, new THREE.MeshLambertMaterial({ map: tex(ART.floorTex(), 2, (L + 8) / 4) }), 0, 0, -L / 2);
     floor.rotation.x = -Math.PI / 2;
     const ceil = addPlane(HW * 2, L + 8, new THREE.MeshLambertMaterial({ color: 0x15130f }), 0, H, -L / 2);
     ceil.rotation.x = Math.PI / 2;
-    const wallMat = new THREE.MeshLambertMaterial({ map: tex(ART.wallTex(), L / 4, 1) });
+    wallMat = new THREE.MeshLambertMaterial({ map: tex(ART.wallTex(), L / 4, 1) });
     addPlane(L, H, wallMat, -HW, H / 2, -L / 2, Math.PI / 2);
     addPlane(L, H, wallMat, HW, H / 2, -L / 2, -Math.PI / 2);
 
     // 양 끝 벽 (가운데 문 구멍)
     const endMat = new THREE.MeshLambertMaterial({ color: 0x23251f });
     const dw = 2.2, dh = 2.9;
-    [[0, 0], [-L, Math.PI]].forEach(([z, ry]) => {
+    [0, -L].forEach(z => {
+      const ry = z === 0 ? Math.PI : 0;
       const sideW = HW - dw / 2;
-      addPlane(sideW, H, endMat, -(dw / 2 + sideW / 2), H / 2, z, ry === 0 ? Math.PI : 0);
-      addPlane(sideW, H, endMat, (dw / 2 + sideW / 2), H / 2, z, ry === 0 ? Math.PI : 0);
-      addPlane(dw, H - dh, endMat, 0, dh + (H - dh) / 2, z, ry === 0 ? Math.PI : 0);
-      // 문틀
+      addPlane(sideW, H, endMat, -(dw / 2 + sideW / 2), H / 2, z, ry);
+      addPlane(sideW, H, endMat, (dw / 2 + sideW / 2), H / 2, z, ry);
+      addPlane(dw, H - dh, endMat, 0, dh + (H - dh) / 2, z, ry);
       addBox(0.12, dh, 0.25, wood, -dw / 2, dh / 2, z);
       addBox(0.12, dh, 0.25, wood, dw / 2, dh / 2, z);
       addBox(dw + 0.24, 0.12, 0.25, wood, 0, dh, z);
@@ -105,30 +116,23 @@
     function tunnel(z0, dir) {
       const g = new THREE.Group();
       const m = new THREE.MeshLambertMaterial({ color: 0x15140f });
-      const len = 5;
-      const zc = z0 + dir * len / 2;
-      const w1 = new THREE.Mesh(new THREE.PlaneGeometry(len, dh), m); w1.position.set(-dw / 2, dh / 2, zc); w1.rotation.y = Math.PI / 2; g.add(w1);
-      const w2 = w1.clone(); w2.position.x = dw / 2; w2.rotation.y = -Math.PI / 2; g.add(w2);
-      const top = new THREE.Mesh(new THREE.PlaneGeometry(dw, len), m); top.position.set(0, dh, zc); top.rotation.x = Math.PI / 2; g.add(top);
-      const bot = new THREE.Mesh(new THREE.PlaneGeometry(dw, len), m); bot.position.set(0, 0.001, zc); bot.rotation.x = -Math.PI / 2; g.add(bot);
-      const back = new THREE.Mesh(new THREE.PlaneGeometry(dw, dh), darkMat); back.position.set(0, dh / 2, z0 + dir * len); back.rotation.y = dir > 0 ? Math.PI : 0; g.add(back);
+      const len = 5, zc = z0 + dir * len / 2;
+      addPlane(len, dh, m, -dw / 2, dh / 2, zc, Math.PI / 2, g);
+      addPlane(len, dh, m, dw / 2, dh / 2, zc, -Math.PI / 2, g);
+      addPlane(dw, len, m, 0, dh, zc, 0, g).rotation.x = Math.PI / 2;
+      addPlane(dw, len, m, 0, 0.001, zc, 0, g).rotation.x = -Math.PI / 2;
+      addPlane(dw, dh, darkMat, 0, dh / 2, z0 + dir * len, dir > 0 ? Math.PI : 0, g);
       scene.add(g);
       return g;
     }
     tunnel(0, 1);
     farTunnel = tunnel(-L, -1);
 
-    // 출구 (8번째 이후에만 보임)
+    // 출구 계단 (마지막 전시실을 지난 뒤에만 보임)
     exitGroup = new THREE.Group();
-    const light = new THREE.Mesh(new THREE.PlaneGeometry(dw, dh), new THREE.MeshBasicMaterial({ color: 0xfff6e0, fog: false }));
-    light.position.set(0, dh / 2 + 1.2, -L - 4.9); exitGroup.add(light);
+    addPlane(dw, dh, new THREE.MeshBasicMaterial({ color: 0xfff6e0, fog: false }), 0, dh / 2 + 1.2, -L - 4.9, 0, exitGroup);
     const stepMat = new THREE.MeshLambertMaterial({ color: 0x8c877a });
-    for (let i = 0; i < 8; i++) {
-      const s = new THREE.Mesh(new THREE.BoxGeometry(dw - 0.1, 0.18, 0.5), stepMat);
-      s.position.set(0, 0.09 + i * 0.18, -L - 0.6 - i * 0.5); exitGroup.add(s);
-    }
-    const exitGlow = new THREE.PointLight(0xfff0d0, 2.2, 12, 1.2);
-    exitGlow.position.set(0, 2, -L - 2); exitGroup.add(exitGlow);
+    for (let i = 0; i < 8; i++) addBox(dw - 0.1, 0.18, 0.5, stepMat, 0, 0.09 + i * 0.18, -L - 0.6 - i * 0.5, exitGroup);
     exitGroup.visible = false;
     scene.add(exitGroup);
 
@@ -137,71 +141,56 @@
     addPlane(1.6, 0.42, new THREE.MeshBasicMaterial({ map: tex(ART.drawSmallSign('← 되돌아가기', 'BACK', '#c9b48a')) }), 0, 3.3, -0.02, Math.PI);
 
     // 천장 조명
-    const glowFloor = tex(ART.glowTex('rgba(255,215,160,0.55)'));
     for (let z = -3; z > -L; z -= 6) {
       const lampMat = new THREE.MeshBasicMaterial({ color: 0xffe7bf });
-      const lamp = addPlane(1.6, 0.32, lampMat, 0, H - 0.02, z);
-      lamp.rotation.x = Math.PI / 2;
+      addPlane(1.6, 0.32, lampMat, 0, H - 0.02, z).rotation.x = Math.PI / 2;
       const pool = addPlane(4.2, 4.2, new THREE.MeshBasicMaterial({ map: glowFloor, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.5 }), 0, 0.012, z);
       pool.rotation.x = -Math.PI / 2;
       lamps.push({ lampMat, pool, z, flick: 0 });
     }
 
-    const wash = tex(ART.glowTex('rgba(255,210,150,0.45)'));
-    const washMat = new THREE.MeshBasicMaterial({ map: wash, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.55 });
-
-    // 왼쪽 벽 진열장
-    const leftCases = [['handaxe', -9], ['comb', -13.5], ['knife', -18], ['dagger', -30], ['gaya', -34.5], ['celadon', -39]];
-    leftCases.forEach(([key, z]) => {
-      const x = -HW + 0.02;
-      addBox(0.6, 0.45, 1.7, wood, -HW + 0.3, 0.225, z);              // 받침장
-      addBox(0.06, 2.4, 0.06, wood, -HW + 0.55, 1.62, z - 0.83);       // 유리장 기둥
-      addBox(0.06, 2.4, 0.06, wood, -HW + 0.55, 1.62, z + 0.83);
-      addBox(0.6, 0.08, 1.72, wood, -HW + 0.3, 2.84, z);
-      const glass = addBox(0.02, 2.36, 1.62, new THREE.MeshBasicMaterial({ color: 0x9fb5c0, transparent: true, opacity: 0.06, depthWrite: false }), -HW + 0.58, 1.64, z);
-      glass.renderOrder = 2;
-      makeExhibit(key, 1.5, 2.25, x, 1.6, z, Math.PI / 2, ART.drawCase);
-      const w = addPlane(2.6, 2.6, washMat, x + 0.01, 2.6, z, Math.PI / 2);
-      w.renderOrder = 1;
+    // 왼쪽 벽 진열장 자리
+    [['L0', -9], ['L1', -15], ['L2', -21], ['L3', -33], ['L4', -39]].forEach(([name, z]) => {
+      const g = new THREE.Group();
+      addBox(0.6, 0.45, 1.7, wood, -HW + 0.3, 0.225, z, g);
+      addBox(0.06, 2.4, 0.06, wood, -HW + 0.55, 1.62, z - 0.83, g);
+      addBox(0.06, 2.4, 0.06, wood, -HW + 0.55, 1.62, z + 0.83, g);
+      addBox(0.6, 0.08, 1.72, wood, -HW + 0.3, 2.84, z, g);
+      addBox(0.02, 2.36, 1.62, new THREE.MeshBasicMaterial({ color: 0x9fb5c0, transparent: true, opacity: 0.06, depthWrite: false }), -HW + 0.58, 1.64, z, g).renderOrder = 2;
+      addPlane(2.6, 2.6, washMat, -HW + 0.03, 2.6, z, Math.PI / 2, g).renderOrder = 1;
+      makeSlot(name, g, 1.5, 2.25, -HW + 0.02, 1.6, z, Math.PI / 2, ART.drawCase);
     });
-    // 고분 벽화 (왼쪽 벽 끝)
-    addBox(0.08, 2.2, 3.2, wood, -HW + 0.02, 1.75, -44.5);
-    makeExhibit('mural', 3.0, 2.0, -HW + 0.08, 1.75, -44.5, Math.PI / 2, ART.drawMural);
-    addPlane(4, 3.4, washMat, -HW + 0.04, 2.3, -44.5, Math.PI / 2);
-
-    // 오른쪽 벽 패널
-    const rightPanels = [['timeline', -10, ART.drawTimeline], ['gojoseon', -16, ART.drawPanel], ['samguk', -26.5, ART.drawPanel],
-      ['unified', -32, ART.drawPanel], ['goryeo', -37.5, ART.drawPanel], ['goryeoCulture', -43, ART.drawPanel]];
-    rightPanels.forEach(([key, z, fn]) => {
-      addBox(0.06, 2.0, 2.76, wood, HW - 0.02, 1.85, z);
-      makeExhibit(key, 2.6, 1.86, HW - 0.06, 1.85, z, -Math.PI / 2, fn);
-      addPlane(3.6, 3.2, washMat, HW - 0.04, 2.5, z, -Math.PI / 2);
+    // 왼쪽 끝 큰 그림 자리
+    {
+      const g = new THREE.Group();
+      addBox(0.08, 2.35, 3.2, wood, -HW + 0.02, 1.8, -45, g);
+      addPlane(4, 3.4, washMat, -HW + 0.04, 2.3, -45, Math.PI / 2, g);
+      makeSlot('M', g, 3.0, 2.15, -HW + 0.08, 1.8, -45, Math.PI / 2, ART.drawMural);
+    }
+    // 오른쪽 벽 패널 자리
+    [['R0', -10], ['R1', -17], ['R2', -28], ['R3', -35], ['R4', -42]].forEach(([name, z]) => {
+      const g = new THREE.Group();
+      addBox(0.06, 2.0, 2.76, wood, HW - 0.02, 1.85, z, g);
+      addPlane(3.6, 3.2, washMat, HW - 0.04, 2.5, z, -Math.PI / 2, g);
+      makeSlot(name, g, 2.6, 1.86, HW - 0.06, 1.85, z, -Math.PI / 2, ART.drawPanel);
     });
+    // 가운데 모형 설명판 자리
+    {
+      const g = new THREE.Group();
+      addBox(0.06, 0.75, 0.06, wood, CX + 0.15, 0.38, CZ + 1.97, g);
+      const pool = addPlane(4.5, 4.5, new THREE.MeshBasicMaterial({ map: glowFloor, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.7 }), CX, 0.02, CZ, 0, g);
+      pool.rotation.x = -Math.PI / 2;
+      const label = makeSlot('C', g, 1.05, 0.58, CX + 0.15, 0.9, CZ + 1.9, 0.35, ART.drawLabel);
+      label.rotation.x = -0.5;
+    }
 
     // 문 (분위기용)
     const doorMat = new THREE.MeshLambertMaterial({ color: 0x3a3631 });
-    [[-21, '수장고'], [-4, '관계자 외 출입금지']].forEach(([z, label]) => {
+    [[-22.5, '수장고'], [-4, '관계자 외 출입금지']].forEach(([z, label]) => {
       addBox(0.08, 2.4, 1.2, doorMat, HW - 0.04, 1.2, z);
       addPlane(0.9, 0.28, new THREE.MeshBasicMaterial({ map: tex(ART.drawDoorPlate(label)) }), HW - 0.09, 2.0, z, -Math.PI / 2);
       addBox(0.1, 0.06, 0.18, new THREE.MeshLambertMaterial({ color: 0x8a8070 }), HW - 0.12, 1.1, z + 0.4);
     });
-
-    // 고인돌 복제품
-    const stone = new THREE.MeshLambertMaterial({ map: tex(ART.stoneTex()) });
-    const dz = -24.5, dx = -1.95;
-    addBox(2.5, 0.2, 2.2, new THREE.MeshLambertMaterial({ color: 0x1d1a16 }), dx, 0.1, dz);
-    const parts = [
-      addBox(0.25, 1.15, 1.4, stone, dx - 0.7, 0.78, dz),
-      addBox(0.25, 1.15, 1.4, stone, dx + 0.7, 0.78, dz),
-      addBox(2.2, 0.32, 1.9, stone, dx, 1.5, dz)
-    ];
-    parts[2].rotation.z = 0.04; parts[2].rotation.y = 0.05;
-    parts.forEach(p => { p.userData.key = 'dolmen'; pickables.push(p); });
-    const dl = makeExhibit('dolmen', 1.05, 0.58, dx + 0.15, 0.9, dz + 1.75, 0.35, ART.drawDolmenLabel);
-    dl.rotation.x = -0.5;
-    addBox(0.06, 0.75, 0.06, wood, dx + 0.15, 0.38, dz + 1.82);
-    const dPool = addPlane(4.5, 4.5, new THREE.MeshBasicMaterial({ map: glowFloor, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.7 }), dx, 0.21, dz);
-    dPool.rotation.x = -Math.PI / 2;
 
     // 입구: 관람 안내판 + 전시실 번호 표지판
     rulesTex = tex(ART.drawRules(''));
@@ -209,70 +198,188 @@
     rules.userData.key = 'rules'; pickables.push(rules);
     addPlane(2.4, 2.6, washMat, -HW + 0.05, 2.3, -4.2, Math.PI / 2);
 
-    signTex = tex(ART.drawSign(0));
+    signTex = tex(ART.drawSign(0, ROOMS[0].name));
     const sign = addPlane(2.4, 0.7, new THREE.MeshBasicMaterial({ map: signTex }), 0, 3.35, -6.5, 0);
     sign.userData.key = 'sign'; pickables.push(sign);
-    signBackTex = tex(ART.drawSmallSign('← 지나온 전시실', 'BACK', '#c9b48a'));
-    addPlane(2.4, 0.7, new THREE.MeshBasicMaterial({ map: signBackTex }), 0, 3.35, -6.52, Math.PI);
+    addPlane(2.4, 0.7, new THREE.MeshBasicMaterial({ map: tex(ART.drawSmallSign('← 지나온 전시실', 'BACK', '#c9b48a')) }), 0, 3.35, -6.52, Math.PI);
     addBox(0.03, 0.5, 0.03, darkMat, -0.9, 3.95, -6.51);
     addBox(0.03, 0.5, 0.03, darkMat, 0.9, 3.95, -6.51);
   }
 
-  function makeExhibit(key, w, h, x, y, z, ry, drawFn) {
-    const cnv = drawFn(window.EXHIBITS[key]);
+  function makeSlot(name, group, w, h, x, y, z, ry, drawFn) {
+    const cnv = drawFn({ title: '', tag: '', lines: [], steps: [], art: 'handaxe' });
     const t = tex(cnv);
-    const mat = new THREE.MeshBasicMaterial({ map: t, color: 0xd6cdbd });
-    const mesh = addPlane(w, h, mat, x, y, z, ry);
-    mesh.userData.key = key;
+    const mesh = addPlane(w, h, new THREE.MeshBasicMaterial({ map: t, color: 0xd6cdbd }), x, y, z, ry, group);
+    mesh.userData.slot = name;
     pickables.push(mesh);
-    exhibitObj[key] = { mesh, texture: t, draw: drawFn, canvas: cnv };
+    scene.add(group);
+    slots[name] = { group, mesh, texture: t, draw: drawFn, canvas: cnv, key: null };
     return mesh;
   }
 
+  /* ---------- 가운데 3D 모형 ---------- */
+  const stoneMatCache = {};
+  function stoneMat(color) {
+    if (!stoneMatCache[color]) stoneMatCache[color] = new THREE.MeshLambertMaterial({ map: tex(ART.stoneTex()), color });
+    return stoneMatCache[color];
+  }
+  const MODELS = {
+    dolmen(g) {
+      const stone = stoneMat(0xffffff);
+      addBox(2.5, 0.2, 2.2, new THREE.MeshLambertMaterial({ color: 0x1d1a16 }), 0, 0.1, 0, g);
+      addBox(0.25, 1.15, 1.4, stone, -0.7, 0.78, 0, g);
+      addBox(0.25, 1.15, 1.4, stone, 0.7, 0.78, 0, g);
+      const cap = addBox(2.2, 0.32, 1.9, stone, 0, 1.5, 0, g);
+      cap.rotation.z = 0.04; cap.rotation.y = 0.05;
+    },
+    firepit(g) {
+      const stone = stoneMat(0x9a958a);
+      for (let i = 0; i < 9; i++) {
+        const a = i / 9 * Math.PI * 2;
+        const m = new THREE.Mesh(new THREE.DodecahedronGeometry(0.17), stone);
+        m.position.set(Math.cos(a) * 0.55, 0.12, Math.sin(a) * 0.55); m.rotation.set(a, a * 2, 0); g.add(m);
+      }
+      const logMat = new THREE.MeshLambertMaterial({ color: 0x2a1a0e });
+      [0.4, -0.5, 1.4].forEach(r => {
+        const log = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.07, 0.8, 6), logMat);
+        log.rotation.z = Math.PI / 2 - 0.3; log.rotation.y = r; log.position.y = 0.18; g.add(log);
+      });
+      const flameTex = tex(ART.glowTex('rgba(255,170,70,0.95)'));
+      const flames = [0, 1, 2].map(i => {
+        const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: flameTex, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }));
+        sp.position.set((i - 1) * 0.12, 0.45, 0); sp.scale.set(0.6, 0.9, 1); g.add(sp);
+        return sp;
+      });
+      fireFx = { flames, t: 0 };
+    },
+    pithouse(g) {
+      const pitMat = new THREE.MeshLambertMaterial({ color: 0x241a12 });
+      const pit = new THREE.Mesh(new THREE.CylinderGeometry(1.45, 1.45, 0.08, 18), pitMat);
+      pit.position.y = 0.04; g.add(pit);
+      const roofTex = document.createElement('canvas'); roofTex.width = 256; roofTex.height = 256;
+      const c = roofTex.getContext('2d');
+      c.fillStyle = '#6b5232'; c.fillRect(0, 0, 256, 256);
+      for (let i = 0; i < 500; i++) { c.strokeStyle = `rgba(${Math.random() < 0.5 ? '40,28,14' : '150,120,70'},0.5)`; c.beginPath(); const x = Math.random() * 256; c.moveTo(x, Math.random() * 256); c.lineTo(x + (Math.random() - 0.5) * 6, Math.random() * 256); c.stroke(); }
+      const roof = new THREE.Mesh(new THREE.ConeGeometry(1.4, 2.3, 14, 1, true), new THREE.MeshLambertMaterial({ map: tex(roofTex, 3, 1), side: THREE.DoubleSide }));
+      roof.position.y = 1.2; g.add(roof);
+      const door = addPlane(0.55, 0.85, new THREE.MeshBasicMaterial({ color: 0x050302 }), 0.32, 0.45, 0.98, 0.35, g);
+      door.rotation.x = -0.45;
+      const top = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.12, 0.4, 6), new THREE.MeshLambertMaterial({ color: 0x3a2a18 }));
+      top.position.y = 2.45; g.add(top);
+    },
+    stele(g) {
+      const cnv = document.createElement('canvas'); cnv.width = 256; cnv.height = 1024;
+      const c = cnv.getContext('2d');
+      c.fillStyle = '#7d7a70'; c.fillRect(0, 0, 256, 1024);
+      for (let i = 0; i < 900; i++) { c.fillStyle = `rgba(${Math.random() < 0.5 ? '30,30,26' : '200,198,185'},${0.12 * Math.random()})`; c.beginPath(); c.arc(Math.random() * 256, Math.random() * 1024, Math.random() * 10, 0, 7); c.fill(); }
+      c.fillStyle = 'rgba(30,28,24,0.6)'; c.font = '600 26px "Noto Serif KR", serif'; c.textAlign = 'center';
+      const han = '天地人王國民山川高句麗太王廣開土境好太王百濟新羅城東西南北中年月日';
+      for (let x = 230; x > 20; x -= 32) for (let y = 40; y < 1000; y += 30) if (Math.random() > 0.15) c.fillText(han[Math.floor(Math.random() * han.length)], x, y);
+      const m = new THREE.Mesh(new THREE.BoxGeometry(0.85, 3.3, 0.75), new THREE.MeshLambertMaterial({ map: tex(cnv) }));
+      m.position.y = 1.85; m.rotation.y = 0.12; m.rotation.z = 0.015; g.add(m);
+      addBox(1.5, 0.2, 1.3, new THREE.MeshLambertMaterial({ color: 0x1d1a16 }), 0, 0.1, 0, g);
+    },
+    pagoda(g, ex) {
+      const tiers = (ex.visual && ex.visual.tiers) || ex.tiers || 3;
+      const octa = ex.shape === 'octa';
+      const stone = stoneMat(0xc8c2b4);
+      const seg = octa ? 8 : 4;
+      const prism = (rTop, rBot, h, y) => {
+        const m = new THREE.Mesh(new THREE.CylinderGeometry(rTop, rBot, h, seg), stone);
+        m.position.y = y; m.rotation.y = octa ? 0 : Math.PI / 4; g.add(m);
+        return m;
+      };
+      // 기단 2단
+      prism(0.95, 1.0, 0.35, 0.175);
+      prism(0.75, 0.8, 0.3, 0.5);
+      // 층수가 달라도 전체 높이는 비슷하게 → 층의 수로만 구별된다
+      const total = 2.7, th = total / tiers;
+      let y = 0.65;
+      for (let i = 0; i < tiers; i++) {
+        const k = 1 - i / (tiers + 2) * 0.6;
+        const bodyH = th * 0.55;
+        prism(0.42 * k, 0.45 * k, bodyH, y + bodyH / 2);
+        y += bodyH;
+        const roofH = th * 0.22;
+        prism(0.62 * k, 0.75 * k, roofH, y + roofH / 2);
+        y += roofH + th * 0.06;
+      }
+      const fin = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.06, 0.55, 6), new THREE.MeshLambertMaterial({ color: 0x5a5444 }));
+      fin.position.y = y + 0.27; g.add(fin);
+    }
+  };
+
+  function buildCenter(ex) {
+    if (centerModel) {
+      scene.remove(centerModel);
+      centerModel.traverse(o => { if (o.isMesh && o.geometry) o.geometry.dispose(); });
+      centerModel = null;
+    }
+    for (let i = pickables.length - 1; i >= 0; i--) if (pickables[i].userData.centerPart) pickables.splice(i, 1);
+    fireFx = null;
+    fireLight.intensity = 0;
+    if (!ex || !MODELS[ex.model]) return;
+    const g = new THREE.Group();
+    MODELS[ex.model](g, ex);
+    g.position.set(CX, 0, CZ);
+    g.traverse(o => { if (o.isMesh) { o.userData.slot = 'C'; o.userData.centerPart = true; pickables.push(o); } });
+    scene.add(g);
+    centerModel = g;
+  }
+
   /* ---------- 떠도는 해설사 ---------- */
-  let docent, docentGlow;
+  let docent;
   function buildDocent() {
-    const mat = new THREE.SpriteMaterial({ map: tex(ART.drawDocent()), transparent: true, opacity: 0.88, depthWrite: false });
-    docent = new THREE.Sprite(mat);
+    docent = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex(ART.drawDocent()), transparent: true, opacity: 0.88, depthWrite: false }));
     docent.scale.set(0.88, 1.92, 1);
     docent.userData.key = 'docent';
     scene.add(docent);
     pickables.push(docent);
-    docentGlow = new THREE.PointLight(0xffb070, 0.9, 5, 2);
-    scene.add(docentGlow);
   }
 
   /* ---------- 게임 상태 ---------- */
   const S = {
     mode: 'title',          // title | play | inspect | note | menu | trans | ending
-    streak: 0,
+    streak: 0,              // = 지금 전시실 번호
     anomaly: null,
     lastAnomalyId: null,
     firstGallery: true,
     exitRoom: false,
+    startRoom: 0,
+    forced: null,
     z: -2, yaw: 0, pitch: 0,
     turning: 0, turnFrom: 0, turnTo: 0,
     bob: 0, lastStepSign: 0,
     docZ: -L + 2, docStep: 0, spoke: false, docSpeech: '',
-    startTime: 0, mistakes: 0, foundThisRun: 0,
-    hintTimer: 0
+    startTime: 0, mistakes: 0, foundThisRun: 0
   };
 
+  function room() { return ROOMS[Math.min(S.streak, ROOMS.length - 1)]; }
+
   function current(key) {
-    const base = window.EXHIBITS[key];
-    if (S.anomaly && S.anomaly.target === key) return applyPatch(base, S.anomaly.patch);
-    return applyPatch(base, null);
+    const base = room().exhibits[key];
+    return applyPatch(base, S.anomaly && S.anomaly.target === key ? S.anomaly.patch : null);
   }
 
-  function redrawExhibits() {
-    Object.keys(exhibitObj).forEach(key => {
-      const o = exhibitObj[key];
-      const cnv = o.draw(current(key));
-      o.canvas = cnv;
-      o.texture.image = cnv;
-      o.texture.needsUpdate = true;
+  function setupRoom() {
+    const r = room();
+    Object.values(slots).forEach(s => { s.group.visible = false; s.key = null; });
+    buildCenter(null);
+    S.docSpeech = '';
+    if (S.exitRoom) return;
+    wallMat.color.setHex(r.wall || 0xffffff);
+    Object.keys(r.exhibits).forEach(key => {
+      const ex = current(key);
+      if (ex.kind === 'docent') { S.docSpeech = ex.speech; return; }
+      const slot = slots[ex.slot];
+      const cnv = slot.draw(ex);
+      slot.canvas = cnv;
+      slot.texture.image = cnv;
+      slot.texture.needsUpdate = true;
+      slot.group.visible = true;
+      slot.key = key;
+      if (ex.kind === 'center') buildCenter(ex);
     });
-    S.docSpeech = current('docent').speech;
   }
 
   function rulesInfo() {
@@ -286,8 +393,9 @@
     if (S.forced) { const f = S.forced; S.forced = null; return f; }
     if (S.firstGallery || S.exitRoom) return null;
     if (Math.random() > ANOMALY_RATE) return null;
-    let pool = window.ANOMALIES.filter(a => !found.has(a.id));
-    if (pool.length === 0) pool = window.ANOMALIES.slice();
+    const all = room().anomalies;
+    let pool = all.filter(a => !found.has(a.id));
+    if (pool.length === 0) pool = all.slice();
     if (pool.length > 1) pool = pool.filter(a => a.id !== S.lastAnomalyId);
     return pool[Math.floor(Math.random() * pool.length)];
   }
@@ -296,15 +404,17 @@
     S.exitRoom = S.streak >= GOAL;
     S.anomaly = pickAnomaly();
     if (S.anomaly) S.lastAnomalyId = S.anomaly.id;
-    redrawExhibits();
-    signTex.image = ART.drawSign(S.streak); signTex.needsUpdate = true;
+    setupRoom();
+    signTex.image = ART.drawSign(S.streak, S.exitRoom ? '' : room().name); signTex.needsUpdate = true;
     rulesTex.image = ART.drawRules(rulesInfo()); rulesTex.needsUpdate = true;
     exitGroup.visible = S.exitRoom;
+    exitLight.intensity = S.exitRoom ? 2.2 : 0;
     farTunnel.visible = !S.exitRoom;
     farSignMesh.visible = !S.exitRoom;
     S.z = -2; S.yaw = 0; S.pitch = 0; S.turning = 0;
     S.docZ = -L + 1.5; S.spoke = false;
     docent.visible = !S.exitRoom;
+    docentGlow.intensity = S.exitRoom ? 0 : 0.9;
     hideSubtitle();
     S.firstGallery = false;
   }
@@ -323,6 +433,7 @@
     keys.fwd = keys.back = false;
     SFX.whoosh(); SFX.stopSpeak();
     const had = S.anomaly;
+    const roomName = S.exitRoom ? '' : `제 ${S.streak} 전시실 · ${room().name}`;
 
     if (S.exitRoom && dir === 'forward') {
       fadeTo(1, 900).then(showEnding);
@@ -334,14 +445,14 @@
       S.streak++;
       if (had) {
         const isNew = !found.has(had.id);
-        found.add(had.id); store.set('found', Array.from(found));
+        found.add(had.id); store.set('found_v2', Array.from(found));
         S.foundThisRun++;
-        note = { good: true, a: had, isNew };
+        note = { good: true, a: had, isNew, roomName };
       }
     } else {
-      S.streak = 0;
+      S.streak = settings.easy ? Math.max(0, S.streak - 1) : 0;
       S.mistakes++;
-      note = { good: false, a: had, dir };
+      note = { good: false, a: had, roomName };
     }
 
     fadeTo(1, 700).then(() => {
@@ -363,19 +474,20 @@
   function showNote(n, done) {
     S.mode = 'note';
     const card = $('noteCard');
-    let html = '';
+    const back = settings.easy ? '한 전시실 뒤로.' : '처음부터 다시.';
+    let html = n.roomName ? `<div class="k" style="margin-top:0">${n.roomName}</div>` : '';
     if (n.good) {
-      html = `<h2 class="good">이상 현상을 발견했다${n.isNew ? '' : ' (이미 기록됨)'}</h2>
+      html += `<h2 class="good">이상 현상을 발견했다${n.isNew ? '' : ' (이미 기록됨)'}</h2>
         <div class="k">이상했던 점</div><p class="wrongtxt">${n.a.wrong}</p>
         <div class="k">교과서 속 사실</div><p class="right">${n.a.right}</p>`;
     } else if (n.a) {
-      html = `<h2 class="bad">…놓쳤다. 처음부터 다시.</h2>
+      html += `<h2 class="bad">…놓쳤다. ${back}</h2>
         <div class="k">이 전시실의 이상 현상</div><p class="wrongtxt">${n.a.wrong}</p>
         <div class="k">교과서 속 사실</div><p class="right">${n.a.right}</p>`;
     } else {
-      html = `<h2 class="bad">…되돌아갈 필요가 없었다.</h2>
-        <p>이 전시실에는 이상한 전시가 하나도 없었다.<br>정상인 전시를 잘 기억해 두면, 다음엔 헷갈리지 않을 것이다.</p>
-        <p style="margin-top:10px;color:#7a6a4e">처음부터 다시.</p>`;
+      html += `<h2 class="bad">…되돌아갈 필요가 없었다.</h2>
+        <p>이 전시실에는 이상한 전시가 하나도 없었다.<br>교과서 내용과 꼼꼼히 비교해 보면, 다음엔 헷갈리지 않을 것이다.</p>
+        <p style="margin-top:10px;color:#7a6a4e">${back}</p>`;
     }
     html += `<button class="btn" id="noteOk">계속</button>`;
     card.innerHTML = html;
@@ -390,7 +502,7 @@
     S.mode = 'ending';
     SFX.exitBell();
     const firstClear = !cleared;
-    cleared = true; store.set('cleared', true);
+    cleared = true; store.set('cleared_v2', true);
     const sec = Math.round((performance.now() - S.startTime) / 1000);
     const remain = window.ANOMALIES.filter(a => !found.has(a.id)).length;
     $('endStat').innerHTML = `
@@ -413,17 +525,25 @@
     recordReturn = from;
     const list = $('recordList');
     list.innerHTML = '';
-    window.ANOMALIES.forEach(a => {
-      const d = document.createElement('div');
-      const name = window.EXHIBITS[a.target].title || '해설사';
-      if (found.has(a.id)) {
-        d.className = 'item';
-        d.innerHTML = `<div class="t">✔ [${name}] ${a.wrong}</div><div class="r">→ ${a.right}</div>`;
-      } else {
-        d.className = 'item unknown';
-        d.innerHTML = `<div class="t">??? — ${a.target === 'docent' ? '해설사' : name} 주변에서 무언가가…</div>`;
-      }
-      list.appendChild(d);
+    ROOMS.forEach((r, no) => {
+      const got = r.anomalies.filter(a => found.has(a.id)).length;
+      const h = document.createElement('div');
+      h.className = 'roomhead';
+      h.textContent = `제 ${no} 전시실 · ${r.name}  (${got} / ${r.anomalies.length})`;
+      list.appendChild(h);
+      r.anomalies.forEach(a => {
+        const d = document.createElement('div');
+        const ex = r.exhibits[a.target];
+        const name = a.target === 'docent' ? '해설사' : ex.title;
+        if (found.has(a.id)) {
+          d.className = 'item';
+          d.innerHTML = `<div class="t">✔ [${name}] ${a.wrong}</div><div class="r">→ ${a.right}</div>`;
+        } else {
+          d.className = 'item unknown';
+          d.innerHTML = `<div class="t">??? — ${name} 주변에서 무언가가…</div>`;
+        }
+        list.appendChild(d);
+      });
     });
     $('recordCount').textContent = `발견한 이상 현상 ${found.size} / ${window.ANOMALIES.length}`;
     showScreen('record');
@@ -459,7 +579,7 @@
   let look = null;
   canvasEl.addEventListener('pointerdown', e => {
     if (S.mode !== 'play' || look) return;
-    look = { id: e.pointerId, x: e.clientX, y: e.clientY, sx: e.clientX, sy: e.clientY, moved: 0 };
+    look = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: 0 };
     try { canvasEl.setPointerCapture(e.pointerId); } catch (er) {}
   });
   canvasEl.addEventListener('pointermove', e => {
@@ -483,10 +603,10 @@
   canvasEl.addEventListener('pointerup', endLook);
   canvasEl.addEventListener('pointercancel', e => { if (look && e.pointerId === look.id) look = null; });
 
-  // 터치 버튼
+  // 화면 버튼
   function holdBtn(el, onDown, onUp) {
     el.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); el.classList.add('active'); onDown(); try { el.setPointerCapture(e.pointerId); } catch (er) {} });
-    const up = e => { el.classList.remove('active'); onUp && onUp(); };
+    const up = () => { el.classList.remove('active'); onUp && onUp(); };
     el.addEventListener('pointerup', up); el.addEventListener('pointercancel', up); el.addEventListener('lostpointercapture', up);
   }
   holdBtn($('tFwd'), () => { keys.fwd = true; }, () => { keys.fwd = false; });
@@ -501,11 +621,12 @@
   /* ---------- 자세히 보기 ---------- */
   const raycaster = new THREE.Raycaster();
   const ndc = new THREE.Vector2();
+  function shown(o) { for (; o; o = o.parent) if (!o.visible) return false; return true; }
   function rayAt(cx, cy, center) {
     if (center) ndc.set(0, 0);
     else ndc.set((cx / window.innerWidth) * 2 - 1, -(cy / window.innerHeight) * 2 + 1);
     raycaster.setFromCamera(ndc, camera);
-    const hits = raycaster.intersectObjects(pickables.filter(o => o.visible), false);
+    const hits = raycaster.intersectObjects(pickables.filter(shown), false);
     return hits[0] || null;
   }
   let hoverT = 0;
@@ -520,15 +641,13 @@
     const h = rayAt(x, y, center);
     if (!h) return;
     if (h.distance > INSPECT_RANGE) { showHint('더 가까이 다가가세요…', 1600); return; }
-    const key = h.object.userData.key;
-    if (key === 'docent') { showSubtitle(S.docSpeech); return; }
-    openInspect(key);
+    const u = h.object.userData;
+    if (u.key === 'docent') { showSubtitle(S.docSpeech); return; }
+    if (u.key === 'rules') return openInspect(rulesTex.image);
+    if (u.key === 'sign') return openInspect(signTex.image);
+    if (u.slot && slots[u.slot]) openInspect(slots[u.slot].canvas);
   }
-  function openInspect(key) {
-    let src;
-    if (key === 'rules') src = rulesTex.image;
-    else if (key === 'sign') src = signTex.image;
-    else if (exhibitObj[key]) src = exhibitObj[key].canvas;
+  function openInspect(src) {
     if (!src) return;
     const c = document.createElement('canvas');
     c.width = src.width; c.height = src.height;
@@ -545,6 +664,7 @@
   /* ---------- 자막 / 힌트 ---------- */
   let subTimer = 0;
   function showSubtitle(text) {
+    if (!text) return;
     $('subText').textContent = text;
     $('subtitle').classList.add('on');
     clearTimeout(subTimer);
@@ -574,14 +694,16 @@
   $('recordClose').onclick = () => showScreen(recordReturn);
   $('recordReset').onclick = () => {
     if (!confirm('발견한 이상 현상 기록을 모두 지울까요?')) return;
-    found.clear(); cleared = false; store.set('found', []); store.set('cleared', false);
+    found.clear(); cleared = false; store.set('found_v2', []); store.set('cleared_v2', false);
     openRecord(recordReturn);
   };
-  $('optSound').checked = settings.sound; $('optVoice').checked = settings.voice; $('optLow').checked = settings.low;
+  const opts = { optSound: 'sound', optVoice: 'voice', optLow: 'low', optEasy: 'easy' };
+  Object.keys(opts).forEach(id => { $(id).checked = settings[opts[id]]; });
   SFX.setEnabled(settings.sound); SFX.setVoice(settings.voice);
   $('optSound').onchange = e => { settings.sound = e.target.checked; SFX.setEnabled(settings.sound); store.set('settings', settings); };
   $('optVoice').onchange = e => { settings.voice = e.target.checked; SFX.setVoice(settings.voice); store.set('settings', settings); };
   $('optLow').onchange = e => { settings.low = e.target.checked; applyPixelRatio(); applyLow(); store.set('settings', settings); };
+  $('optEasy').onchange = e => { settings.easy = e.target.checked; store.set('settings', settings); };
   function applyLow() { $('grain').style.display = settings.low ? 'none' : 'block'; }
   applyLow();
 
@@ -589,7 +711,7 @@
   function startGame() {
     SFX.init();
     if (window.speechSynthesis) try { speechSynthesis.getVoices(); } catch (e) {}
-    S.streak = 0; S.firstGallery = true; S.mistakes = 0; S.foundThisRun = 0;
+    S.streak = S.startRoom; S.firstGallery = true; S.mistakes = 0; S.foundThisRun = 0;
     S.startTime = performance.now();
     newGallery();
     showScreen(null);
@@ -602,7 +724,7 @@
     setTimeout(() => showHint(isTouch ? '전시물을 눌러 자세히 볼 수 있습니다' : '전시물을 클릭하면 자세히 볼 수 있습니다', 4500), 1800);
   }
   $('startBtn').onclick = startGame;
-  $('againBtn').onclick = () => { fadeEl.style.opacity = 1; startGame(); };
+  $('againBtn').onclick = () => { fadeEl.style.opacity = 1; S.startRoom = 0; startGame(); };
 
   $('controlsInfo').innerHTML = isTouch
     ? '▲ 걷기 · ▼ 뒷걸음 · ⟲ 뒤돌기 · 화면을 끌어서 둘러보기 · 전시물을 눌러 자세히 보기'
@@ -610,7 +732,6 @@
 
   /* ---------- 매 프레임 ---------- */
   let last = performance.now();
-  let flickerT = 0;
   function frame(now) {
     requestAnimationFrame(frame);
     const dt = Math.min(0.05, (now - last) / 1000);
@@ -664,18 +785,25 @@
         S.docStep += dt;
         if (S.docStep > 0.72) {
           S.docStep = 0;
-          const d = Math.abs(S.docZ - S.z);
-          SFX.step(Math.max(0, 0.45 - d * 0.025), 0.75);
+          SFX.step(Math.max(0, 0.45 - Math.abs(S.docZ - S.z) * 0.025), 0.75);
         }
       }
-      const sway = Math.sin(now / 900) * 0.02;
-      docent.position.set(1.35 + sway, 0.96, S.docZ);
+      docent.position.set(1.35 + Math.sin(now / 900) * 0.02, 0.96, S.docZ);
       docentGlow.position.set(1.55, 1.1, S.docZ + 0.3);
       if (!S.spoke && Math.abs(S.docZ - S.z) < 5 && active) { S.spoke = true; showSubtitle(S.docSpeech); }
     }
 
+    // 모닥불
+    if (fireFx) {
+      fireFx.t += dt;
+      fireFx.flames.forEach((f, i) => {
+        const k = 0.85 + Math.sin(fireFx.t * (7 + i * 3)) * 0.12 + Math.random() * 0.08;
+        f.scale.set(0.55 * k, 0.95 * k, 1);
+      });
+      fireLight.intensity = 1.6 + Math.sin(fireFx.t * 11) * 0.25 + Math.random() * 0.2;
+    }
+
     // 깜빡이는 조명
-    flickerT -= dt;
     lamps.forEach(l => {
       if (l.flick > 0) {
         l.flick -= dt;
@@ -717,6 +845,18 @@
     $('grain').style.backgroundImage = `url(${g.toDataURL()})`;
   })();
 
+  /* ---------- 교사용 미리보기 ---------- */
+  // ?room=번호  → 그 전시실부터 시작
+  // ?test=이상현상ID (예: goryeo2.ce_white) → 그 전시실에서 그 이상 현상이 바로 나온다
+  const params = new URLSearchParams(location.search);
+  const roomParam = parseInt(params.get('room'), 10);
+  if (roomParam >= 0 && roomParam < ROOMS.length) S.startRoom = roomParam;
+  const testId = params.get('test');
+  if (testId) {
+    S.forced = window.ANOMALIES.find(a => a.id === testId || a.id.endsWith('.' + testId)) || null;
+    if (S.forced) S.startRoom = S.forced.room;
+  }
+
   /* ---------- 불러오기 ---------- */
   function timeout(ms) { return new Promise(r => setTimeout(r, ms)); }
   async function boot() {
@@ -738,6 +878,7 @@
     buildMuseum();
     buildDocent();
     const forced = S.forced;
+    S.streak = S.startRoom;
     newGallery();
     S.forced = forced;
     camera.position.set(0, EYE, -2);
@@ -747,12 +888,9 @@
   }
   boot();
 
-  // 교사용 미리보기: 주소 뒤에 ?test=이상현상ID 를 붙이면 첫 전시실에 그 이상 현상이 나온다
-  const testId = new URLSearchParams(location.search).get('test');
-  if (testId) S.forced = window.ANOMALIES.find(a => a.id === testId) || null;
-
   window.MHM = {
-    show(id) { S.anomaly = window.ANOMALIES.find(a => a.id === id) || null; redrawExhibits(); },
-    state: S
+    state: S,
+    show(id) { S.anomaly = window.ANOMALIES.find(a => a.id === id) || null; setupRoom(); },
+    goRoom(n) { S.streak = n; S.anomaly = null; newGallery(); }
   };
 })();

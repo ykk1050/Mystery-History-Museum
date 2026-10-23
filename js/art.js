@@ -9,40 +9,35 @@
   const ERA_COLOR = {
     '구석기 시대': '#7a5c3c', '신석기 시대': '#55703d', '청동기 시대': '#2f7a72',
     '고조선': '#8a4b22', '삼국 시대': '#7d2f2f', '가야': '#5a4a7f',
-    '신라': '#9a7a1f', '고려': '#2c5d7d'
+    '신라': '#9a7a1f', '고려': '#2c5d7d', '백제': '#6a3d5c', '고구려': '#3d4f7a',
+    '통일신라': '#a0522d', '발해': '#3d6a5a', '조선': '#4f4f4f', '중국 역사책': '#6b5a45'
   };
 
-  // 사용자가 넣은 이미지 (ASSETS.md) — 있으면 그림 대신 그린다
+  // 사용자가 넣은 이미지 (ASSETS.md) — assets/manifest.json에 적힌 것만 불러온다
   const IMG = {};
-  const IMAGE_SETS = {
-    handaxe: ['handaxe'], comb: ['comb', 'comb_plain'], knife: ['knife', 'knife_bronze'],
-    dagger: ['dagger', 'dagger_iron'], gaya: ['gaya'], celadon: ['celadon', 'celadon_white'],
-    mural: ['mural', 'mural_swap'], docent: ['docent']
+  // 그림이 바뀌는 이상 현상이 있는 유물: 정상·변형 이미지가 짝으로 모두 있어야 사용
+  const VARIANTS = {
+    comb: ['plain'], knife: ['bronze'], dagger: ['iron'], celadon: ['white'],
+    plainpot: ['comb'], type: ['wood'], suanri: ['swap']
   };
   function loadImages() {
     return fetch('assets/manifest.json', { cache: 'no-cache' })
       .then(r => r.ok ? r.json() : { images: [] })
       .catch(() => ({ images: [] }))
-      .then(m => loadListed(new Set(m.images || [])));
-  }
-  function loadListed(listed) {
-    const jobs = [];
-    Object.keys(IMAGE_SETS).forEach(art => {
-      if (!IMAGE_SETS[art].every(n => listed.has(n))) return;
-      const names = IMAGE_SETS[art];
-      const set = {};
-      const p = Promise.all(names.map(n => new Promise(res => {
+      .then(m => Promise.all((m.images || []).map(n => new Promise(res => {
         const im = new Image();
-        im.onload = () => { set[n] = im; res(true); };
-        im.onerror = () => res(false);
+        im.onload = () => { IMG[n] = im; res(); };
+        im.onerror = () => res();
         im.src = 'assets/' + n + '.png';
-      }))).then(oks => {
-        // 정상/변형 이미지가 모두 있어야만 사용 (하나만 있으면 이상 현상이 티가 나므로)
-        if (oks.every(Boolean)) IMG[art] = set;
-      });
-      jobs.push(p);
-    });
-    return Promise.all(jobs);
+      }))));
+  }
+  // 이 유물을 이미지로 그릴 수 있으면 그 이미지를 돌려준다
+  function imageFor(art, v) {
+    if (!IMG[art]) return null;
+    const vars = VARIANTS[art] || [];
+    if (!vars.every(k => IMG[art + '_' + k])) return null;
+    const on = vars.find(k => v && v[k]);
+    return on ? IMG[art + '_' + on] : IMG[art];
   }
 
   function rng(seed) {
@@ -105,6 +100,11 @@
     ctx.textBaseline = 'alphabetic';
   }
 
+  // 글이 너비를 넘으면 글자 크기를 줄인다
+  function fitFont(ctx, text, weight, size, min, maxW, family) {
+    do { ctx.font = `${weight} ${size}px ${family}`; size -= 2; } while (size >= min && ctx.measureText(text).width > maxW);
+  }
+
   function roundRect(ctx, x, y, w, h, r) {
     ctx.beginPath();
     ctx.moveTo(x + r, y);
@@ -116,7 +116,7 @@
   }
 
   /* ---------------- 유물 그림 ---------------- */
-  const ARTS = {
+  const ARTS = Object.assign({}, window.ARTIFACTS, {
     handaxe(ctx, cx, cy, s) {
       const r = rng(11);
       const pts = [];
@@ -333,7 +333,7 @@
         ctx.beginPath(); ctx.ellipse(cx, cy + s * 0.12, s * 0.24, s * 0.22, 0, 0, Math.PI * 2); ctx.stroke();
       }
     }
-  };
+  });
 
   /* ---------------- 진열장 (유물 + 설명 카드) ---------------- */
   function drawCase(ex) {
@@ -349,16 +349,12 @@
     ctx.beginPath(); ctx.ellipse(W / 2, 520, 190, 26, 0, 0, Math.PI * 2); ctx.fill();
 
     const v = ex.visual || {};
-    const imgSet = IMG[ex.art];
-    if (imgSet) {
-      let key = ex.art;
-      if (v.plain) key = 'comb_plain'; if (v.bronze) key = 'knife_bronze';
-      if (v.iron) key = 'dagger_iron'; if (v.white) key = 'celadon_white';
-      const im = imgSet[key] || imgSet[ex.art];
+    const im = imageFor(ex.art, v);
+    if (im) {
       const sc = Math.min(500 / im.width, 470 / im.height);
       ctx.drawImage(im, W / 2 - im.width * sc / 2, 285 - im.height * sc / 2, im.width * sc, im.height * sc);
     } else {
-      ARTS[ex.art](ctx, W / 2, 285, 470, v);
+      ARTS[ex.art](ctx, W / 2, 285, 470, v, ex);
     }
 
     // 설명 카드
@@ -368,7 +364,7 @@
     grain(ctx, W, H, 0.05, 9);
     ctx.strokeStyle = '#9c8a66'; ctx.lineWidth = 2; ctx.strokeRect(38, py + 10, W - 76, H - py - 48);
     ctx.fillStyle = '#231a12';
-    ctx.font = `700 46px ${FONT}`;
+    fitFont(ctx, ex.title, 700, 46, 28, W - 120, FONT);
     ctx.fillText(ex.title, 60, py + 66);
     tagBadge(ctx, ex.tag, 60, py + 84, 22);
     ctx.fillStyle = '#2d241a';
@@ -412,7 +408,7 @@
   }
 
   function drawMural(ex) {
-    const W = 1200, H = 800;
+    const W = 1200, H = 860;
     const c = canvas(W, H), ctx = c.getContext('2d');
     ctx.fillStyle = '#20150e'; ctx.fillRect(0, 0, W, H);
     // 벽화 면
@@ -430,10 +426,11 @@
       ctx.stroke();
     }
     const v = ex.visual || {};
-    const imgSet = IMG.mural;
-    if (imgSet) {
-      const im = v.swap ? imgSet.mural_swap : imgSet.mural;
+    const im = imageFor(ex.art, v);
+    if (im) {
       ctx.drawImage(im, 40, 40, W - 80, 520);
+    } else if (ex.art === 'dangun') {
+      drawDangun(ctx, v);
     } else {
       // 귀족 (원래 크게) / 시종 (원래 작게)
       const big = 400, small = 180;
@@ -453,13 +450,49 @@
       });
     }
     // 설명 띠
-    ctx.fillStyle = '#e6dcc5'; ctx.fillRect(40, 585, W - 80, 180);
-    ctx.fillStyle = '#231a12'; ctx.font = `700 40px ${FONT}`;
-    ctx.fillText(ex.title, 70, 640);
-    tagBadge(ctx, ex.tag, W - 250, 606, 24);
-    ctx.font = `500 29px ${FONT}`; ctx.fillStyle = '#2d241a';
-    ex.lines.forEach((l, i) => ctx.fillText('· ' + l, 70, 690 + i * 40));
+    ctx.fillStyle = '#e6dcc5'; ctx.fillRect(40, 585, W - 80, 245);
+    ctx.fillStyle = '#231a12'; ctx.font = `700 38px ${FONT}`;
+    ctx.fillText(ex.title, 70, 638);
+    ctx.font = `700 24px ${SANS}`;
+    tagBadge(ctx, ex.tag, W - 90 - ctx.measureText(ex.tag).width - 24, 606, 24);
+    ctx.font = `500 28px ${FONT}`; ctx.fillStyle = '#2d241a';
+    let y = 686;
+    ex.lines.forEach(l => { y = drawWrapped(ctx, '· ' + l, 70, y, W - 140, 36) + 4; });
     return c;
+  }
+
+  // 고조선 건국 이야기 그림: 하늘에서 내려온 환웅 / 동굴 속 곰과 호랑이 / 단군왕검
+  function drawDangun(ctx) {
+    // 구름
+    ctx.fillStyle = 'rgba(245,235,215,0.55)';
+    [[180, 110], [250, 90], [320, 115], [140, 140], [400, 100]].forEach(([x, y]) => {
+      ctx.beginPath(); ctx.ellipse(x, y, 60, 26, 0, 0, Math.PI * 2); ctx.fill();
+    });
+    figure(ctx, 270, 330, 230, '#3f5f8a', false);
+    ctx.strokeStyle = 'rgba(255,240,180,0.6)'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(270, 130, 40, 0, Math.PI * 2); ctx.stroke();
+    // 동굴
+    ctx.fillStyle = '#4a3420';
+    ctx.beginPath(); ctx.moveTo(470, 540); ctx.quadraticCurveTo(620, 160, 770, 540); ctx.fill();
+    ctx.fillStyle = '#1c120a';
+    ctx.beginPath(); ctx.moveTo(520, 540); ctx.quadraticCurveTo(620, 260, 720, 540); ctx.fill();
+    // 곰
+    ctx.fillStyle = '#5a3a24';
+    ctx.beginPath(); ctx.ellipse(580, 490, 46, 40, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(580, 438, 24, 0, Math.PI * 2); ctx.fill();
+    [-16, 16].forEach(d => { ctx.beginPath(); ctx.arc(580 + d, 418, 9, 0, Math.PI * 2); ctx.fill(); });
+    // 호랑이
+    ctx.fillStyle = '#c8782c';
+    ctx.beginPath(); ctx.ellipse(665, 500, 50, 28, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(705, 470, 20, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#2a160a'; ctx.lineWidth = 4;
+    for (let i = 0; i < 5; i++) { ctx.beginPath(); ctx.moveTo(630 + i * 15, 478); ctx.lineTo(636 + i * 15, 500); ctx.stroke(); }
+    // 쑥과 마늘
+    ctx.fillStyle = '#6a8a4a'; ctx.beginPath(); ctx.ellipse(615, 530, 18, 6, 0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#efe6d2'; ctx.beginPath(); ctx.arc(640, 532, 8, 0, Math.PI * 2); ctx.fill();
+    // 단군왕검
+    figure(ctx, 960, 530, 330, '#8a3a26', false);
+    ctx.fillStyle = 'rgba(120,30,20,0.55)'; ctx.fillRect(860, 150, 200, 26);
   }
 
   /* ---------------- 설명 패널 ---------------- */
@@ -481,11 +514,18 @@
   function drawPanel(ex) {
     const W = 1200, H = 860;
     const [c, ctx] = panelBase(W, H, ex.title, ex.sub);
-    ctx.fillStyle = '#ece2cc'; ctx.font = `500 40px ${FONT}`;
+    ctx.fillStyle = '#ece2cc';
+    // 내용이 많으면 글자 크기를 줄여 패널 안에 맞춘다
+    let size = 40;
+    const layout = () => {
+      ctx.font = `500 ${size}px ${FONT}`;
+      return ex.lines.reduce((h, l) => h + wrap(ctx, l, W - 150).length * size * 1.3 + size * 0.5, 0);
+    };
+    while (size > 28 && layout() > H - 300) size -= 2;
     let y = 258;
     ex.lines.forEach(l => {
       const indent = /^[①②③]/.test(l) ? 40 : 0;
-      y = drawWrapped(ctx, l, 70 + indent, y, W - 150 - indent, 52) + 20;
+      y = drawWrapped(ctx, l, 70 + indent, y, W - 150 - indent, size * 1.3) + size * 0.5;
     });
     return c;
   }
@@ -522,20 +562,21 @@
   }
 
   /* ---------------- 고인돌 설명 카드 ---------------- */
-  function drawDolmenLabel(ex) {
+  function drawLabel(ex) {
     const W = 760, H = 420;
     const c = canvas(W, H), ctx = c.getContext('2d');
     ctx.fillStyle = '#e6dcc5'; ctx.fillRect(0, 0, W, H);
     grain(ctx, W, H, 0.06, 4);
     ctx.strokeStyle = '#9c8a66'; ctx.lineWidth = 3; ctx.strokeRect(12, 12, W - 24, H - 24);
-    ctx.fillStyle = '#231a12'; ctx.font = `700 46px ${FONT}`;
+    ctx.fillStyle = '#231a12';
+    fitFont(ctx, ex.title, 700, 46, 28, W - 80, FONT);
     ctx.fillText(ex.title, 40, 78);
     tagBadge(ctx, ex.tag, 40, 98, 22);
     ctx.fillStyle = '#2d241a'; ctx.font = `500 28px ${FONT}`;
     let y = 190;
     ex.lines.forEach(l => { y = drawWrapped(ctx, '· ' + l, 40, y, W - 80, 38) + 8; });
     ctx.fillStyle = '#6d5f48'; ctx.font = `500 22px ${FONT}`;
-    ctx.fillText('복제품 · 인천광역시 강화군 부근리', 40, H - 34);
+    if (ex.note) ctx.fillText(ex.note, 40, H - 34);
     return c;
   }
 
@@ -569,7 +610,7 @@
     return c;
   }
 
-  function drawSign(n) {
+  function drawSign(n, name) {
     const W = 1024, H = 300;
     const c = canvas(W, H), ctx = c.getContext('2d');
     ctx.fillStyle = '#0d0c0b'; ctx.fillRect(0, 0, W, H);
@@ -582,8 +623,8 @@
     } else {
       ctx.fillStyle = '#e8c547'; ctx.font = `700 118px ${FONT}`;
       ctx.fillText(`제 ${n} 전시실`, W / 2, 165);
-      ctx.font = `600 40px ${SANS}`; ctx.fillStyle = '#b39a3a';
-      ctx.fillText(`GALLERY  ${n}`, W / 2, 245);
+      ctx.font = `600 44px ${FONT}`; ctx.fillStyle = '#b39a3a';
+      ctx.fillText(name || `GALLERY  ${n}`, W / 2, 248);
     }
     ctx.textAlign = 'left';
     return c;
@@ -721,12 +762,12 @@
   /* 화면에 쓰는 모든 글자 (웹폰트 미리 불러오기용) */
   function allText() {
     let s = '관람안내이상한전시를놓치지마세요발견하면즉시되돌아가세요없다면앞으로나아가세요제8전시실을지나출구로나가세요0123456789GALLERYEXIT↑←→이전다음수장고관계자외출입금지복제품인천광역시강화군부근리시대가흐르는순서대로살펴봅시다선사문자로쓴기록이없는';
-    s += JSON.stringify(window.EXHIBITS) + JSON.stringify(window.ANOMALIES);
+    s += JSON.stringify(window.ROOMS);
     return Array.from(new Set(s)).join('');
   }
 
   window.ART = {
-    drawCase, drawMural, drawPanel, drawTimeline, drawDolmenLabel, drawRules, drawSign,
+    drawCase, drawMural, drawPanel, drawTimeline, drawLabel, drawRules, drawSign,
     drawSmallSign, drawDoorPlate, floorTex, wallTex, glowTex, stoneTex, drawDocent,
     loadImages, allText, FONT, SANS
   };

@@ -151,6 +151,7 @@
   #record .item .r { font-size: 14px; color: #9fbf9f; margin-top: 4px; line-height: 1.5; }
   #record .item.unknown .t { color: #7a6b55; }
   #record .count { color: var(--gold); font-family: var(--serif); }
+  #record .roomhead { margin-top: 22px; padding: 8px 4px; font-family: var(--serif); font-weight: 700; color: var(--gold); border-bottom: 1px solid #5a4a2e; }
   .toggle { display: flex; gap: 8px; align-items: center; justify-content: center; margin: 4px; color: #bba882; font-family: var(--serif); }
 
   /* 엔딩 */
@@ -199,7 +200,8 @@
     <b>이상한 전시</b>를 하나도 놓치지 마세요.<br>
     이상한 전시를 발견하면 <b>즉시 되돌아가세요.</b><br>
     이상한 전시가 없다면 <b>앞으로 나아가세요.</b><br>
-    <b>제8 전시실</b>을 지나 출구로 나가세요.
+    <b>제8 전시실</b>을 지나 출구로 나가세요.<br>
+    <span style="font-size:0.88em;color:#9a8b70">전시실마다 구석기 시대부터 고려까지 다른 시대가 전시되어 있습니다.</span>
   </div>
   <div class="row">
     <button class="btn" id="startBtn" disabled>입장하기</button>
@@ -224,6 +226,7 @@
   <div class="toggle"><label><input type="checkbox" id="optSound" checked> 소리</label></div>
   <div class="toggle"><label><input type="checkbox" id="optVoice" checked> 해설사 음성</label></div>
   <div class="toggle"><label><input type="checkbox" id="optLow"> 저사양 모드 (끊길 때)</label></div>
+  <div class="toggle"><label><input type="checkbox" id="optEasy"> 연습 모드 (틀리면 처음이 아니라 한 전시실만 뒤로)</label></div>
   <button class="btn ghost" id="quitBtn" style="margin-top:14px">처음 화면으로</button>
 </div>
 
@@ -245,9 +248,10 @@
 </div>
 
 <script src="vendor/three.min.js"></script>
-<script src="js/data.js?v=0.1.2"></script>
-<script src="js/art.js?v=0.1.2"></script>
-<script src="js/audio.js?v=0.1.2"></script>
-<script src="js/game.js?v=0.1.2"></script>
+<script src="js/data.js?v=0.2.1"></script>
+<script src="js/artifacts.js?v=0.2.1"></script>
+<script src="js/art.js?v=0.2.1"></script>
+<script src="js/audio.js?v=0.2.1"></script>
+<script src="js/game.js?v=0.2.1"></script>
 </body>
 </html>
