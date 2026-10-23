@@ -759,21 +759,94 @@
     return c;
   }
 
-  function drawDocentCard(speech) {
+  function drawDocentCard(speech, bright) {
     const W = 1000, H = 620;
     const c = canvas(W, H), ctx = c.getContext('2d');
     const g = ctx.createRadialGradient(240, 320, 20, 240, 320, 520);
-    g.addColorStop(0, '#2a2018'); g.addColorStop(1, '#070504');
+    if (bright) { g.addColorStop(0, '#fffaf0'); g.addColorStop(1, '#efe4cc'); }
+    else { g.addColorStop(0, '#2a2018'); g.addColorStop(1, '#070504'); }
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-    ctx.drawImage(drawDocent(), 110, 40, 256, 560);
-    ctx.strokeStyle = '#4c3e27'; ctx.lineWidth = 3; ctx.strokeRect(14, 14, W - 28, H - 28);
-    ctx.fillStyle = '#8e8676'; ctx.font = `600 30px ${SANS}`;
+    ctx.drawImage(bright ? drawDocentBright() : drawDocent(), 110, 40, 256, 560);
+    ctx.strokeStyle = bright ? '#c9b48a' : '#4c3e27'; ctx.lineWidth = 3; ctx.strokeRect(14, 14, W - 28, H - 28);
+    ctx.fillStyle = bright ? '#8a7350' : '#8e8676'; ctx.font = `600 30px ${SANS}`;
     ctx.fillText('— 해설사 —', 430, 130);
-    ctx.fillStyle = '#e6dfcc'; ctx.font = `500 42px ${FONT}`;
+    ctx.fillStyle = bright ? '#2d241a' : '#e6dfcc'; ctx.font = `500 42px ${FONT}`;
     let y = 220;
     speech.split('…').map(t => t.trim()).filter(Boolean).forEach(part => {
       y = drawWrapped(ctx, part + '…', 430, y, W - 480, 58) + 14;
     });
+    return c;
+  }
+
+  /* ---------------- 밝은 박물관용 ---------------- */
+  function floorTexBright() {
+    const W = 512, H = 512;
+    const c = canvas(W, H), ctx = c.getContext('2d');
+    const r = rng(2);
+    const pw = 64;
+    for (let x = 0; x < W; x += pw) {
+      for (let y = -r() * 200; y < H; y += 220 + r() * 120) {
+        const l = 190 + r() * 25;
+        ctx.fillStyle = `rgb(${l},${l - 32},${l - 75})`;
+        ctx.fillRect(x, y, pw, 400);
+        ctx.fillStyle = 'rgba(90,60,30,0.35)'; ctx.fillRect(x, y, pw, 2);
+      }
+      ctx.fillStyle = 'rgba(90,60,30,0.4)'; ctx.fillRect(x, 0, 2, H);
+    }
+    grain(ctx, W, H, 0.08, 3);
+    return c;
+  }
+  function wallTexBright() {
+    const W = 512, H = 512;
+    const c = canvas(W, H), ctx = c.getContext('2d');
+    ctx.fillStyle = '#f6f1e6'; ctx.fillRect(0, 0, W, H);
+    for (let x = 0; x < W; x += 32) { ctx.fillStyle = 'rgba(180,160,120,0.06)'; ctx.fillRect(x, 0, 14, H); }
+    const wy = H * 0.76;
+    ctx.fillStyle = '#c9a77a'; ctx.fillRect(0, wy, W, H - wy);
+    ctx.fillStyle = '#a8865a'; ctx.fillRect(0, wy, W, 8);
+    for (let x = 0; x < W; x += 128) {
+      ctx.strokeStyle = 'rgba(120,85,45,0.45)'; ctx.lineWidth = 3; ctx.strokeRect(x + 12, wy + 22, 104, H - wy - 40);
+    }
+    ctx.fillStyle = '#e2d6be'; ctx.fillRect(0, 0, W, 14);
+    grain(ctx, W, H, 0.04, 8);
+    return c;
+  }
+  // 친절한 해설사: 웃는 얼굴, 남색 제복, 안내 책자
+  function drawDocentBright() {
+    const W = 256, H = 560;
+    const c = canvas(W, H), ctx = c.getContext('2d');
+    if (IMG.docent_bright) { ctx.drawImage(IMG.docent_bright, 0, 0, W, H); return c; }
+    // 다리와 신발
+    ctx.fillStyle = '#2f3a55'; ctx.fillRect(96, 400, 26, 140); ctx.fillRect(134, 400, 26, 140);
+    ctx.fillStyle = '#3a2a1e'; ctx.fillRect(90, 532, 36, 16); ctx.fillRect(130, 532, 36, 16);
+    // 제복 윗옷
+    ctx.fillStyle = '#34486e';
+    ctx.beginPath(); ctx.moveTo(84, 150); ctx.lineTo(172, 150); ctx.lineTo(186, 410); ctx.lineTo(70, 410); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#f4efe2';
+    ctx.beginPath(); ctx.moveTo(116, 150); ctx.lineTo(140, 150); ctx.lineTo(128, 200); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = '#c0392b'; ctx.fillRect(124, 160, 8, 34);
+    ctx.fillStyle = '#f2d16b'; ctx.fillRect(146, 196, 26, 12);
+    // 팔과 책자
+    ctx.strokeStyle = '#34486e'; ctx.lineWidth = 18; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(88, 170); ctx.lineTo(78, 300); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(168, 170); ctx.lineTo(186, 250); ctx.lineTo(150, 270); ctx.stroke();
+    ctx.fillStyle = '#e9b98f'; ctx.beginPath(); ctx.arc(78, 306, 10, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#5aa06e'; ctx.fillRect(126, 246, 40, 52);
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(132, 254, 28, 6); ctx.fillRect(132, 266, 22, 4);
+    // 얼굴과 머리
+    ctx.fillStyle = '#f0c8a0';
+    ctx.beginPath(); ctx.ellipse(128, 100, 34, 40, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#3b2a20';
+    ctx.beginPath(); ctx.ellipse(128, 76, 38, 26, 0, Math.PI, Math.PI * 2); ctx.fill();
+    ctx.fillRect(92, 70, 10, 34); ctx.fillRect(154, 70, 10, 34);
+    // 웃는 눈과 입, 볼
+    ctx.strokeStyle = '#2b1d14'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(114, 102, 6, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke();
+    ctx.beginPath(); ctx.arc(142, 102, 6, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke();
+    ctx.beginPath(); ctx.arc(128, 116, 10, Math.PI * 0.15, Math.PI * 0.85); ctx.stroke();
+    ctx.fillStyle = 'rgba(230,120,110,0.35)';
+    ctx.beginPath(); ctx.arc(106, 116, 7, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(150, 116, 7, 0, Math.PI * 2); ctx.fill();
     return c;
   }
 
@@ -786,7 +859,7 @@
 
   window.ART = {
     drawCase, drawMural, drawPanel, drawTimeline, drawLabel, drawRules, drawSign,
-    drawSmallSign, drawDoorPlate, drawDocentCard, floorTex, wallTex, glowTex, stoneTex, drawDocent,
+    drawSmallSign, drawDoorPlate, drawDocentCard, floorTex, wallTex, glowTex, stoneTex, drawDocent, floorTexBright, wallTexBright, drawDocentBright,
     loadImages, allText, FONT, SANS
   };
 })();

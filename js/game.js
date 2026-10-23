@@ -26,7 +26,24 @@
   };
   const found = new Set(store.get('found_v2', []));
   let cleared = store.get('cleared_v2', false);
-  const settings = Object.assign({ sound: true, voice: true, low: false, easy: false }, store.get('settings', {}));
+  const settings = Object.assign({ sound: true, voice: true, low: false, easy: false, theme: null }, store.get('settings', {}));
+
+  /* ---------- 분위기: 밝은 박물관 / 으스스한 박물관 ----------
+     전시물은 그대로 두고 조명·안개·벽·바닥·해설사·소리·화면 효과만 바꾼다 */
+  const THEMES = {
+    dark: {
+      bg: 0x030202, fog: 0x040302, fogDensity: 0.052, ambient: [0x6b5c4c, 0.42], lantern: [0xffd9a0, 1.15],
+      ceil: 0x15130f, end: 0x23251f, tunnel: 0x15140f, tunnelBack: 0x000000,
+      pool: 0.5, wash: 0.55, docentOpacity: 0.88, flicker: true, fade: '#000'
+    },
+    bright: {
+      bg: 0xf3ede0, fog: 0xf2eadb, fogDensity: 0.012, ambient: [0xfff6e8, 1.05], lantern: [0xfff3dc, 0.45],
+      ceil: 0xf4f0e8, end: 0xe8e0cf, tunnel: 0xd9cfbc, tunnelBack: 0xbfb39c,
+      pool: 0.12, wash: 0.18, docentOpacity: 1, flicker: false, fade: '#f4ecdc'
+    }
+  };
+  const theme = () => THEMES[settings.theme] || THEMES.dark;
+  const isBright = () => settings.theme === 'bright';
 
   const isTouch = ('ontouchstart' in window) || navigator.maxTouchPoints > 0;
   const coarse = window.matchMedia && matchMedia('(pointer: coarse)').matches;
@@ -50,7 +67,8 @@
   scene.add(camera);
 
   // 조명 개수가 바뀌면 셰이더를 다시 만들어 끊기므로, 조명은 늘 그대로 두고 밝기만 바꾼다
-  scene.add(new THREE.AmbientLight(0x6b5c4c, 0.42));
+  const ambient = new THREE.AmbientLight(0x6b5c4c, 0.42);
+  scene.add(ambient);
   const lantern = new THREE.PointLight(0xffd9a0, 1.15, 15, 1.6);
   const docentGlow = new THREE.PointLight(0xffb070, 0.9, 5, 2);
   const fireLight = new THREE.PointLight(0xff8a3a, 0, 9, 1.6);
@@ -72,6 +90,7 @@
   const slots = {};          // L0~L4, R0~R4, M, C → { group, mesh, texture, draw, key }
   const lamps = [];
   let signTex, rulesTex, farSignMesh, exitGroup, farTunnel, wallMat, centerModel = null, fireFx = null;
+  let floorMat, ceilMat, endMat, tunnelMat, tunnelBackMat, texSet;
 
   function addPlane(w, h, mat, x, y, z, ry, parent) {
     const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
@@ -94,16 +113,24 @@
     washMat = new THREE.MeshBasicMaterial({ map: tex(ART.glowTex('rgba(255,210,150,0.45)')), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.55 });
 
     // 바닥, 천장, 벽
-    const floor = addPlane(HW * 2, L + 8, new THREE.MeshLambertMaterial({ map: tex(ART.floorTex(), 2, (L + 8) / 4) }), 0, 0, -L / 2);
+    texSet = {
+      dark: { floor: tex(ART.floorTex(), 2, (L + 8) / 4), wall: tex(ART.wallTex(), L / 4, 1), docent: tex(ART.drawDocent()) },
+      bright: { floor: tex(ART.floorTexBright(), 2, (L + 8) / 4), wall: tex(ART.wallTexBright(), L / 4, 1), docent: tex(ART.drawDocentBright()) }
+    };
+    floorMat = new THREE.MeshLambertMaterial({ map: texSet.dark.floor });
+    const floor = addPlane(HW * 2, L + 8, floorMat, 0, 0, -L / 2);
     floor.rotation.x = -Math.PI / 2;
-    const ceil = addPlane(HW * 2, L + 8, new THREE.MeshLambertMaterial({ color: 0x15130f }), 0, H, -L / 2);
+    ceilMat = new THREE.MeshLambertMaterial({ color: 0x15130f });
+    const ceil = addPlane(HW * 2, L + 8, ceilMat, 0, H, -L / 2);
     ceil.rotation.x = Math.PI / 2;
-    wallMat = new THREE.MeshLambertMaterial({ map: tex(ART.wallTex(), L / 4, 1) });
+    wallMat = new THREE.MeshLambertMaterial({ map: texSet.dark.wall });
     addPlane(L, H, wallMat, -HW, H / 2, -L / 2, Math.PI / 2);
     addPlane(L, H, wallMat, HW, H / 2, -L / 2, -Math.PI / 2);
 
     // 양 끝 벽 (가운데 문 구멍)
-    const endMat = new THREE.MeshLambertMaterial({ color: 0x23251f });
+    endMat = new THREE.MeshLambertMaterial({ color: 0x23251f });
+    tunnelMat = new THREE.MeshLambertMaterial({ color: 0x15140f });
+    tunnelBackMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
     const dw = 2.2, dh = 2.9;
     [0, -L].forEach(z => {
       const ry = z === 0 ? Math.PI : 0;
@@ -118,13 +145,13 @@
     // 문 너머 어두운 통로
     function tunnel(z0, dir) {
       const g = new THREE.Group();
-      const m = new THREE.MeshLambertMaterial({ color: 0x15140f });
+      const m = tunnelMat;
       const len = 5, zc = z0 + dir * len / 2;
       addPlane(len, dh, m, -dw / 2, dh / 2, zc, Math.PI / 2, g);
       addPlane(len, dh, m, dw / 2, dh / 2, zc, -Math.PI / 2, g);
       addPlane(dw, len, m, 0, dh, zc, 0, g).rotation.x = Math.PI / 2;
       addPlane(dw, len, m, 0, 0.001, zc, 0, g).rotation.x = -Math.PI / 2;
-      addPlane(dw, dh, darkMat, 0, dh / 2, z0 + dir * len, dir > 0 ? Math.PI : 0, g);
+      addPlane(dw, dh, tunnelBackMat, 0, dh / 2, z0 + dir * len, dir > 0 ? Math.PI : 0, g);
       scene.add(g);
       return g;
     }
@@ -382,20 +409,53 @@
     return applyPatch(base, S.anomaly && S.anomaly.target === key ? S.anomaly.patch : null);
   }
 
+  // 전시실마다 벽 색을 조금씩 다르게 (밝은 박물관은 파스텔 톤)
+  function wallTint(hex) {
+    const c = new THREE.Color(hex);
+    if (isBright()) c.lerp(new THREE.Color(0xffffff), 0.72);
+    return c;
+  }
+
+  function applyTheme() {
+    const t = theme(), bright = isBright();
+    if (!texSet) return;
+    scene.background.setHex(t.bg);
+    scene.fog.color.setHex(t.fog); scene.fog.density = t.fogDensity;
+    ambient.color.setHex(t.ambient[0]); ambient.intensity = t.ambient[1];
+    lantern.color.setHex(t.lantern[0]);
+    const set = bright ? texSet.bright : texSet.dark;
+    floorMat.map = set.floor; floorMat.needsUpdate = true;
+    wallMat.map = set.wall; wallMat.needsUpdate = true;
+    if (!S.exitRoom) wallMat.color.copy(wallTint(room().wall || 0xffffff));
+    ceilMat.color.setHex(t.ceil); endMat.color.setHex(t.end);
+    tunnelMat.color.setHex(t.tunnel); tunnelBackMat.color.setHex(t.tunnelBack);
+    lamps.forEach(l => { l.flick = 0; l.lampMat.color.setHex(0xffe7bf); l.pool.material.opacity = t.pool; });
+    washMat.opacity = t.wash;
+    docent.material.map = set.docent; docent.material.opacity = t.docentOpacity; docent.material.needsUpdate = true;
+    fadeEl.style.background = t.fade;
+    document.body.classList.toggle('bright', bright);
+    SFX.setTheme(bright ? 'bright' : 'dark');
+    if (S.docSpeech) setDocVoice();
+  }
+  function setDocVoice() {
+    const id = S.anomaly && S.anomaly.target === 'docent' ? S.anomaly.id : room().id;
+    S.docVoice = (isBright() ? 'voice_bright/' : 'voice/') + id + '.mp3';
+    SFX.preloadVoice(S.docVoice);
+  }
+
   function setupRoom() {
     const r = room();
     Object.values(slots).forEach(s => { s.group.visible = false; s.key = null; });
     buildCenter(null);
     S.docSpeech = '';
     if (S.exitRoom) return;
-    wallMat.color.setHex(r.wall || 0xffffff);
+    wallMat.color.copy(wallTint(r.wall || 0xffffff));
     Object.keys(r.exhibits).forEach(key => {
       const ex = current(key);
       if (ex.kind === 'docent') {
         S.docSpeech = ex.speech;
-        // 녹음 파일: 정상 대사는 voice/전시실ID.mp3, 바뀐 대사는 voice/이상현상ID.mp3
-        S.docVoice = 'voice/' + (S.anomaly && S.anomaly.target === 'docent' ? S.anomaly.id : r.id) + '.mp3';
-        SFX.preloadVoice(S.docVoice);
+        // 녹음 파일: 정상 대사는 voice/전시실ID.mp3, 바뀐 대사는 voice/이상현상ID.mp3 (밝은 박물관은 voice_bright/)
+        setDocVoice();
         return;
       }
       const slot = slots[ex.slot];
@@ -515,7 +575,7 @@
 
     fadeTo(1, 700).then(() => {
       if (note) {
-        if (note.good) SFX.chime(); else { SFX.wrong(); flashRed(); }
+        if (note.good) SFX.chime(); else { SFX.wrong(); if (!isBright()) flashRed(); }
         showNote(note, () => { newGallery(); S.mode = 'play'; fadeTo(0, 900); });
       } else {
         newGallery();
@@ -535,15 +595,15 @@
     const back = !n.to ? '처음부터 다시.' : `제 ${n.to} 전시실${n.to === S.checkpoint ? '(중간 저장)' : ''}부터 다시.`;
     let html = n.roomName ? `<div class="k" style="margin-top:0">${n.roomName}</div>` : '';
     if (n.good) {
-      html += `<h2 class="good">이상 현상을 발견했다${n.isNew ? '' : ' (이미 기록됨)'}</h2>
+      html += `<h2 class="good">${isBright() ? '이상 현상을 찾았어요!' : '이상 현상을 발견했다'}${n.isNew ? '' : ' (이미 기록됨)'}</h2>
         <div class="k">이상했던 점</div><p class="wrongtxt">${n.a.wrong}</p>
         <div class="k">교과서 속 사실</div><p class="right">${n.a.right}</p>`;
     } else if (n.a) {
-      html += `<h2 class="bad">…놓쳤다. ${back}</h2>
+      html += `<h2 class="bad">${isBright() ? '앗, 놓쳤어요!' : '…놓쳤다.'} ${back}</h2>
         <div class="k">이 전시실의 이상 현상</div><p class="wrongtxt">${n.a.wrong}</p>
         <div class="k">교과서 속 사실</div><p class="right">${n.a.right}</p>`;
     } else {
-      html += `<h2 class="bad">…되돌아갈 필요가 없었다.</h2>
+      html += `<h2 class="bad">${isBright() ? '이 전시실은 정상이었어요.' : '…되돌아갈 필요가 없었다.'}</h2>
         <p>이 전시실에는 이상한 전시가 하나도 없었다.<br>교과서 내용과 꼼꼼히 비교해 보면, 다음엔 헷갈리지 않을 것이다.</p>
         <p style="margin-top:10px;color:#7a6a4e">${back}</p>`;
     }
@@ -705,7 +765,7 @@
     if (!h) return;
     if (h.distance > (h.object.userData.key === 'docent' ? 9 : INSPECT_RANGE)) { showHint('더 가까이 다가가세요…', 1600); return; }
     const u = h.object.userData;
-    if (u.key === 'docent') { SFX.voice(S.docVoice, S.docSpeech); return openInspect(ART.drawDocentCard(S.docSpeech)); }
+    if (u.key === 'docent') { SFX.voice(S.docVoice, S.docSpeech); return openInspect(ART.drawDocentCard(S.docSpeech, isBright())); }
     if (u.key === 'rules') return openInspect(rulesTex.image);
     if (u.key === 'sign') return openInspect(signTex.image);
     if (u.slot && slots[u.slot]) openInspect(slots[u.slot].canvas);
@@ -800,12 +860,21 @@
     setTimeout(() => showHint(isTouch ? '전시물을 눌러 자세히 볼 수 있습니다' : '전시물을 클릭하면 자세히 볼 수 있습니다', 4500), 1800);
   }
   $('startBtn').onclick = () => startGame(S.resumeData);
+  function setTheme(t) {
+    settings.theme = t; store.set('settings', settings);
+    applyTheme(); refreshTitle();
+    $('themeBtn').textContent = isBright() ? '🌙 으스스한 박물관으로 바꾸기' : '☀️ 밝은 박물관으로 바꾸기';
+  }
+  document.querySelectorAll('.theme-card').forEach(b => { b.onclick = () => setTheme(b.dataset.theme); });
+  $('themeBtn').onclick = () => setTheme(isBright() ? 'dark' : 'bright');
   $('newBtn').onclick = () => { clearProgress(); S.resumeData = null; startGame(null); };
   $('againBtn').onclick = () => { fadeEl.style.opacity = 1; S.startRoom = 0; S.resumeData = null; startGame(null); };
   function refreshTitle() {
     S.resumeData = (S.startRoom || S.forced) ? null : loadProgress();
     const r = S.resumeData;
-    $('startBtn').textContent = r ? `이어서 하기 (제 ${r.streak} 전시실)` : '입장하기';
+    document.querySelectorAll('.theme-card').forEach(b => b.classList.toggle('sel', b.dataset.theme === settings.theme));
+    $('startBtn').disabled = !S.ready || !settings.theme;
+    $('startBtn').textContent = !settings.theme ? '박물관 분위기를 먼저 고르세요' : r ? `이어서 하기 (제 ${r.streak} 전시실)` : '입장하기';
     $('newBtn').style.display = r ? '' : 'none';
   }
 
@@ -895,12 +964,12 @@
         l.lampMat.color.setHex(on ? 0xffe7bf : 0x3a3020);
         l.pool.material.opacity = on ? 0.5 : 0.05;
         if (l.flick <= 0) { l.lampMat.color.setHex(0xffe7bf); l.pool.material.opacity = 0.5; }
-      } else if (Math.random() < dt * 0.05) {
+      } else if (theme().flicker && Math.random() < dt * 0.05) {
         l.flick = 0.2 + Math.random() * 0.5;
         if (Math.abs(l.z - S.z) < 10) SFX.buzz();
       }
     });
-    lantern.intensity = 1.15 + (Math.random() < 0.01 ? -0.6 : 0);
+    lantern.intensity = theme().lantern[1] + (theme().flicker && Math.random() < 0.01 ? -0.6 : 0);
 
     renderer.render(scene, camera);
   }
@@ -1006,7 +1075,8 @@
     refreshTitle();
     camera.position.set(0, EYE, -2);
     $('loading').textContent = '';
-    $('startBtn').disabled = false;
+    S.ready = true;
+    if (settings.theme) setTheme(settings.theme); else refreshTitle();
     requestAnimationFrame(frame);
   }
   boot();

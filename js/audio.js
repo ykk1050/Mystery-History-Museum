@@ -34,7 +34,8 @@
     droneGain = ac.createGain();
     droneGain.gain.value = 0.0;
     droneGain.connect(master);
-    droneGain.gain.linearRampToValueAtTime(0.5, ac.currentTime + 3);
+    droneGain.gain.linearRampToValueAtTime(theme === 'dark' ? 0.5 : 0, ac.currentTime + 3);
+    startBrightPad();
 
     [55, 55.6, 82.4].forEach((f, i) => {
       const o = ac.createOscillator();
@@ -51,6 +52,34 @@
     lfo.connect(lfoG); lfoG.connect(lp.frequency); lfo.start();
     const ng = ac.createGain(); ng.gain.value = 0.22;
     n.connect(lp); lp.connect(ng); ng.connect(droneGain); n.start();
+  }
+
+  // 밝은 박물관: 은은한 화음 (어둡게 웅웅거리는 소리 대신)
+  let theme = 'dark', brightGain = null;
+  function startBrightPad() {
+    brightGain = ac.createGain();
+    brightGain.gain.value = 0;
+    brightGain.connect(master);
+    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900;
+    lp.connect(brightGain);
+    [261.6, 329.6, 392.0, 493.9].forEach((f, i) => {
+      const o = ac.createOscillator(); o.type = 'sine'; o.frequency.value = f;
+      const g = ac.createGain(); g.gain.value = 0.012;
+      const lfo = ac.createOscillator(); lfo.frequency.value = 0.05 + i * 0.03;
+      const lg = ac.createGain(); lg.gain.value = 0.01;
+      lfo.connect(lg); lg.connect(g.gain); lfo.start();
+      o.connect(g); g.connect(lp); o.start();
+    });
+    brightGain.gain.linearRampToValueAtTime(theme === 'bright' ? 1 : 0, ac.currentTime + 3);
+  }
+  function setTheme(t) {
+    theme = t;
+    if (!ac) return;
+    const now = ac.currentTime;
+    [[droneGain, t === 'dark' ? 0.5 : 0], [brightGain, t === 'bright' ? 1 : 0]].forEach(([g, v]) => {
+      if (!g) return;
+      g.gain.cancelScheduledValues(now); g.gain.setValueAtTime(g.gain.value, now); g.gain.linearRampToValueAtTime(v, now + 1.5);
+    });
   }
 
   function env(g, t, a, peak, d) {
@@ -99,6 +128,14 @@
   function wrong() {
     if (!ac || !enabled) return;
     const t = ac.currentTime;
+    if (theme === 'bright') {   // 밝은 박물관: 무섭지 않은 '띠-리' 소리
+      [392, 311.1].forEach((f, i) => {
+        const o = ac.createOscillator(); o.type = 'triangle'; o.frequency.value = f;
+        const g = ac.createGain(); env(g, t + i * 0.22, 0.01, 0.14, 0.4);
+        o.connect(g); g.connect(master); o.start(t + i * 0.22); o.stop(t + i * 0.22 + 0.5);
+      });
+      return;
+    }
     [98, 103.8, 146.8, 155.6].forEach((f, i) => {
       const o = ac.createOscillator(); o.type = i % 2 ? 'sawtooth' : 'triangle'; o.frequency.value = f;
       o.frequency.linearRampToValueAtTime(f * 0.94, t + 2.2);
@@ -198,5 +235,5 @@
   function suspend() { if (ac && ac.state === 'running') ac.suspend(); stopSpeak(); }
   function resume() { if (ac && ac.state === 'suspended') ac.resume(); }
 
-  window.SFX = { init, step, buzz, whoosh, wrong, chime, exitBell, speak, voice, preloadVoice, stopSpeak, setEnabled, setVoice, suspend, resume };
+  window.SFX = { setTheme, init, step, buzz, whoosh, wrong, chime, exitBell, speak, voice, preloadVoice, stopSpeak, setEnabled, setVoice, suspend, resume };
 })();

@@ -163,6 +163,45 @@
   #ending .stat { color: #2a2016; font-family: var(--serif); font-size: 18px; line-height: 1.9; margin-bottom: 18px; }
   #ending .btn { margin: 6px; }
 
+  /* 분위기 고르기 */
+  .themes { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 16px; }
+  .theme-card {
+    width: 190px; padding: 14px 10px; border-radius: 10px; cursor: pointer; font-family: var(--serif);
+    border: 2px solid #4c3e27; background: rgba(20,16,12,0.7); color: #e2d3b0; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  }
+  .theme-card .ic { font-size: 30px; }
+  .theme-card b { font-size: 18px; }
+  .theme-card small { font-size: 12.5px; color: #a8987a; font-family: var(--sans); }
+  .theme-card.sel { border-color: var(--gold); box-shadow: 0 0 18px rgba(232,197,71,0.35); }
+  .theme-card[data-theme="bright"] { background: linear-gradient(#fbf5e6, #ecdcb9); color: #3a2c1a; }
+  .theme-card[data-theme="bright"] small { color: #6d5a3a; }
+  body:not(.bright) .only-bright, body.bright .only-dark { display: none; }
+
+  /* 밝은 박물관 */
+  body.bright { background: #f3ede0; }
+  body.bright #vignette, body.bright #grain { display: none; }
+  body.bright .screen { background: radial-gradient(ellipse at 50% 30%, #fffaf0 0%, #eadcbf 75%); }
+  body.bright #title h1 { color: #3a2c1a; text-shadow: none; animation: none; }
+  body.bright #title .en, body.bright #title .controls, body.bright #title .unit, body.bright #title .credit, body.bright #loading { color: #7a6548; }
+  body.bright #title .rules { color: #4a3c28; border-color: #d6c4a0; }
+  body.bright #title .rules b { color: #b06a10; }
+  body.bright .btn { background: #fffaf0; color: #3a2c1a; border-color: #c9a46a; }
+  body.bright .btn:hover, body.bright .btn:focus-visible { background: #f3e4c4; }
+  body.bright .btn.ghost { background: transparent; color: #7a6548; border-color: #c9a46a; }
+  body.bright .btn:disabled { opacity: 0.55; }
+  body.bright #menu h2, body.bright #record h2, body.bright .toggle { color: #3a2c1a; }
+  body.bright #record .item .t { color: #3a2c1a; }
+  body.bright #record .item .r { color: #2c6d3d; }
+  body.bright #record .item.unknown .t { color: #9a8a6c; }
+  body.bright #record .item { border-color: #e0d2b4; }
+  body.bright #record .roomhead, body.bright #record .count { color: #9a5d10; border-color: #d6c4a0; }
+  body.bright #subtitle { color: #2d241a; text-shadow: none; background: rgba(255,250,240,0.9); border-radius: 12px; padding: 8px 14px; }
+  body.bright #subtitle .who { color: #8a7350; }
+  body.bright .card .btn { background: #3a2c1a; color: #fff6e4; }
+  body.bright #dupe h2 { color: #3a2c1a !important; }
+  body.bright #dupeMsg { color: #4a3c28 !important; }
+  .btn:disabled { cursor: default; opacity: 0.55; }
+
   @media (max-width: 600px) {
     .tbtn { width: 64px; height: 64px; }
     #tTurn { width: 76px; height: 76px; }
@@ -207,12 +246,17 @@
   <h1>미스터리 역사 박물관</h1>
   <div class="en">MYSTERY HISTORY MUSEUM</div>
   <div class="rules">
-    당신은 끝없이 이어지는 박물관 전시실에 갇히고 말았습니다.<br>
+    <span class="only-dark">당신은 끝없이 이어지는 박물관 전시실에 갇히고 말았습니다.<br></span>
+    <span class="only-bright">끝없이 이어지는 박물관 전시실을 탐험해 보세요!<br></span>
     <b>이상한 전시</b>를 하나도 놓치지 마세요.<br>
     이상한 전시를 발견하면 <b>즉시 되돌아가세요.</b><br>
     이상한 전시가 없다면 <b>앞으로 나아가세요.</b><br>
     <b>제16 전시실</b>을 지나 출구로 나가세요.<br>
     <span style="font-size:0.88em;color:#9a8b70">전시실마다 구석기 시대부터 고려까지 여러 시대가 무작위로 나옵니다.<br>4개 전시실을 지날 때마다 중간 저장됩니다.</span>
+  </div>
+  <div class="themes">
+    <button class="theme-card" data-theme="bright"><span class="ic">☀️</span><b>밝은 박물관</b><small>환하고 편안한 분위기</small></button>
+    <button class="theme-card" data-theme="dark"><span class="ic">🌙</span><b>으스스한 박물관</b><small>어둡고 긴장감 있는 분위기</small></button>
   </div>
   <div class="row">
     <button class="btn" id="startBtn" disabled>입장하기</button>
@@ -222,7 +266,7 @@
   <div id="loading">전시실을 준비하는 중…</div>
   <div class="controls" id="controlsInfo"></div>
   <div class="unit">초등학교 5학년 사회 2학기 1단원<br>「유적과 유물로 살펴본 옛 사람들의 생활」 복습 게임 · 소리를 켜고 플레이하세요</div>
-  <div class="credit">Created by gamtudyssam using AI · 0.003</div>
+  <div class="credit">Created by gamtudyssam using AI · 0.004</div>
 </div>
 
 <div id="inspect">
@@ -236,6 +280,7 @@
   <h2>일시 정지</h2>
   <button class="btn" id="resumeBtn">계속 관람하기</button>
   <button class="btn" id="recordBtn2">이상 현상 기록장</button>
+  <button class="btn ghost" id="themeBtn" style="margin:8px 0">☀️ 밝은 박물관으로 바꾸기</button>
   <div class="toggle"><label><input type="checkbox" id="optSound" checked> 소리</label></div>
   <div class="toggle"><label><input type="checkbox" id="optVoice" checked> 해설사 음성</label></div>
   <div class="toggle"><label><input type="checkbox" id="optLow"> 저사양 모드 (끊길 때)</label></div>
@@ -261,10 +306,10 @@
 </div>
 
 <script src="vendor/three.min.js"></script>
-<script src="js/data.js?v=0.2.3"></script>
-<script src="js/artifacts.js?v=0.2.3"></script>
-<script src="js/art.js?v=0.2.3"></script>
-<script src="js/audio.js?v=0.2.3"></script>
-<script src="js/game.js?v=0.2.3"></script>
+<script src="js/data.js?v=0.2.4"></script>
+<script src="js/artifacts.js?v=0.2.4"></script>
+<script src="js/art.js?v=0.2.4"></script>
+<script src="js/audio.js?v=0.2.4"></script>
+<script src="js/game.js?v=0.2.4"></script>
 </body>
 </html>

@@ -18,12 +18,14 @@ require('fs').writeFileSync('$TMP/lines.json', JSON.stringify(out), 'utf8');
 
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/tts.ps1 -Lines "$(cygpath -w "$TMP/lines.json")" -OutDir "$(cygpath -w "$TMP/wav")"
 
-mkdir -p voice
+mkdir -p voice voice_bright
 for f in "$TMP"/wav/*.wav; do
   # 목소리를 조금 낮추고 울림을 더해 으스스하게
   ffmpeg -loglevel error -y -i "$f" \
     -af "asetrate=22050*0.86,aresample=22050,atempo=1.08,lowpass=f=3800,aecho=0.8:0.6:70|190:0.22|0.12,volume=1.4" \
     -ac 1 -b:a 48k "voice/$(basename "$f" .wav).mp3"
+  # 밝은 박물관용: 조금 밝고 또렷하게
+  ffmpeg -loglevel error -y -i "$f"     -af "asetrate=22050*1.04,aresample=22050,atempo=1.05,volume=1.5"     -ac 1 -b:a 48k "voice_bright/$(basename "$f" .wav).mp3"
 done
 rm -rf "$TMP"
 echo "voice/ 에 $(ls voice | wc -l)개 파일"
