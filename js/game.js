@@ -391,7 +391,13 @@
     wallMat.color.setHex(r.wall || 0xffffff);
     Object.keys(r.exhibits).forEach(key => {
       const ex = current(key);
-      if (ex.kind === 'docent') { S.docSpeech = ex.speech; return; }
+      if (ex.kind === 'docent') {
+        S.docSpeech = ex.speech;
+        // 녹음 파일: 정상 대사는 voice/전시실ID.mp3, 바뀐 대사는 voice/이상현상ID.mp3
+        S.docVoice = 'voice/' + (S.anomaly && S.anomaly.target === 'docent' ? S.anomaly.id : r.id) + '.mp3';
+        SFX.preloadVoice(S.docVoice);
+        return;
+      }
       const slot = slots[ex.slot];
       const cnv = slot.draw(ex);
       slot.canvas = cnv;
@@ -699,7 +705,7 @@
     if (!h) return;
     if (h.distance > (h.object.userData.key === 'docent' ? 9 : INSPECT_RANGE)) { showHint('더 가까이 다가가세요…', 1600); return; }
     const u = h.object.userData;
-    if (u.key === 'docent') { SFX.speak(S.docSpeech); return openInspect(ART.drawDocentCard(S.docSpeech)); }
+    if (u.key === 'docent') { SFX.voice(S.docVoice, S.docSpeech); return openInspect(ART.drawDocentCard(S.docSpeech)); }
     if (u.key === 'rules') return openInspect(rulesTex.image);
     if (u.key === 'sign') return openInspect(signTex.image);
     if (u.slot && slots[u.slot]) openInspect(slots[u.slot].canvas);
@@ -726,7 +732,7 @@
     $('subtitle').classList.add('on');
     clearTimeout(subTimer);
     subTimer = setTimeout(hideSubtitle, 6500);
-    SFX.speak(text);
+    SFX.voice(S.docVoice, text);
   }
   function hideSubtitle() { $('subtitle').classList.remove('on'); }
   let hintTimer = 0;

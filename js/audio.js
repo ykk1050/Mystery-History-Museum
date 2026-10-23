@@ -6,6 +6,7 @@
   let enabled = true;
 
   function init() {
+    unlockSpeech();
     if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
@@ -128,20 +129,65 @@
     });
   }
 
-  // 해설사 목소리 (기기에 한국어 음성이 있을 때만)
+  // 해설사 목소리
+  // 1순위: 미리 녹음한 음성 파일(voice/*.mp3)을 Web Audio로 재생 — 스마트패드에서도 확실히 들린다
+  // 2순위: 파일을 못 불러오면 기기의 한국어 음성(TTS)
   let voiceOn = true;
+  let voiceSrc = null;
+  const voiceCache = {};
+  function decode(buf) {
+    // 옛 Safari는 decodeAudioData가 Promise를 돌려주지 않는다
+    return new Promise((res, rej) => { const p = ac.decodeAudioData(buf, res, rej); if (p && p.catch) p.catch(rej); });
+  }
+  function loadVoice(url) {
+    if (!ac) return Promise.reject(new Error('no audio'));
+    if (!voiceCache[url]) {
+      voiceCache[url] = fetch(url).then(r => { if (!r.ok) throw new Error(r.status); return r.arrayBuffer(); }).then(decode);
+      voiceCache[url].catch(() => { delete voiceCache[url]; });
+    }
+    return voiceCache[url];
+  }
+  function preloadVoice(url) { if (url) loadVoice(url).catch(() => {}); }
+  function voice(url, text) {
+    if (!voiceOn || !enabled) return;
+    stopSpeak();
+    resume();
+    if (!url || !ac) { speak(text); return; }
+    loadVoice(url).then(buf => {
+      stopSpeak();
+      const src = ac.createBufferSource(); src.buffer = buf;
+      const g = ac.createGain(); g.gain.value = 2.2;
+      src.connect(g); g.connect(master); src.start();
+      voiceSrc = src;
+    }).catch(() => speak(text));
+  }
   function speak(text) {
-    if (!voiceOn || !enabled || !window.speechSynthesis) return;
+    if (!voiceOn || !enabled || !window.speechSynthesis || !text) return;
     try {
-      speechSynthesis.cancel();
+      if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();
+      speechSynthesis.resume();
       const u = new SpeechSynthesisUtterance(text.replace(/…/g, ', '));
-      u.lang = 'ko-KR'; u.rate = 0.72; u.pitch = 0.45; u.volume = 0.8;
-      const v = speechSynthesis.getVoices().find(v => /ko/i.test(v.lang));
+      u.lang = 'ko-KR'; u.rate = 0.8; u.pitch = 0.6; u.volume = 1;
+      const v = speechSynthesis.getVoices().find(v => /^ko/i.test(v.lang));
       if (v) u.voice = v;
       speechSynthesis.speak(u);
     } catch (e) { /* 음성 미지원 */ }
   }
-  function stopSpeak() { try { window.speechSynthesis && speechSynthesis.cancel(); } catch (e) {} }
+  // iPad는 화면을 누른 순간에 한 번 말해 두어야 이후에도 말할 수 있다 → 입장 버튼에서 호출
+  function unlockSpeech() {
+    try {
+      if (!window.speechSynthesis) return;
+      const u = new SpeechSynthesisUtterance(' ');
+      u.volume = 0; u.lang = 'ko-KR';
+      speechSynthesis.speak(u);
+    } catch (e) {}
+  }
+  function stopSpeak() {
+    if (voiceSrc) { try { voiceSrc.stop(); } catch (e) {} voiceSrc = null; }
+    try { window.speechSynthesis && speechSynthesis.speaking && speechSynthesis.cancel(); } catch (e) {}
+  }
+  // 전화·알림 등으로 오디오가 멈췄다가 다시 화면을 누르면 되살린다
+  ['pointerdown', 'touchend', 'keydown'].forEach(t => document.addEventListener(t, () => resume(), true));
 
   function setEnabled(on) {
     enabled = on;
@@ -152,5 +198,5 @@
   function suspend() { if (ac && ac.state === 'running') ac.suspend(); stopSpeak(); }
   function resume() { if (ac && ac.state === 'suspended') ac.resume(); }
 
-  window.SFX = { init, step, buzz, whoosh, wrong, chime, exitBell, speak, stopSpeak, setEnabled, setVoice, suspend, resume };
+  window.SFX = { init, step, buzz, whoosh, wrong, chime, exitBell, speak, voice, preloadVoice, stopSpeak, setEnabled, setVoice, suspend, resume };
 })();
