@@ -1,6 +1,7 @@
 /* =========================================================
    미스터리 역사 박물관 - 게임 본체 (three.js)
-   제 n 전시실 = ROOMS[n] (교과서 순서), 마지막 전시실을 지나면 출구
+   제0~16 전시실을 지나면 출구. 전시실마다 주제(ROOMS)가 무작위로 나온다
+   (같은 주제는 최대 3번 연속). 4개 전시실마다 중간 저장.
    ========================================================= */
 (function () {
   const $ = id => document.getElementById(id);
@@ -11,7 +12,9 @@
   const HW = 3.5;        // 전시실 폭의 절반
   const H = 4.2;         // 천장 높이
   const EYE = 1.6;       // 눈 높이
-  const GOAL = ROOMS.length;   // 이 수만큼 연속으로 맞히면 출구
+  const GOAL = 17;       // 제0~16 전시실을 모두 지나면 출구
+  const CHECK_EVERY = 4; // 중간 저장 간격
+  const MAX_SAME = 3;    // 같은 주제가 연속으로 나올 수 있는 최대 횟수
   const ANOMALY_RATE = 0.55;
   const INSPECT_RANGE = 6.5;
   const CX = -1.95, CZ = -27;  // 가운데 모형 자리
@@ -328,19 +331,28 @@
   }
 
   /* ---------- 떠도는 해설사 ---------- */
-  let docent;
+  let docent, docentHit;
   function buildDocent() {
     docent = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex(ART.drawDocent()), transparent: true, opacity: 0.88, depthWrite: false }));
     docent.scale.set(0.88, 1.92, 1);
     docent.userData.key = 'docent';
     scene.add(docent);
-    pickables.push(docent);
+    // 스프라이트는 작아서 손가락으로 누르기 어렵다 → 보이지 않는 큰 상자로 누름 판정
+    docentHit = new THREE.Mesh(new THREE.BoxGeometry(1.1, 2.1, 1.1), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, colorWrite: false }));
+    docentHit.userData.key = 'docent';
+    scene.add(docentHit);
+    pickables.push(docentHit);
   }
 
   /* ---------- 게임 상태 ---------- */
   const S = {
     mode: 'title',          // title | play | inspect | note | menu | trans | ending
     streak: 0,              // = 지금 전시실 번호
+    roomIdx: 0,             // 지금 전시실의 주제 (ROOMS 번호)
+    history: [],            // 지금까지 나온 주제 (연속 제한용)
+    checkpoint: 0,          // 중간 저장된 전시실 번호
+    forcedRoom: null,
+    elapsed: 0,
     anomaly: null,
     lastAnomalyId: null,
     firstGallery: true,
@@ -354,7 +366,16 @@
     startTime: 0, mistakes: 0, foundThisRun: 0
   };
 
-  function room() { return ROOMS[Math.min(S.streak, ROOMS.length - 1)]; }
+  function room() { return ROOMS[S.roomIdx]; }
+
+  // 다음 주제: 무작위, 단 같은 주제가 3번 연속이면 다른 주제
+  function pickRoom() {
+    if (S.forcedRoom != null) { const r = S.forcedRoom; S.forcedRoom = null; return r; }
+    const h = S.history, n = h.length;
+    let pool = ROOMS.map((r, i) => i);
+    if (n >= MAX_SAME && h.slice(n - MAX_SAME).every(x => x === h[n - 1])) pool = pool.filter(i => i !== h[n - 1]);
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
 
   function current(key) {
     const base = room().exhibits[key];
@@ -400,12 +421,23 @@
     return pool[Math.floor(Math.random() * pool.length)];
   }
 
-  function newGallery() {
+  function newGallery(restore) {
     S.exitRoom = S.streak >= GOAL;
-    S.anomaly = pickAnomaly();
-    if (S.anomaly) S.lastAnomalyId = S.anomaly.id;
+    if (!restore) {
+      if (S.forced) S.forcedRoom = S.forced.room;
+      S.roomIdx = pickRoom();
+      S.history.push(S.roomIdx);
+      if (S.history.length > 10) S.history.shift();
+      S.anomaly = pickAnomaly();
+      if (S.anomaly) S.lastAnomalyId = S.anomaly.id;
+      // 4개 전시실마다 중간 저장
+      if (!S.exitRoom && S.streak > S.checkpoint && S.streak % CHECK_EVERY === 0) {
+        S.checkpoint = S.streak;
+        setTimeout(() => showHint(`중간 저장 ─ 이제 틀려도 제 ${S.checkpoint} 전시실부터 다시 시작합니다`, 4500), 1200);
+      }
+    }
     setupRoom();
-    signTex.image = ART.drawSign(S.streak, S.exitRoom ? '' : room().name); signTex.needsUpdate = true;
+    signTex.image = ART.drawSign(S.streak, S.exitRoom ? '' : room().name, S.exitRoom); signTex.needsUpdate = true;
     rulesTex.image = ART.drawRules(rulesInfo()); rulesTex.needsUpdate = true;
     exitGroup.visible = S.exitRoom;
     exitLight.intensity = S.exitRoom ? 2.2 : 0;
@@ -414,10 +446,30 @@
     S.z = -2; S.yaw = 0; S.pitch = 0; S.turning = 0;
     S.docZ = -L + 1.5; S.spoke = false;
     docent.visible = !S.exitRoom;
+    docentHit.visible = !S.exitRoom;
     docentGlow.intensity = S.exitRoom ? 0 : 0.9;
     hideSubtitle();
     S.firstGallery = false;
+    saveProgress();
   }
+
+  /* ---------- 진행 저장 (창을 닫거나 뒤로 가도 이어서 하기) ---------- */
+  function playTime() { return S.elapsed + (S.mode === 'title' ? 0 : performance.now() - S.startTime); }
+  function saveProgress() {
+    if (!S.started) return;
+    store.set('progress', {
+      streak: S.streak, checkpoint: S.checkpoint, roomIdx: S.roomIdx, history: S.history,
+      anomaly: S.anomaly ? S.anomaly.id : null, lastAnomalyId: S.lastAnomalyId,
+      mistakes: S.mistakes, foundThisRun: S.foundThisRun, elapsed: playTime()
+    });
+  }
+  function loadProgress() {
+    const p = store.get('progress', null);
+    if (!p || typeof p.streak !== 'number' || !ROOMS[p.roomIdx]) return null;
+    return p;
+  }
+  function clearProgress() { try { localStorage.removeItem('mhm_progress'); } catch (e) {} }
+  window.addEventListener('pagehide', () => { if (S.started && S.mode !== 'ending') saveProgress(); });
 
   /* ---------- 화면 전환 ---------- */
   const fadeEl = $('fade');
@@ -450,9 +502,9 @@
         note = { good: true, a: had, isNew, roomName };
       }
     } else {
-      S.streak = settings.easy ? Math.max(0, S.streak - 1) : 0;
+      S.streak = settings.easy ? Math.max(S.checkpoint, S.streak - 1) : S.checkpoint;
       S.mistakes++;
-      note = { good: false, a: had, roomName };
+      note = { good: false, a: had, roomName, to: S.streak };
     }
 
     fadeTo(1, 700).then(() => {
@@ -474,7 +526,7 @@
   function showNote(n, done) {
     S.mode = 'note';
     const card = $('noteCard');
-    const back = settings.easy ? '한 전시실 뒤로.' : '처음부터 다시.';
+    const back = !n.to ? '처음부터 다시.' : `제 ${n.to} 전시실${n.to === S.checkpoint ? '(중간 저장)' : ''}부터 다시.`;
     let html = n.roomName ? `<div class="k" style="margin-top:0">${n.roomName}</div>` : '';
     if (n.good) {
       html += `<h2 class="good">이상 현상을 발견했다${n.isNew ? '' : ' (이미 기록됨)'}</h2>
@@ -503,7 +555,9 @@
     SFX.exitBell();
     const firstClear = !cleared;
     cleared = true; store.set('cleared_v2', true);
-    const sec = Math.round((performance.now() - S.startTime) / 1000);
+    const sec = Math.round(playTime() / 1000);
+    S.started = false;
+    clearProgress();
     const remain = window.ANOMALIES.filter(a => !found.has(a.id)).length;
     $('endStat').innerHTML = `
       당신은 박물관을 빠져나왔다.<br>
@@ -552,6 +606,7 @@
   /* ---------- 입력 ---------- */
   const keys = { fwd: false, back: false, left: false, right: false, run: false };
   window.addEventListener('keydown', e => {
+    if (blocked) return;
     if (S.mode === 'inspect' && (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); closeInspect(); return; }
     if (S.mode === 'play' && e.key === 'Escape') { openMenu(); return; }
     if (S.mode === 'menu' && e.key === 'Escape') { closeMenu(); return; }
@@ -579,7 +634,7 @@
   let look = null;
   canvasEl.addEventListener('pointerdown', e => {
     if (S.mode !== 'play' || look) return;
-    look = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: 0 };
+    look = { id: e.pointerId, x: e.clientX, y: e.clientY, moved: 0, touch: e.pointerType !== 'mouse' };
     try { canvasEl.setPointerCapture(e.pointerId); } catch (er) {}
   });
   canvasEl.addEventListener('pointermove', e => {
@@ -596,7 +651,7 @@
   });
   function endLook(e) {
     if (!look || e.pointerId !== look.id) return;
-    const wasTap = look.moved < 10;
+    const wasTap = look.moved < (look.touch ? 24 : 10);   // 손가락은 누를 때 조금 흔들린다
     look = null;
     if (wasTap && S.mode === 'play') pickAt(e.clientX, e.clientY, false);
   }
@@ -611,11 +666,13 @@
   }
   holdBtn($('tFwd'), () => { keys.fwd = true; }, () => { keys.fwd = false; });
   holdBtn($('tBack'), () => { keys.back = true; }, () => { keys.back = false; });
+  holdBtn($('tRun'), () => { keys.run = true; }, () => { keys.run = false; });
   holdBtn($('tTurn'), () => { if (S.mode === 'play') turnAround(); });
+  ['tFwd', 'tBack', 'tRun', 'tTurn'].forEach(id => $(id).addEventListener('contextmenu', e => e.preventDefault()));
 
   function turnAround() {
-    if (S.turning > 0) return;
-    S.turning = 0.0001; S.turnFrom = S.yaw; S.turnTo = S.yaw + Math.PI;
+    const target = (S.turning > 0 ? S.turnTo : S.yaw) - Math.PI / 2;
+    S.turnFrom = S.yaw; S.turnTo = target; S.turning = 0.0001;
   }
 
   /* ---------- 자세히 보기 ---------- */
@@ -640,9 +697,9 @@
   function pickAt(x, y, center) {
     const h = rayAt(x, y, center);
     if (!h) return;
-    if (h.distance > INSPECT_RANGE) { showHint('더 가까이 다가가세요…', 1600); return; }
+    if (h.distance > (h.object.userData.key === 'docent' ? 9 : INSPECT_RANGE)) { showHint('더 가까이 다가가세요…', 1600); return; }
     const u = h.object.userData;
-    if (u.key === 'docent') { showSubtitle(S.docSpeech); return; }
+    if (u.key === 'docent') { SFX.speak(S.docSpeech); return openInspect(ART.drawDocentCard(S.docSpeech)); }
     if (u.key === 'rules') return openInspect(rulesTex.image);
     if (u.key === 'sign') return openInspect(signTex.image);
     if (u.slot && slots[u.slot]) openInspect(slots[u.slot].canvas);
@@ -687,7 +744,10 @@
   function closeMenu() { showScreen(null); S.mode = 'play'; }
   $('menuBtn').onclick = openMenu;
   $('resumeBtn').onclick = closeMenu;
-  $('quitBtn').onclick = () => { SFX.stopSpeak(); $('hud').classList.remove('on'); fadeEl.style.opacity = 1; S.mode = 'title'; showScreen('title'); };
+  $('quitBtn').onclick = () => {
+    SFX.stopSpeak(); saveProgress(); S.elapsed = playTime(); S.started = false;
+    $('hud').classList.remove('on'); fadeEl.style.opacity = 1; S.mode = 'title'; refreshTitle(); showScreen('title');
+  };
   $('recordBtn1').onclick = () => openRecord('title');
   $('recordBtn2').onclick = () => openRecord('menu');
   $('recordBtn3').onclick = () => openRecord('ending');
@@ -708,12 +768,22 @@
   applyLow();
 
   /* ---------- 시작 ---------- */
-  function startGame() {
+  function startGame(resume) {
     SFX.init();
     if (window.speechSynthesis) try { speechSynthesis.getVoices(); } catch (e) {}
-    S.streak = S.startRoom; S.firstGallery = true; S.mistakes = 0; S.foundThisRun = 0;
     S.startTime = performance.now();
-    newGallery();
+    S.started = true;
+    if (resume) {
+      Object.assign(S, { streak: resume.streak, checkpoint: resume.checkpoint || 0, roomIdx: resume.roomIdx,
+        history: resume.history || [], lastAnomalyId: resume.lastAnomalyId, mistakes: resume.mistakes || 0,
+        foundThisRun: resume.foundThisRun || 0, elapsed: resume.elapsed || 0, firstGallery: false });
+      S.anomaly = window.ANOMALIES.find(a => a.id === resume.anomaly && a.room === resume.roomIdx) || null;
+      newGallery(true);
+    } else {
+      Object.assign(S, { streak: 0, checkpoint: 0, history: [], firstGallery: true, mistakes: 0, foundThisRun: 0, elapsed: 0 });
+      if (S.startRoom) S.forcedRoom = S.startRoom;
+      newGallery();
+    }
     showScreen(null);
     $('hud').classList.add('on');
     $('touch').classList.add('on');
@@ -723,12 +793,19 @@
     fadeTo(0, 1600);
     setTimeout(() => showHint(isTouch ? '전시물을 눌러 자세히 볼 수 있습니다' : '전시물을 클릭하면 자세히 볼 수 있습니다', 4500), 1800);
   }
-  $('startBtn').onclick = startGame;
-  $('againBtn').onclick = () => { fadeEl.style.opacity = 1; S.startRoom = 0; startGame(); };
+  $('startBtn').onclick = () => startGame(S.resumeData);
+  $('newBtn').onclick = () => { clearProgress(); S.resumeData = null; startGame(null); };
+  $('againBtn').onclick = () => { fadeEl.style.opacity = 1; S.startRoom = 0; S.resumeData = null; startGame(null); };
+  function refreshTitle() {
+    S.resumeData = (S.startRoom || S.forced) ? null : loadProgress();
+    const r = S.resumeData;
+    $('startBtn').textContent = r ? `이어서 하기 (제 ${r.streak} 전시실)` : '입장하기';
+    $('newBtn').style.display = r ? '' : 'none';
+  }
 
   $('controlsInfo').innerHTML = isTouch
-    ? '▲ 걷기 · ▼ 뒷걸음 · ⟲ 뒤돌기 · 화면을 끌어서 둘러보기 · 전시물을 눌러 자세히 보기'
-    : 'W/↑ 걷기 · S/↓ 뒷걸음 · A/D/←/→ 둘러보기 · 마우스로 끌어서 둘러보기<br>Space 뒤돌기 · Shift 빨리 걷기 · 클릭 자세히 보기 · Esc 메뉴';
+    ? '▲ 걷기 · ▼ 뒷걸음 · » 누른 채로 걸으면 뛰기 · ⟳ 90° 돌기<br>화면을 끌어서 둘러보기 · 전시물과 해설사를 눌러 자세히 보기'
+    : 'W/↑ 걷기 · S/↓ 뒷걸음 · A/D/←/→ 둘러보기 · 마우스로 끌어서 둘러보기<br>Space 90° 돌기 · Shift 뛰기 · 클릭 자세히 보기 · Esc 메뉴';
 
   /* ---------- 매 프레임 ---------- */
   let last = performance.now();
@@ -741,7 +818,7 @@
     const active = S.mode === 'play';
     // 뒤돌기 애니메이션
     if (S.turning > 0) {
-      S.turning = Math.min(1, S.turning + dt / 0.6);
+      S.turning = Math.min(1, S.turning + dt / 0.35);
       const t = S.turning, e = t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
       S.yaw = S.turnFrom + (S.turnTo - S.turnFrom) * e;
       if (S.turning >= 1) S.turning = 0;
@@ -789,6 +866,7 @@
         }
       }
       docent.position.set(1.35 + Math.sin(now / 900) * 0.02, 0.96, S.docZ);
+      docentHit.position.set(1.35, 1.05, S.docZ);
       docentGlow.position.set(1.55, 1.1, S.docZ + 0.3);
       if (!S.spoke && Math.abs(S.docZ - S.z) < 5 && active) { S.spoke = true; showSubtitle(S.docSpeech); }
     }
@@ -845,12 +923,49 @@
     $('grain').style.backgroundImage = `url(${g.toDataURL()})`;
   })();
 
+  /* ---------- 창 여러 개 막기 ----------
+     새로 연 창이 "여기 있나요?"를 묻고, 이미 열린 창이 답하면 새 창에 안내를 띄운다.
+     "이 창에서 계속하기"를 누르면 다른 창들이 멈추고 안내를 띄운다. */
+  const tabId = Math.random().toString(36).slice(2);
+  let blocked = false;
+  const chan = (() => {
+    if (window.BroadcastChannel) {
+      const bc = new BroadcastChannel('mhm');
+      return { send: m => bc.postMessage(m), on: f => { bc.onmessage = e => f(e.data); } };
+    }
+    // BroadcastChannel이 없는 옛 브라우저: localStorage 변경 알림으로 대신 주고받는다
+    let handler = null;
+    window.addEventListener('storage', e => { if (e.key === 'mhm_msg' && e.newValue && handler) handler(JSON.parse(e.newValue)); });
+    return { send: m => { try { localStorage.setItem('mhm_msg', JSON.stringify(Object.assign({ t: Date.now() }, m))); } catch (er) {} }, on: f => { handler = f; } };
+  })();
+  function block(msg) {
+    blocked = true;
+    if (S.mode === 'play') { saveProgress(); openMenu(); }
+    keys.fwd = keys.back = keys.run = false;
+    SFX.suspend();
+    $('dupeMsg').innerHTML = msg;
+    $('dupe').classList.add('on');
+  }
+  chan.on(m => {
+    if (!m || m.from === tabId) return;
+    if (m.type === 'hello' && !blocked) chan.send({ type: 'here', from: tabId, to: m.from });
+    if (m.type === 'here' && m.to === tabId) block('이 기기에서 이미 다른 창으로 게임을 하고 있습니다.<br>창이 여러 개면 기록이 꼬일 수 있으니 <b>이 창을 닫아 주세요.</b>');
+    if (m.type === 'takeover') block('다른 창에서 게임을 이어서 하고 있습니다.<br><b>이 창은 닫아 주세요.</b>');
+  });
+  chan.send({ type: 'hello', from: tabId });
+  $('dupeTake').onclick = () => {
+    chan.send({ type: 'takeover', from: tabId });
+    blocked = false;
+    $('dupe').classList.remove('on');
+    location.reload();   // 다른 창이 저장한 진행 상황을 다시 불러온다
+  };
+
   /* ---------- 교사용 미리보기 ---------- */
   // ?room=번호  → 그 전시실부터 시작
   // ?test=이상현상ID (예: goryeo2.ce_white) → 그 전시실에서 그 이상 현상이 바로 나온다
   const params = new URLSearchParams(location.search);
   const roomParam = parseInt(params.get('room'), 10);
-  if (roomParam >= 0 && roomParam < ROOMS.length) S.startRoom = roomParam;
+  if (roomParam >= 0 && roomParam < ROOMS.length) S.startRoom = roomParam;  // 첫 전시실의 주제
   const testId = params.get('test');
   if (testId) {
     S.forced = window.ANOMALIES.find(a => a.id === testId || a.id.endsWith('.' + testId)) || null;
@@ -878,9 +993,11 @@
     buildMuseum();
     buildDocent();
     const forced = S.forced;
-    S.streak = S.startRoom;
+    S.streak = 0;
     newGallery();
     S.forced = forced;
+    S.history = [];
+    refreshTitle();
     camera.position.set(0, EYE, -2);
     $('loading').textContent = '';
     $('startBtn').disabled = false;
@@ -891,6 +1008,6 @@
   window.MHM = {
     state: S,
     show(id) { S.anomaly = window.ANOMALIES.find(a => a.id === id) || null; setupRoom(); },
-    goRoom(n) { S.streak = n; S.anomaly = null; newGallery(); }
+    goRoom(n) { S.forcedRoom = n; newGallery(); S.anomaly = null; setupRoom(); }
   };
 })();

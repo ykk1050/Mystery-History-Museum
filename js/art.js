@@ -596,7 +596,7 @@
       '즉시 되돌아가세요.',
       '이상한 전시가 없다면',
       '앞으로 나아가세요.',
-      '제8 전시실을 지나',
+      '제16 전시실을 지나',
       '출구로 나가세요.'
     ];
     let y = 180;
@@ -610,13 +610,13 @@
     return c;
   }
 
-  function drawSign(n, name) {
+  function drawSign(n, name, isExit) {
     const W = 1024, H = 300;
     const c = canvas(W, H), ctx = c.getContext('2d');
     ctx.fillStyle = '#0d0c0b'; ctx.fillRect(0, 0, W, H);
     ctx.strokeStyle = '#3a352c'; ctx.lineWidth = 8; ctx.strokeRect(6, 6, W - 12, H - 12);
     ctx.textAlign = 'center';
-    if (n >= 8) {
+    if (isExit) {
       ctx.fillStyle = '#5fdc8a'; ctx.font = `700 120px ${SANS}`;
       ctx.fillText('출구  ↑', W / 2, 165);
       ctx.font = `700 46px ${SANS}`; ctx.fillText('EXIT', W / 2, 245);
@@ -759,6 +759,24 @@
     return c;
   }
 
+  function drawDocentCard(speech) {
+    const W = 1000, H = 620;
+    const c = canvas(W, H), ctx = c.getContext('2d');
+    const g = ctx.createRadialGradient(240, 320, 20, 240, 320, 520);
+    g.addColorStop(0, '#2a2018'); g.addColorStop(1, '#070504');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    ctx.drawImage(drawDocent(), 110, 40, 256, 560);
+    ctx.strokeStyle = '#4c3e27'; ctx.lineWidth = 3; ctx.strokeRect(14, 14, W - 28, H - 28);
+    ctx.fillStyle = '#8e8676'; ctx.font = `600 30px ${SANS}`;
+    ctx.fillText('— 해설사 —', 430, 130);
+    ctx.fillStyle = '#e6dfcc'; ctx.font = `500 42px ${FONT}`;
+    let y = 220;
+    speech.split('…').map(t => t.trim()).filter(Boolean).forEach(part => {
+      y = drawWrapped(ctx, part + '…', 430, y, W - 480, 58) + 14;
+    });
+    return c;
+  }
+
   /* 화면에 쓰는 모든 글자 (웹폰트 미리 불러오기용) */
   function allText() {
     let s = '관람안내이상한전시를놓치지마세요발견하면즉시되돌아가세요없다면앞으로나아가세요제8전시실을지나출구로나가세요0123456789GALLERYEXIT↑←→이전다음수장고관계자외출입금지복제품인천광역시강화군부근리시대가흐르는순서대로살펴봅시다선사문자로쓴기록이없는';
@@ -768,7 +786,7 @@
 
   window.ART = {
     drawCase, drawMural, drawPanel, drawTimeline, drawLabel, drawRules, drawSign,
-    drawSmallSign, drawDoorPlate, floorTex, wallTex, glowTex, stoneTex, drawDocent,
+    drawSmallSign, drawDoorPlate, drawDocentCard, floorTex, wallTex, glowTex, stoneTex, drawDocent,
     loadImages, allText, FONT, SANS
   };
 })();

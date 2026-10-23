@@ -109,6 +109,8 @@
   .tbtn.active { background: rgba(232,197,71,0.25); border-color: var(--gold); }
   #tFwd { left: 28px; bottom: calc(118px + env(safe-area-inset-bottom)); }
   #tBack { left: 28px; bottom: calc(28px + env(safe-area-inset-bottom)); }
+  #tRun { left: 116px; bottom: calc(73px + env(safe-area-inset-bottom)); font-size: 30px; }
+  #tRun small { font-size: 10px; line-height: 1.15; text-align: center; }
   #tTurn { right: 28px; bottom: calc(28px + env(safe-area-inset-bottom)); width: 86px; height: 86px; }
   #lookHint { position: absolute; right: 28px; bottom: calc(126px + env(safe-area-inset-bottom)); font-size: 12px; color: rgba(200,190,160,0.55); text-align: right; line-height: 1.5; }
 
@@ -166,6 +168,7 @@
     #tTurn { width: 76px; height: 76px; }
     #tFwd { bottom: calc(100px + env(safe-area-inset-bottom)); left: 18px; }
     #tBack { left: 18px; bottom: calc(22px + env(safe-area-inset-bottom)); }
+    #tRun { left: 92px; bottom: calc(61px + env(safe-area-inset-bottom)); }
     #tTurn { right: 18px; bottom: calc(22px + env(safe-area-inset-bottom)); }
     #subtitle { bottom: 175px; }
     #lookHint { display: none; }
@@ -186,12 +189,19 @@
   <div id="touch">
     <div class="tbtn" id="tFwd">▲<small>걷기</small></div>
     <div class="tbtn" id="tBack">▼<small>뒷걸음</small></div>
-    <div class="tbtn" id="tTurn">⟲<small>뒤돌기</small></div>
+    <div class="tbtn" id="tRun">»<small>누른 채로<br>뛰기</small></div>
+    <div class="tbtn" id="tTurn">⟳<small>90° 돌기</small></div>
     <div id="lookHint">화면을 끌어서 둘러보기<br>전시물을 눌러 자세히 보기</div>
   </div>
 </div>
 
 <div id="fade"></div>
+
+<div id="dupe" class="screen" style="z-index:50">
+  <h2 style="font-family:var(--serif);color:#e2d3b0">게임 창이 여러 개 열려 있어요</h2>
+  <p style="font-family:var(--serif);color:#cbbd9c;line-height:1.8;max-width:460px" id="dupeMsg"></p>
+  <button class="btn" id="dupeTake">이 창에서 계속하기</button>
+</div>
 
 <div id="title" class="screen on">
   <h1>미스터리 역사 박물관</h1>
@@ -201,17 +211,18 @@
     <b>이상한 전시</b>를 하나도 놓치지 마세요.<br>
     이상한 전시를 발견하면 <b>즉시 되돌아가세요.</b><br>
     이상한 전시가 없다면 <b>앞으로 나아가세요.</b><br>
-    <b>제8 전시실</b>을 지나 출구로 나가세요.<br>
-    <span style="font-size:0.88em;color:#9a8b70">전시실마다 구석기 시대부터 고려까지 다른 시대가 전시되어 있습니다.</span>
+    <b>제16 전시실</b>을 지나 출구로 나가세요.<br>
+    <span style="font-size:0.88em;color:#9a8b70">전시실마다 구석기 시대부터 고려까지 여러 시대가 무작위로 나옵니다.<br>4개 전시실을 지날 때마다 중간 저장됩니다.</span>
   </div>
   <div class="row">
     <button class="btn" id="startBtn" disabled>입장하기</button>
+    <button class="btn ghost" id="newBtn" style="display:none">처음부터 하기</button>
     <button class="btn ghost" id="recordBtn1">이상 현상 기록장</button>
   </div>
   <div id="loading">전시실을 준비하는 중…</div>
   <div class="controls" id="controlsInfo"></div>
   <div class="unit">초등학교 5학년 사회 2학기 1단원<br>「유적과 유물로 살펴본 옛 사람들의 생활」 복습 게임 · 소리를 켜고 플레이하세요</div>
-  <div class="credit">Created by gamtudyssam using AI · 0.001</div>
+  <div class="credit">Created by gamtudyssam using AI · 0.002</div>
 </div>
 
 <div id="inspect">
@@ -250,10 +261,10 @@
 </div>
 
 <script src="vendor/three.min.js"></script>
-<script src="js/data.js?v=0.2.1"></script>
-<script src="js/artifacts.js?v=0.2.1"></script>
-<script src="js/art.js?v=0.2.1"></script>
-<script src="js/audio.js?v=0.2.1"></script>
-<script src="js/game.js?v=0.2.1"></script>
+<script src="js/data.js?v=0.2.2"></script>
+<script src="js/artifacts.js?v=0.2.2"></script>
+<script src="js/art.js?v=0.2.2"></script>
+<script src="js/audio.js?v=0.2.2"></script>
+<script src="js/game.js?v=0.2.2"></script>
 </body>
 </html>
