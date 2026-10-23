@@ -18,6 +18,7 @@
   const MIN_VIEWS = 3;   // 전시물을 이만큼 자세히 봐야 문이 열린다
   const LAMP_AFTER = 2;  // 같은 주제에서 연속으로 이만큼 틀리면 힌트 등불
   const WHISPER_AFTER = 3; // 같은 주제에서 연속으로 이만큼 틀리면 해설사의 귀띔
+  const REVIEW_AFTER = 2;  // 같은 주제에서 연속으로 이만큼 틀리면 '정상 전시 다시 보기'
   const ANOMALY_RATE = 0.55;
   const INSPECT_RANGE = 6.5;
   const CX = -1.95, CZ = -27;  // 가운데 모형 자리
@@ -658,7 +659,7 @@
         <p>이 전시실에는 이상한 전시가 하나도 없었다.<br>교과서 내용과 꼼꼼히 비교해 보면, 다음엔 헷갈리지 않을 것이다.</p>
         <p style="margin-top:10px;color:#7a6a4e">${back}</p>`;
     }
-    if (!n.good && n.roomIdx != null) html += `<button class="btn ghost" id="noteReview" style="margin-top:16px;width:100%">🔍 이 주제의 정상 전시 다시 보기</button>`;
+    if (!n.good && n.roomIdx != null && (S.wrongStreak[n.roomIdx] || 0) >= REVIEW_AFTER) html += `<button class="btn ghost" id="noteReview" style="margin-top:16px;width:100%">🔍 이 주제의 정상 전시 다시 보기</button>`;
     html += `<button class="btn" id="noteOk">계속</button>`;
     card.innerHTML = html;
     card.scrollTop = 0;
@@ -1020,7 +1021,7 @@
   }
 
   $('controlsInfo').innerHTML = isTouch
-    ? '▲ 걷기 · ▼ 뒷걸음 · » 누른 채로 걸으면 뛰기 · ⟳ 90° 돌기<br>화면을 끌어서 둘러보기 · 전시물과 해설사를 눌러 자세히 보기'
+    ? '▲ 걷기 · ▼ 뒷걸음 · » 뛰어서 이동하기(누른 채로 걷기) · ⟳ 90° 돌기<br>화면을 끌어서 둘러보기 · 전시물과 해설사를 눌러 자세히 보기'
     : 'W/↑ 걷기 · S/↓ 뒷걸음 · A/D/←/→ 둘러보기 · 마우스로 끌어서 둘러보기<br>Space 90° 돌기 · Shift 뛰기 · 클릭 자세히 보기 · Esc 메뉴';
 
   /* ---------- 매 프레임 ---------- */
