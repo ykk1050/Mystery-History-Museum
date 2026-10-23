@@ -1,0 +1,253 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#000000">
+<title>미스터리 역사 박물관</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@500;700&family=Noto+Serif+KR:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --gold: #e8c547;
+    --paper: #e6dcc5;
+    --ink: #1c1510;
+    --blood: #b3261e;
+    --serif: "Noto Serif KR", "Nanum Myeongjo", "AppleMyungjo", "Batang", serif;
+    --sans: "Noto Sans KR", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; height: 100%; overflow: hidden; background: #000; color: #ddd;
+    font-family: var(--sans); touch-action: none; user-select: none; -webkit-user-select: none;
+    overscroll-behavior: none;
+  }
+  #c { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+
+  /* 화면 효과 */
+  #vignette {
+    position: fixed; inset: 0; pointer-events: none;
+    background: radial-gradient(ellipse at center, rgba(0,0,0,0) 45%, rgba(0,0,0,0.55) 78%, rgba(0,0,0,0.92) 100%);
+  }
+  #grain { position: fixed; inset: -50%; width: 200%; height: 200%; pointer-events: none; opacity: 0.06; background-size: 160px 160px; animation: grain 0.9s steps(6) infinite; }
+  @keyframes grain {
+    0% { transform: translate(0,0) } 20% { transform: translate(-6%,4%) } 40% { transform: translate(5%,-3%) }
+    60% { transform: translate(-3%,-6%) } 80% { transform: translate(4%,5%) } 100% { transform: translate(0,0) }
+  }
+  #fade { position: fixed; inset: 0; background: #000; opacity: 1; pointer-events: none; transition: opacity 0.7s; }
+  #redflash { position: fixed; inset: 0; background: radial-gradient(ellipse at center, rgba(120,0,0,0.0), rgba(120,0,0,0.6)); opacity: 0; pointer-events: none; transition: opacity 0.4s; }
+
+  /* 공통 버튼 */
+  .btn {
+    font-family: var(--serif); font-weight: 700; font-size: 20px; color: #f2e6c9;
+    background: rgba(20,16,12,0.85); border: 1px solid #8a7348; padding: 14px 28px; border-radius: 6px;
+    cursor: pointer; min-width: 180px; letter-spacing: 0.05em;
+  }
+  .btn:hover, .btn:focus-visible { background: #3a2c1a; outline: none; }
+  .btn.ghost { background: transparent; border-color: #4c3e27; color: #bba882; font-size: 16px; padding: 10px 18px; min-width: 0; }
+
+  /* 시작 화면 */
+  .screen {
+    position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center;
+    text-align: center; padding: 24px 16px; background: radial-gradient(ellipse at 50% 30%, #1d1510 0%, #050403 70%);
+    overflow-y: auto; touch-action: pan-y;
+  }
+  .screen.on { display: flex; }
+  #title h1 {
+    font-family: var(--serif); font-size: clamp(34px, 7vw, 64px); margin: 0 0 6px; color: #e9dcbc; letter-spacing: 0.12em;
+    text-shadow: 0 0 24px rgba(232,197,71,0.25); animation: flicker 6s infinite;
+  }
+  @keyframes flicker { 0%,92%,96%,100% { opacity: 1 } 93% { opacity: 0.3 } 95% { opacity: 0.8 } 97% { opacity: 0.4 } }
+  #title .en { font-family: var(--sans); letter-spacing: 0.5em; color: #7d6c4c; font-size: 13px; margin-bottom: 28px; }
+  #title .rules {
+    font-family: var(--serif); color: #cbbd9c; line-height: 1.9; font-size: clamp(15px, 2.4vw, 19px);
+    border-top: 1px solid #3a2f1f; border-bottom: 1px solid #3a2f1f; padding: 16px 8px; margin-bottom: 26px; max-width: 520px;
+  }
+  #title .rules b { color: var(--gold); font-weight: 700; }
+  #title .row { display: flex; gap: 12px; flex-wrap: wrap; justify-content: center; }
+  #title .unit { margin-top: 26px; font-size: 13px; color: #6f6250; line-height: 1.7; }
+  #title .controls { margin-top: 14px; font-size: 13.5px; color: #9a8b70; line-height: 1.8; }
+  #loading { color: #8a7a5c; font-family: var(--serif); margin-top: 10px; font-size: 14px; min-height: 20px; }
+
+  /* 게임 HUD */
+  #hud { position: fixed; inset: 0; pointer-events: none; display: none; }
+  #hud.on { display: block; }
+  #menuBtn {
+    position: absolute; top: max(12px, env(safe-area-inset-top)); left: 12px; pointer-events: auto;
+    width: 46px; height: 46px; border-radius: 50%; border: 1px solid #4c3e27; background: rgba(10,8,6,0.6);
+    color: #bba882; font-size: 20px; cursor: pointer;
+  }
+  #hint {
+    position: absolute; top: max(18px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+    font-family: var(--serif); font-size: 15px; color: #cbbd9c; background: rgba(0,0,0,0.55); padding: 8px 16px;
+    border-radius: 20px; opacity: 0; transition: opacity 0.6s; white-space: nowrap; max-width: calc(100% - 140px);
+    overflow: hidden; text-overflow: ellipsis;
+  }
+  #hint.on { opacity: 1; }
+  #crosshair { position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: rgba(255,240,200,0.35); }
+  #subtitle {
+    position: absolute; left: 50%; bottom: 150px; transform: translateX(-50%); width: min(92%, 720px);
+    text-align: center; font-family: var(--serif); font-size: clamp(17px, 2.6vw, 22px); color: #d8d3c4;
+    text-shadow: 0 0 8px #000, 0 0 3px #000; opacity: 0; transition: opacity 0.8s; letter-spacing: 0.04em;
+  }
+  #subtitle.on { opacity: 1; }
+  #subtitle .who { display: block; font-size: 13px; color: #8e8676; margin-bottom: 4px; letter-spacing: 0.2em; }
+
+  /* 터치 조작 버튼 */
+  #touch { position: absolute; inset: 0; display: none; }
+  #touch.on { display: block; }
+  .tbtn {
+    position: absolute; pointer-events: auto; width: 74px; height: 74px; border-radius: 50%;
+    background: rgba(20,16,12,0.45); border: 1.5px solid rgba(190,170,130,0.45); color: rgba(240,228,200,0.85);
+    font-size: 26px; display: flex; align-items: center; justify-content: center; flex-direction: column;
+    font-family: var(--sans); touch-action: none;
+  }
+  .tbtn small { font-size: 11px; margin-top: 2px; letter-spacing: 0.05em; }
+  .tbtn.active { background: rgba(232,197,71,0.25); border-color: var(--gold); }
+  #tFwd { left: 28px; bottom: calc(118px + env(safe-area-inset-bottom)); }
+  #tBack { left: 28px; bottom: calc(28px + env(safe-area-inset-bottom)); }
+  #tTurn { right: 28px; bottom: calc(28px + env(safe-area-inset-bottom)); width: 86px; height: 86px; }
+  #lookHint { position: absolute; right: 28px; bottom: calc(126px + env(safe-area-inset-bottom)); font-size: 12px; color: rgba(200,190,160,0.55); text-align: right; line-height: 1.5; }
+
+  /* 자세히 보기 */
+  #inspect {
+    position: fixed; inset: 0; display: none; align-items: center; justify-content: center; flex-direction: column;
+    background: rgba(0,0,0,0.82); padding: 16px; touch-action: pan-y;
+  }
+  #inspect.on { display: flex; }
+  #inspectBox { max-width: 100%; max-height: calc(100% - 80px); display: flex; align-items: center; justify-content: center; }
+  #inspectBox canvas { max-width: 100%; max-height: calc(100vh - 110px); width: auto; height: auto; box-shadow: 0 0 60px rgba(0,0,0,0.9); border-radius: 2px; }
+  #inspect .btn { margin-top: 14px; }
+
+  /* 기록 카드 */
+  #note {
+    position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 16px;
+    background: rgba(0,0,0,0.9);
+  }
+  #note.on { display: flex; }
+  .card {
+    width: min(560px, 100%); background: var(--paper); color: var(--ink); padding: 26px 24px 22px; border-radius: 3px;
+    font-family: var(--serif); box-shadow: 0 0 80px rgba(0,0,0,0.9); position: relative;
+  }
+  .card::before { content: ''; position: absolute; inset: 8px; border: 1px solid #9c8a66; pointer-events: none; }
+  .card h2 { margin: 0 0 14px; font-size: 24px; }
+  .card h2.bad { color: var(--blood); }
+  .card h2.good { color: #2c5d3d; }
+  .card .k { font-family: var(--sans); font-size: 12px; letter-spacing: 0.2em; color: #7a6a4e; margin-top: 12px; }
+  .card p { margin: 4px 0 0; line-height: 1.65; font-size: 17px; }
+  .card .right { background: rgba(44,93,61,0.1); border-left: 4px solid #2c5d3d; padding: 8px 12px; }
+  .card .wrongtxt { background: rgba(179,38,30,0.08); border-left: 4px solid var(--blood); padding: 8px 12px; }
+  .card .btn { margin-top: 20px; width: 100%; color: #f2e6c9; }
+
+  /* 메뉴 & 기록장 */
+  #menu .btn { margin: 6px; min-width: 220px; }
+  #menu h2, #record h2, #ending h2 { font-family: var(--serif); color: #e2d3b0; letter-spacing: 0.1em; }
+  #record { justify-content: flex-start; }
+  #record .list { width: min(680px, 100%); text-align: left; margin: 10px 0 20px; }
+  #record .item { border-bottom: 1px solid #2c2419; padding: 12px 4px; font-family: var(--serif); }
+  #record .item .t { font-size: 15px; color: #e2d3b0; }
+  #record .item .r { font-size: 14px; color: #9fbf9f; margin-top: 4px; line-height: 1.5; }
+  #record .item.unknown .t { color: #7a6b55; }
+  #record .count { color: var(--gold); font-family: var(--serif); }
+  .toggle { display: flex; gap: 8px; align-items: center; justify-content: center; margin: 4px; color: #bba882; font-family: var(--serif); }
+
+  /* 엔딩 */
+  #ending { background: radial-gradient(ellipse at 50% 20%, #fdf8ea 0%, #cfc4a8 40%, #2a2218 100%); }
+  #ending h2 { color: #2a2016; font-size: clamp(28px, 6vw, 46px); margin: 0 0 8px; }
+  #ending .stat { color: #2a2016; font-family: var(--serif); font-size: 18px; line-height: 1.9; margin-bottom: 18px; }
+  #ending .btn { margin: 6px; }
+
+  @media (max-width: 600px) {
+    .tbtn { width: 64px; height: 64px; }
+    #tTurn { width: 76px; height: 76px; }
+    #tFwd { bottom: calc(100px + env(safe-area-inset-bottom)); left: 18px; }
+    #tBack { left: 18px; bottom: calc(22px + env(safe-area-inset-bottom)); }
+    #tTurn { right: 18px; bottom: calc(22px + env(safe-area-inset-bottom)); }
+    #subtitle { bottom: 175px; }
+    #lookHint { display: none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="vignette"></div>
+<div id="grain"></div>
+<div id="redflash"></div>
+
+<div id="hud">
+  <button id="menuBtn" aria-label="메뉴">☰</button>
+  <div id="hint"></div>
+  <div id="crosshair"></div>
+  <div id="subtitle"><span class="who">— 해설사 —</span><span id="subText"></span></div>
+  <div id="touch">
+    <div class="tbtn" id="tFwd">▲<small>걷기</small></div>
+    <div class="tbtn" id="tBack">▼<small>뒷걸음</small></div>
+    <div class="tbtn" id="tTurn">⟲<small>뒤돌기</small></div>
+    <div id="lookHint">화면을 끌어서 둘러보기<br>전시물을 눌러 자세히 보기</div>
+  </div>
+</div>
+
+<div id="fade"></div>
+
+<div id="title" class="screen on">
+  <h1>미스터리 역사 박물관</h1>
+  <div class="en">MYSTERY HISTORY MUSEUM</div>
+  <div class="rules">
+    당신은 끝없이 이어지는 박물관 전시실에 갇히고 말았습니다.<br>
+    <b>이상한 전시</b>를 하나도 놓치지 마세요.<br>
+    이상한 전시를 발견하면 <b>즉시 되돌아가세요.</b><br>
+    이상한 전시가 없다면 <b>앞으로 나아가세요.</b><br>
+    <b>제8 전시실</b>을 지나 출구로 나가세요.
+  </div>
+  <div class="row">
+    <button class="btn" id="startBtn" disabled>입장하기</button>
+    <button class="btn ghost" id="recordBtn1">이상 현상 기록장</button>
+  </div>
+  <div id="loading">전시실을 준비하는 중…</div>
+  <div class="controls" id="controlsInfo"></div>
+  <div class="unit">초등학교 5학년 사회 2학기 1단원<br>「유적과 유물로 살펴본 옛 사람들의 생활」 복습 게임 · 소리를 켜고 플레이하세요</div>
+</div>
+
+<div id="inspect">
+  <div id="inspectBox"></div>
+  <button class="btn" id="inspectClose">✕ 돌아가기</button>
+</div>
+
+<div id="note"><div class="card" id="noteCard"></div></div>
+
+<div id="menu" class="screen">
+  <h2>일시 정지</h2>
+  <button class="btn" id="resumeBtn">계속 관람하기</button>
+  <button class="btn" id="recordBtn2">이상 현상 기록장</button>
+  <div class="toggle"><label><input type="checkbox" id="optSound" checked> 소리</label></div>
+  <div class="toggle"><label><input type="checkbox" id="optVoice" checked> 해설사 음성</label></div>
+  <div class="toggle"><label><input type="checkbox" id="optLow"> 저사양 모드 (끊길 때)</label></div>
+  <button class="btn ghost" id="quitBtn" style="margin-top:14px">처음 화면으로</button>
+</div>
+
+<div id="record" class="screen">
+  <h2>이상 현상 기록장</h2>
+  <div class="count" id="recordCount"></div>
+  <div class="list" id="recordList"></div>
+  <button class="btn" id="recordClose">닫기</button>
+  <button class="btn ghost" id="recordReset" style="margin-top:12px">기록 지우기</button>
+</div>
+
+<div id="ending" class="screen">
+  <h2>출구</h2>
+  <div class="stat" id="endStat"></div>
+  <div class="row">
+    <button class="btn" id="againBtn">다시 들어가기</button>
+    <button class="btn ghost" id="recordBtn3" style="color:#2a2016;border-color:#2a2016">이상 현상 기록장</button>
+  </div>
+</div>
+
+<script src="vendor/three.min.js"></script>
+<script src="js/data.js?v=0.1.2"></script>
+<script src="js/art.js?v=0.1.2"></script>
+<script src="js/audio.js?v=0.1.2"></script>
+<script src="js/game.js?v=0.1.2"></script>
+</body>
+</html>
