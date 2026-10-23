@@ -100,6 +100,31 @@
     ctx.textBaseline = 'alphabetic';
   }
 
+  // 여러 줄 설명을 정해진 칸(top~bottom) 안에 맞춰 쓴다. 넘치면 글자를 한 단계씩 줄인다.
+  //   lead: 줄 간격 배수, gap: 문단 사이 간격 배수, indent(l): 줄마다 들여쓰기
+  const overflowLog = [];
+  function fitBlock(ctx, lines, o) {
+    const lead = o.lead || 1.32, gap = o.gap == null ? 0.15 : o.gap, pre = o.prefix || '';
+    const indent = o.indent || (() => 0);
+    let size = o.size;
+    const measure = sz => {
+      ctx.font = `${o.weight || 500} ${sz}px ${o.family || FONT}`;
+      let y = o.top, last = o.top;
+      lines.forEach(l => {
+        const n = wrap(ctx, pre + l, o.maxW - indent(l)).length;
+        last = y + (n - 1) * sz * lead;
+        y += n * sz * lead + sz * gap;
+      });
+      return last + sz * 0.3;   // 마지막 줄 글자 아랫부분까지
+    };
+    while (size > (o.min || 14) && measure(size) > o.bottom) size -= 1;
+    if (measure(size) > o.bottom) overflowLog.push((o.name || '') + ' ' + lines.join(' / '));
+    ctx.font = `${o.weight || 500} ${size}px ${o.family || FONT}`;
+    let y = o.top;
+    lines.forEach(l => { y = drawWrapped(ctx, pre + l, o.x + indent(l), y, o.maxW - indent(l), size * lead) + size * gap; });
+    return size;
+  }
+
   // 글이 너비를 넘으면 글자 크기를 줄인다
   function fitFont(ctx, text, weight, size, min, maxW, family) {
     do { ctx.font = `${weight} ${size}px ${family}`; size -= 2; } while (size >= min && ctx.measureText(text).width > maxW);
@@ -343,22 +368,22 @@
     const bg = ctx.createRadialGradient(W / 2, 40, 20, W / 2, 300, 520);
     bg.addColorStop(0, '#5a3e2c'); bg.addColorStop(0.55, '#24170f'); bg.addColorStop(1, '#0a0605');
     ctx.fillStyle = bg; ctx.fillRect(0, 0, W, H);
-    grain(ctx, W, 560, 0.12, 21);
+    grain(ctx, W, 540, 0.12, 21);
     // 받침대
     ctx.fillStyle = '#1a110c';
-    ctx.beginPath(); ctx.ellipse(W / 2, 520, 190, 26, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(W / 2, 492, 180, 24, 0, 0, Math.PI * 2); ctx.fill();
 
     const v = ex.visual || {};
     const im = imageFor(ex.art, v);
     if (im) {
-      const sc = Math.min(500 / im.width, 470 / im.height);
-      ctx.drawImage(im, W / 2 - im.width * sc / 2, 285 - im.height * sc / 2, im.width * sc, im.height * sc);
+      const sc = Math.min(480 / im.width, 440 / im.height);
+      ctx.drawImage(im, W / 2 - im.width * sc / 2, 268 - im.height * sc / 2, im.width * sc, im.height * sc);
     } else {
-      ARTS[ex.art](ctx, W / 2, 285, 470, v, ex);
+      ARTS[ex.art](ctx, W / 2, 268, 440, v, ex);
     }
 
     // 설명 카드
-    const py = 580;
+    const py = 540;
     ctx.fillStyle = '#e6dcc5';
     ctx.fillRect(28, py, W - 56, H - py - 28);
     grain(ctx, W, H, 0.05, 9);
@@ -368,9 +393,7 @@
     ctx.fillText(ex.title, 60, py + 66);
     tagBadge(ctx, ex.tag, 60, py + 84, 22);
     ctx.fillStyle = '#2d241a';
-    ctx.font = `500 25px ${FONT}`;
-    let y = py + 160;
-    ex.lines.forEach(l => { y = drawWrapped(ctx, '· ' + l, 60, y, W - 120, 33) + 4; });
+    fitBlock(ctx, ex.lines, { name: ex.title, prefix: '· ', x: 60, top: py + 152, bottom: H - 46, maxW: W - 120, size: 26, min: 15 });
     return c;
   }
 
@@ -451,13 +474,13 @@
     }
     // 설명 띠
     ctx.fillStyle = '#e6dcc5'; ctx.fillRect(40, 585, W - 80, 245);
-    ctx.fillStyle = '#231a12'; ctx.font = `700 38px ${FONT}`;
+    ctx.fillStyle = '#231a12';
+    fitFont(ctx, ex.title, 700, 38, 24, W - 360, FONT);
     ctx.fillText(ex.title, 70, 638);
     ctx.font = `700 24px ${SANS}`;
     tagBadge(ctx, ex.tag, W - 90 - ctx.measureText(ex.tag).width - 24, 606, 24);
-    ctx.font = `500 28px ${FONT}`; ctx.fillStyle = '#2d241a';
-    let y = 686;
-    ex.lines.forEach(l => { y = drawWrapped(ctx, '· ' + l, 70, y, W - 140, 36) + 4; });
+    ctx.fillStyle = '#2d241a';
+    fitBlock(ctx, ex.lines, { name: ex.title, prefix: '· ', x: 70, top: 684, bottom: 822, maxW: W - 140, size: 28, min: 15 });
     return c;
   }
 
@@ -504,9 +527,10 @@
     grain(ctx, W, H, 0.12, 51);
     ctx.strokeStyle = '#8a7348'; ctx.lineWidth = 4; ctx.strokeRect(18, 18, W - 36, H - 36);
     ctx.strokeStyle = '#4c3e27'; ctx.lineWidth = 2; ctx.strokeRect(30, 30, W - 60, H - 60);
-    ctx.fillStyle = '#dcc38c'; ctx.font = `700 58px ${FONT}`;
+    ctx.fillStyle = '#dcc38c';
+    fitFont(ctx, title, 700, 58, 36, W - 130, FONT);
     ctx.fillText(title, 64, 112);
-    if (sub) { ctx.fillStyle = '#ad9a72'; ctx.font = `500 30px ${FONT}`; ctx.fillText(sub, 66, 162); }
+    if (sub) { ctx.fillStyle = '#ad9a72'; fitFont(ctx, sub, 500, 30, 20, W - 130, FONT); ctx.fillText(sub, 66, 162); }
     ctx.fillStyle = '#8a7348'; ctx.fillRect(64, 185, W - 128, 3);
     return [c, ctx];
   }
@@ -516,17 +540,8 @@
     const [c, ctx] = panelBase(W, H, ex.title, ex.sub);
     ctx.fillStyle = '#ece2cc';
     // 내용이 많으면 글자 크기를 줄여 패널 안에 맞춘다
-    let size = 40;
-    const layout = () => {
-      ctx.font = `500 ${size}px ${FONT}`;
-      return ex.lines.reduce((h, l) => h + wrap(ctx, l, W - 150).length * size * 1.3 + size * 0.5, 0);
-    };
-    while (size > 28 && layout() > H - 300) size -= 2;
-    let y = 258;
-    ex.lines.forEach(l => {
-      const indent = /^[①②③]/.test(l) ? 40 : 0;
-      y = drawWrapped(ctx, l, 70 + indent, y, W - 150 - indent, size * 1.3) + size * 0.5;
-    });
+    fitBlock(ctx, ex.lines, { name: ex.title, x: 70, top: 258, bottom: H - 48, maxW: W - 150, size: 40, min: 20, lead: 1.3, gap: 0.5,
+      indent: l => /^[①②③]/.test(l) ? 40 : 0 });
     return c;
   }
 
@@ -572,9 +587,8 @@
     fitFont(ctx, ex.title, 700, 46, 28, W - 80, FONT);
     ctx.fillText(ex.title, 40, 78);
     tagBadge(ctx, ex.tag, 40, 98, 22);
-    ctx.fillStyle = '#2d241a'; ctx.font = `500 28px ${FONT}`;
-    let y = 190;
-    ex.lines.forEach(l => { y = drawWrapped(ctx, '· ' + l, 40, y, W - 80, 38) + 8; });
+    ctx.fillStyle = '#2d241a';
+    fitBlock(ctx, ex.lines, { name: ex.title, prefix: '· ', x: 40, top: 180, bottom: ex.note ? H - 66 : H - 30, maxW: W - 80, size: 28, min: 15 });
     ctx.fillStyle = '#6d5f48'; ctx.font = `500 22px ${FONT}`;
     if (ex.note) ctx.fillText(ex.note, 40, H - 34);
     return c;
@@ -860,6 +874,6 @@
   window.ART = {
     drawCase, drawMural, drawPanel, drawTimeline, drawLabel, drawRules, drawSign,
     drawSmallSign, drawDoorPlate, drawDocentCard, floorTex, wallTex, glowTex, stoneTex, drawDocent, floorTexBright, wallTexBright, drawDocentBright,
-    loadImages, allText, FONT, SANS
+    loadImages, allText, overflowLog, FONT, SANS
   };
 })();
