@@ -56,21 +56,48 @@
 
   // 밝은 박물관: 은은한 화음 (어둡게 웅웅거리는 소리 대신)
   let theme = 'dark', brightGain = null;
+  // 밝은 박물관 배경음: 마림바 느낌의 경쾌한 짧은 곡 (C-Am-F-G 반복)
+  const BGM_STEP = 0.27;            // 8분음표 길이(초) ≈ 111 BPM
+  const BGM_MELODY = [              // 마디마다 8분음표 8개, null은 쉼표 (MIDI 음 번호)
+    [76, null, 79, null, 84, null, 79, null],
+    [76, null, 72, null, 74, 76, null, null],
+    [77, null, 81, null, 84, null, 81, null],
+    [79, null, 77, 76, 74, null, null, null],
+    [76, null, 79, null, 84, null, 86, null],
+    [84, null, 81, null, 79, 76, null, null],
+    [77, 79, 81, null, 79, null, 77, 76],
+    [74, null, 71, null, 72, null, null, null]
+  ];
+  const BGM_CHORDS = [[48, 64, 67], [45, 60, 64], [41, 60, 65], [43, 59, 62], [48, 64, 67], [45, 60, 64], [41, 60, 65], [43, 59, 65]];
+  const midi = n => 440 * Math.pow(2, (n - 69) / 12);
+  let bgmNext = 0, bgmStep = 0;
+  function pluck(freq, t, vol, len) {
+    // 사인파 + 높은 배음을 빨리 줄여 나무 건반처럼 '통' 하는 소리
+    [[1, vol], [4, vol * 0.25]].forEach(([mul, v]) => {
+      const o = ac.createOscillator(); o.type = 'sine'; o.frequency.value = freq * mul;
+      const g = ac.createGain(); env(g, t, 0.004, v, mul === 1 ? len : len * 0.25);
+      o.connect(g); g.connect(brightGain); o.start(t); o.stop(t + len + 0.1);
+    });
+  }
+  function scheduleBgm() {
+    if (theme !== 'bright' || !enabled || ac.state !== 'running') { bgmNext = 0; return; }
+    if (bgmNext < ac.currentTime) bgmNext = ac.currentTime + 0.1;
+    while (bgmNext < ac.currentTime + 0.4) {
+      const bar = Math.floor(bgmStep / 8) % BGM_MELODY.length, beat = bgmStep % 8;
+      const note = BGM_MELODY[bar][beat];
+      if (note) pluck(midi(note), bgmNext, 0.055, 0.6);
+      const ch = BGM_CHORDS[bar];
+      if (beat === 0 || beat === 4) pluck(midi(ch[0]), bgmNext, 0.07, 0.9);       // 베이스
+      if (beat === 2 || beat === 6) ch.slice(1).forEach(n => pluck(midi(n), bgmNext, 0.018, 0.35)); // 가벼운 화음
+      bgmNext += BGM_STEP; bgmStep++;
+    }
+  }
   function startBrightPad() {
     brightGain = ac.createGain();
     brightGain.gain.value = 0;
     brightGain.connect(master);
-    const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 900;
-    lp.connect(brightGain);
-    [261.6, 329.6, 392.0, 493.9].forEach((f, i) => {
-      const o = ac.createOscillator(); o.type = 'sine'; o.frequency.value = f;
-      const g = ac.createGain(); g.gain.value = 0.012;
-      const lfo = ac.createOscillator(); lfo.frequency.value = 0.05 + i * 0.03;
-      const lg = ac.createGain(); lg.gain.value = 0.01;
-      lfo.connect(lg); lg.connect(g.gain); lfo.start();
-      o.connect(g); g.connect(lp); o.start();
-    });
-    brightGain.gain.linearRampToValueAtTime(theme === 'bright' ? 1 : 0, ac.currentTime + 3);
+    brightGain.gain.linearRampToValueAtTime(theme === 'bright' ? 1 : 0, ac.currentTime + 2);
+    setInterval(scheduleBgm, 100);
   }
   function setTheme(t) {
     theme = t;
