@@ -1526,7 +1526,7 @@
     v.src = 'intro/intro_' + (settings.gender === 'female' ? 'female' : 'male') + '.mp4?v=1';
     v.currentTime = 0; v.muted = !settings.sound;
     let trapped = false, finished = false;
-    const trappedVoice = new Audio('intro/trapped.mp3?v=4');   // 쿵 소리 + "너, 갇힌 거야." (한 파일이라 어긋나지 않음)
+    const trappedVoice = new Audio('intro/trapped.mp3?v=5');   // 쿵 소리 + "너, 돌아갈 수 없어." (한 파일이라 어긋나지 않음)
     const finish = () => {
       if (finished) return; finished = true;
       store.set('introSeen', true);
@@ -1536,7 +1536,7 @@
       showSplash();
     };
     introDone = finish;
-    // 끝부분: 쿵! 화면이 모두 검게 → 빨간 글씨 "너, 갇힌 거야." 와 음성
+    // 끝부분: 쿵! 화면이 모두 검게 → 빨간 글씨 "너, 돌아갈 수 없어." 와 음성
     const trap = () => {
       if (trapped) return; trapped = true;
       v.pause();
