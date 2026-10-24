@@ -441,26 +441,129 @@
     return c;
   }
 
+  // 지금 시대의 으스스한 분위기 설정 (밝은 박물관이거나 출구면 없음)
+  const era = () => (!isBright() && !S.exitRoom && window.ERAS) ? ERAS.CONF[room().id] : null;
   function applyTheme() {
     const t = theme(), bright = isBright();
     if (!texSet) return;
-    scene.background.setHex(t.bg);
-    scene.fog.color.setHex(t.fog); scene.fog.density = t.fogDensity;
-    ambient.color.setHex(t.ambient[0]); ambient.intensity = t.ambient[1];
-    lantern.color.setHex(t.lantern[0]);
+    const e = era();
+    scene.background.setHex(e ? e.fog : t.bg);
+    scene.fog.color.setHex(e ? e.fog : t.fog); scene.fog.density = e ? e.density : t.fogDensity;
+    ambient.color.setHex(e ? e.ambient[0] : t.ambient[0]); ambient.intensity = e ? e.ambient[1] : t.ambient[1];
+    lantern.color.setHex(e ? e.lantern[0] : t.lantern[0]);
+    S.lanternBase = e ? e.lantern[1] : t.lantern[1];
+    S.lampColor = new THREE.Color(e ? e.lamp : 0xffe7bf);
+    S.flicker = e ? e.flicker : (t.flicker ? 'normal' : 'none');
     const set = bright ? texSet.bright : texSet.dark;
     floorMat.map = set.floor; floorMat.needsUpdate = true;
     wallMat.map = set.wall; wallMat.needsUpdate = true;
     if (!S.exitRoom) wallMat.color.copy(wallTint(room().wall || 0xffffff));
     ceilMat.color.setHex(t.ceil); endMat.color.setHex(t.end);
     tunnelMat.color.setHex(t.tunnel); tunnelBackMat.color.setHex(t.tunnelBack);
-    lamps.forEach(l => { l.flick = 0; l.lampMat.color.setHex(0xffe7bf); l.pool.material.opacity = t.pool; });
+    lamps.forEach(l => { l.flick = 0; l.lampMat.color.copy(S.lampColor); l.pool.material.opacity = t.pool; });
     washMat.opacity = t.wash;
-    docent.material.map = set.docent; docent.material.opacity = t.docentOpacity; docent.material.needsUpdate = true;
+    docent.material.map = e ? eraDocentTex(e.docent.look) : set.docent; docent.material.needsUpdate = true;
+    S.docOpacity = t.docentOpacity;
+    applyEraDecor(e);
     fadeEl.style.background = t.fade;
     document.body.classList.toggle('bright', bright);
     SFX.setTheme(bright ? 'bright' : 'dark');
+    SFX.setAmbience(e ? e.sound : null);
     if (S.docSpeech) setDocVoice();
+  }
+
+  /* ---------- 시대별 장식·떠다니는 것·해설사 ---------- */
+  const eraTexCache = {}, eraDecorCache = {}, eraPartCache = {};
+  let eraDecor = null, eraParts = null;
+  function eraDocentTex(look) { return eraTexCache[look] || (eraTexCache[look] = tex(ERAS.docentCanvas(look))); }
+  function eraDocentCanvas() { const e = era(); return e ? ERAS.docentCanvas(e.docent.look) : null; }
+  function applyEraDecor(e) {
+    const env = { THREE, tex, HW, L, H };
+    if (eraDecor) eraDecor.group.visible = false;
+    if (eraParts) eraParts.points.visible = false;
+    eraDecor = eraParts = null;
+    if (!e) return;
+    if (e.decor) {
+      eraDecor = eraDecorCache[e.decor] || (eraDecorCache[e.decor] = ERAS.buildDecor(e.decor, env));
+      if (!eraDecor.group.parent) scene.add(eraDecor.group);
+      eraDecor.group.visible = true;
+    }
+    if (e.particles) {
+      eraParts = eraPartCache[e.particles] || (eraPartCache[e.particles] = ERAS.buildParticles(e.particles, env));
+      if (!eraParts.points.parent) scene.add(eraParts.points);
+      eraParts.points.visible = true;
+    }
+  }
+  // 해설사가 나타나는 방식 (밝은 박물관은 늘 보통 걸음)
+  const docMove = () => { const e = era(); return e ? e.docent.move : 'walk'; };
+  const footprints = [];
+  function resetDocent() {
+    const m = docMove();
+    S.docDir = m === 'fromBehind' ? -1 : 1;
+    S.docZ = m === 'fromBehind' ? -0.6 : -L + 1.5;
+    S.docX = m === 'wallSlide' ? 2.95 : 1.35;
+    S.docT = 0; S.docBlinkT = 0; S.docAlpha = 1; S.docTravel = 0; S.footIdx = 0;
+    S.spoke = false;
+    footprints.forEach(f => { f.visible = false; });
+  }
+  function dropFootprint() {
+    if (!footprints.length) {
+      const mat = new THREE.MeshBasicMaterial({ map: tex(ERAS.footprintCanvas()), transparent: true, depthWrite: false });
+      for (let i = 0; i < 14; i++) {
+        const f = new THREE.Mesh(new THREE.PlaneGeometry(0.32, 0.32), mat);
+        f.rotation.x = -Math.PI / 2; f.visible = false; scene.add(f); footprints.push(f);
+      }
+    }
+    const f = footprints[S.footIdx++ % footprints.length];
+    f.position.set(S.docX + (S.footIdx % 2 ? 0.14 : -0.14), 0.015, S.docZ);
+    f.rotation.z = S.docDir > 0 ? Math.PI : 0;
+    f.visible = true;
+  }
+  function docentSeen() {   // 해설사가 지금 내 화면 안에 보이는지
+    const dx = S.docX - camera.position.x, dz = S.docZ - camera.position.z;
+    const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd);
+    const ang = Math.acos(Math.max(-1, Math.min(1, (fwd.x * dx + fwd.z * dz) / (Math.hypot(dx, dz) * Math.hypot(fwd.x, fwd.z) || 1))));
+    const half = Math.atan(Math.tan(camera.fov * Math.PI / 360) * camera.aspect);
+    return ang < half + 0.1;
+  }
+  function updateDocent(dt, now, active) {
+    const m = docMove();
+    const end = S.docDir > 0 ? -2.4 : -L + 3;
+    const canMove = S.docDir > 0 ? S.docZ < end : S.docZ > end;
+    let speed = 0.72, moving = canMove, y = 0.96, steps = true;
+    if (m === 'float') { speed = 0.55; steps = false; y = 1.08 + Math.sin(now / 700) * 0.12; }
+    if (m === 'stopgo') { S.docT += dt; speed = 1.0; moving = canMove && (S.docT % 3.4) < 1.6; }
+    if (m === 'statue') { speed = 1.4; moving = canMove && !docentSeen(); }
+    if (m === 'blink') {
+      moving = false; steps = false; S.docBlinkT += dt;
+      if (canMove && S.docBlinkT > 2.8) {
+        S.docBlinkT = 0; S.docAlpha = 0;
+        S.docZ = S.docDir > 0 ? Math.min(end, S.docZ + 3.5 + Math.random() * 2.5) : Math.max(end, S.docZ - 3.5 - Math.random() * 2.5);
+        SFX.chime();
+      }
+    }
+    if (moving) {
+      const d = S.docDir * speed * dt;
+      S.docZ += d; S.docTravel += Math.abs(d);
+      S.docStep += dt;
+      if (steps && S.docStep > 0.72) { S.docStep = 0; SFX.step(Math.max(0, 0.45 - Math.abs(S.docZ - S.z) * 0.025), m === 'statue' ? 0.45 : 0.75); }
+      if (m === 'footprints' && S.docTravel > 0.75) { S.docTravel = 0; dropFootprint(); }
+    }
+    const dist = Math.abs(S.docZ - S.z);
+    // 얼마나 보이는지: 다가올수록 서서히 / 발자국만 먼저 / 순간이동 뒤 서서히
+    let alpha = 1;
+    if (m === 'fadeIn') alpha = Math.max(0, Math.min(1, (16 - dist) / 8));
+    if (m === 'footprints') alpha = Math.max(0, Math.min(1, (8 - dist) / 3));
+    if (m === 'blink') { S.docAlpha = Math.min(1, S.docAlpha + dt * 2.5); alpha = S.docAlpha; }
+    if (m === 'wallSlide') alpha = 0.92;
+    docent.material.opacity = (S.docOpacity || 0.88) * alpha;
+    docentHit.visible = docent.visible && alpha > 0.3;
+    const sway = (m === 'statue' || m === 'wallSlide') ? 0 : Math.sin(now / 900) * 0.02;
+    docent.position.set(S.docX + sway, y, S.docZ);
+    docentHit.position.set(S.docX, 1.05, S.docZ);
+    docentGlow.position.set(S.docX + 0.2, 1.1, S.docZ + 0.3);
+    lampGlow.docent.position.set(S.docX, 1.0, S.docZ);
+    if (!S.spoke && dist < 5 && active && alpha > 0.5) { S.spoke = true; showSubtitle(S.docSpeech); }
   }
   function setDocVoice() {
     const id = S.anomaly && S.anomaly.target === 'docent' ? S.anomaly.id : room().id;
@@ -536,7 +639,8 @@
     farTunnel.visible = !S.exitRoom;
     farSignMesh.visible = !S.exitRoom;
     S.z = -2; S.yaw = 0; S.pitch = 0; S.turning = 0;
-    S.docZ = -L + 1.5; S.spoke = false;
+    applyTheme();
+    resetDocent();
     S.review = false;
     resetHelp();
     const wrongs = S.exitRoom ? 0 : (S.wrongStreak[S.roomIdx] || 0);
@@ -830,7 +934,7 @@
     if (!h) return;
     if (h.distance > (h.object.userData.key === 'docent' ? 9 : INSPECT_RANGE)) { showHint('더 가까이 다가가세요…', 1600); return; }
     const u = h.object.userData;
-    if (u.key === 'docent') { markViewed('docent'); SFX.voice(S.docVoice, S.docSpeech); return openInspect(ART.drawDocentCard(S.docSpeech, isBright())); }
+    if (u.key === 'docent') { markViewed('docent'); SFX.voice(S.docVoice, S.docSpeech); return openInspect(ART.drawDocentCard(S.docSpeech, isBright(), eraDocentCanvas())); }
     if (u.key === 'rules') return openInspect(rulesTex.image);
     if (u.key === 'sign') return openInspect(signTex.image);
     if (u.slot && slots[u.slot]) { markViewed(slots[u.slot].key); openInspect(slots[u.slot].canvas); }
@@ -919,7 +1023,8 @@
     setupRoom();
     signTex.image = ART.drawSign(S.streak, room().name + ' · 정상 전시', false); signTex.needsUpdate = true;
     S.z = -2; S.yaw = 0; S.pitch = 0; S.turning = 0;
-    S.docZ = -L + 1.5; S.spoke = false;
+    applyTheme();
+    resetDocent();
     updateHelpHud();
     S.mode = 'play';
     fadeTo(0, 900);
@@ -1115,22 +1220,11 @@
     camera.rotation.x = -S.pitch;
     lantern.position.set(0, 2.6, S.z - Math.cos(S.yaw) * 1.2);
 
-    // 해설사: 반대편에서 천천히 걸어와 입구 근처에서 멈춘다
-    if (docent.visible && S.mode !== 'ending') {
-      if (S.docZ < -2.4) {
-        S.docZ += 0.72 * dt;
-        S.docStep += dt;
-        if (S.docStep > 0.72) {
-          S.docStep = 0;
-          SFX.step(Math.max(0, 0.45 - Math.abs(S.docZ - S.z) * 0.025), 0.75);
-        }
-      }
-      docent.position.set(1.35 + Math.sin(now / 900) * 0.02, 0.96, S.docZ);
-      docentHit.position.set(1.35, 1.05, S.docZ);
-      docentGlow.position.set(1.55, 1.1, S.docZ + 0.3);
-      lampGlow.docent.position.set(1.35, 1.0, S.docZ);
-      if (!S.spoke && Math.abs(S.docZ - S.z) < 5 && active) { S.spoke = true; showSubtitle(S.docSpeech); }
-    }
+    // 해설사: 시대마다 다른 방식으로 나타난다
+    if (docent.visible && S.mode !== 'ending') updateDocent(dt, now, active);
+    // 시대별 장식·떠다니는 것
+    if (eraDecor) eraDecor.update(dt, now / 1000, S.z);
+    if (eraParts) eraParts.update(dt, now / 1000, S.z);
 
     // 힌트 등불 빛
     if (S.lampTarget) {
@@ -1149,20 +1243,27 @@
       fireLight.intensity = 1.6 + Math.sin(fireFx.t * 11) * 0.25 + Math.random() * 0.2;
     }
 
-    // 깜빡이는 조명
-    lamps.forEach(l => {
-      if (l.flick > 0) {
-        l.flick -= dt;
-        const on = Math.random() > 0.5;
-        l.lampMat.color.setHex(on ? 0xffe7bf : 0x3a3020);
-        l.pool.material.opacity = on ? 0.5 : 0.05;
-        if (l.flick <= 0) { l.lampMat.color.setHex(0xffe7bf); l.pool.material.opacity = 0.5; }
-      } else if (theme().flicker && Math.random() < dt * 0.05) {
-        l.flick = 0.2 + Math.random() * 0.5;
-        if (Math.abs(l.z - S.z) < 10) SFX.buzz();
+    // 조명 움직임: 시대마다 다르게 (가끔 깜빡 / 횃불 / 숨쉬기 / 맥박 / 촛불 / 고요 / 차례로)
+    const fl = S.flicker || 'none', ts = now / 1000, pool = theme().pool;
+    lamps.forEach((l, i) => {
+      let k = 1;
+      if (fl === 'normal') {
+        if (l.flick > 0) { l.flick -= dt; k = Math.random() > 0.5 ? 1 : 0.1; if (l.flick <= 0) k = 1; }
+        else if (Math.random() < dt * 0.05) { l.flick = 0.2 + Math.random() * 0.5; if (Math.abs(l.z - S.z) < 10) SFX.buzz(); }
       }
+      if (fl === 'torch') k = 0.75 + Math.sin(ts * 9 + i * 2) * 0.12 + Math.random() * 0.13;
+      if (fl === 'slow') k = 0.55 + 0.45 * Math.sin(ts * 0.6 + i * 0.4);
+      if (fl === 'pulse') k = 0.6 + 0.4 * Math.pow(Math.max(0, Math.sin(ts * 1.6)), 3);
+      if (fl === 'candle') k = 0.55 + Math.random() * 0.12;
+      if (fl === 'sequence') { const head = -((ts * 6) % (L + 10)) + 2; k = Math.max(0.12, 1 - Math.abs(l.z - head) / 7); }
+      l.lampMat.color.copy(S.lampColor).multiplyScalar(k);
+      l.pool.material.opacity = pool * k;
     });
-    lantern.intensity = theme().lantern[1] + (theme().flicker && Math.random() < 0.01 ? -0.6 : 0);
+    let lk = 1;
+    if (fl === 'torch') lk = 0.85 + Math.random() * 0.2;
+    if (fl === 'slow') lk = 0.8 + 0.2 * Math.sin(ts * 0.6);
+    if (fl === 'normal' && Math.random() < 0.01) lk = 0.5;
+    lantern.intensity = (S.lanternBase || 1) * lk;
 
     renderer.render(scene, camera);
   }
@@ -1279,6 +1380,7 @@
     state: S,
     show(id) { S.anomaly = window.ANOMALIES.find(a => a.id === id) || null; setupRoom(); },
     goRoom(n) { S.forcedRoom = n; newGallery(); S.anomaly = null; setupRoom(); },
+    tick(n) { for (let i = 0; i < (n || 1); i++) frame(last + 16.7); },   // 화면이 가려져도 몇 프레임 진행 (점검용)
     view(n) { room(); Object.keys(room().exhibits).slice(0, n).forEach(markViewed); }
   };
 })();

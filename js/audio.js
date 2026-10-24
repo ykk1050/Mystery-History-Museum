@@ -15,6 +15,7 @@
     master.gain.value = enabled ? 0.9 : 0;
     master.connect(ac.destination);
     startDrone();
+    const k = ambKind; ambKind = null; setAmbience(k);
   }
 
   function noiseBuffer(sec, brown) {
@@ -107,6 +108,74 @@
       if (!g) return;
       g.gain.cancelScheduledValues(now); g.gain.setValueAtTime(g.gain.value, now); g.gain.linearRampToValueAtTime(v, now + 1.5);
     });
+  }
+
+  /* ---------- 시대별 배경 소리 (으스스한 박물관에서만) ----------
+     drip 물방울 / river 물소리 / bell 먼 종 / breath 낮은 숨소리 / wind 바람 / echo 먼 발소리 메아리
+     chime 풍경 / drum 먼 북소리 / paper 종이 넘기는 소리 */
+  let ambKind = null, ambGain = null, ambLoop = [], ambTimer = 0;
+  function setAmbience(kind) {
+    if (kind === ambKind) return;
+    ambKind = kind;
+    if (!ac) return;
+    stopAmbience();
+    if (!kind) return;
+    ambGain = ac.createGain(); ambGain.gain.value = 0; ambGain.connect(master);
+    ambGain.gain.linearRampToValueAtTime(1, ac.currentTime + 2);
+    // 계속 이어지는 소리
+    const cont = { river: [650, 0.7, 0.09, 0.15], breath: [260, 1.2, 0.16, 0.17], wind: [520, 1.5, 0.08, 0.06] }[kind];
+    if (cont) {
+      const n = ac.createBufferSource(); n.buffer = noiseBuffer(4, kind !== 'wind'); n.loop = true;
+      const f = ac.createBiquadFilter(); f.type = kind === 'breath' ? 'lowpass' : 'bandpass'; f.frequency.value = cont[0]; f.Q.value = cont[1];
+      const g = ac.createGain(); g.gain.value = cont[2];
+      const lfo = ac.createOscillator(); lfo.frequency.value = cont[3];
+      const lg = ac.createGain(); lg.gain.value = cont[2] * 0.9;
+      lfo.connect(lg); lg.connect(g.gain);
+      if (kind === 'wind') { const lf2 = ac.createGain(); lf2.gain.value = 350; lfo.connect(lf2); lf2.connect(f.frequency); }
+      n.connect(f); f.connect(g); g.connect(ambGain); n.start(); lfo.start();
+      ambLoop.push(n, lfo);
+    }
+    // 가끔 들리는 소리
+    const every = { drip: [0.8, 2.6], bell: [7, 12], echo: [6, 10], chime: [3, 6], drum: [5, 8], paper: [2.5, 5], river: [3, 7] }[kind];
+    if (every) {
+      const tick = () => {
+        if (ambKind !== kind) return;
+        playAmbOnce(kind);
+        ambTimer = setTimeout(tick, (every[0] + Math.random() * (every[1] - every[0])) * 1000);
+      };
+      ambTimer = setTimeout(tick, 1200);
+    }
+  }
+  function stopAmbience() {
+    clearTimeout(ambTimer);
+    if (ambGain) {
+      const g = ambGain, loops = ambLoop;
+      g.gain.cancelScheduledValues(ac.currentTime); g.gain.setValueAtTime(g.gain.value, ac.currentTime);
+      g.gain.linearRampToValueAtTime(0, ac.currentTime + 1);
+      setTimeout(() => { loops.forEach(n => { try { n.stop(); } catch (e) {} }); g.disconnect(); }, 1200);
+    }
+    ambGain = null; ambLoop = [];
+  }
+  function tone(freq, t, vol, len, type, dest) {
+    const o = ac.createOscillator(); o.type = type || 'sine'; o.frequency.value = freq;
+    const g = ac.createGain(); env(g, t, 0.005, vol, len);
+    o.connect(g); g.connect(dest || ambGain); o.start(t); o.stop(t + len + 0.1);
+  }
+  function playAmbOnce(kind) {
+    if (!ac || !ambGain || !enabled || ac.state !== 'running') return;
+    const t = ac.currentTime;
+    if (kind === 'drip') { const f = 1100 + Math.random() * 900; tone(f, t, 0.06, 0.25); tone(f * 0.75, t + 0.28, 0.02, 0.3); }
+    if (kind === 'river') tone(420 + Math.random() * 120, t, 0.015, 0.12, 'triangle');        // 개구리 같은 작은 소리
+    if (kind === 'bell') [196, 523, 784].forEach((f, i) => tone(f, t, [0.05, 0.025, 0.012][i], 4.5));
+    if (kind === 'echo') [0, 0.55, 1.1].forEach((d, i) => step(0.18 - i * 0.05, 0.7));
+    if (kind === 'chime') [0, 0.12, 0.3].forEach(d => tone(1800 + Math.random() * 1400, t + d, 0.025, 1.6));
+    if (kind === 'drum') [0, 0.45].forEach(d => { tone(62, t + d, 0.16, 0.6); tone(124, t + d, 0.04, 0.2, 'triangle'); });
+    if (kind === 'paper') {
+      const s = ac.createBufferSource(); s.buffer = noiseBuffer(0.4, false);
+      const hp = ac.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 2500;
+      const g = ac.createGain(); env(g, t, 0.05, 0.05, 0.3);
+      s.connect(hp); hp.connect(g); g.connect(ambGain); s.start(t);
+    }
   }
 
   function env(g, t, a, peak, d) {
@@ -262,5 +331,5 @@
   function suspend() { if (ac && ac.state === 'running') ac.suspend(); stopSpeak(); }
   function resume() { if (ac && ac.state === 'suspended') ac.resume(); }
 
-  window.SFX = { setTheme, init, step, buzz, whoosh, wrong, chime, exitBell, speak, voice, preloadVoice, stopSpeak, setEnabled, setVoice, suspend, resume };
+  window.SFX = { setTheme, setAmbience, init, step, buzz, whoosh, wrong, chime, exitBell, speak, voice, preloadVoice, stopSpeak, setEnabled, setVoice, suspend, resume };
 })();

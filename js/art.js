@@ -773,14 +773,14 @@
     return c;
   }
 
-  function drawDocentCard(speech, bright) {
+  function drawDocentCard(speech, bright, img) {
     const W = 1000, H = 620;
     const c = canvas(W, H), ctx = c.getContext('2d');
     const g = ctx.createRadialGradient(240, 320, 20, 240, 320, 520);
     if (bright) { g.addColorStop(0, '#fffaf0'); g.addColorStop(1, '#efe4cc'); }
     else { g.addColorStop(0, '#2a2018'); g.addColorStop(1, '#070504'); }
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
-    ctx.drawImage(bright ? drawDocentBright() : drawDocent(), 110, 40, 256, 560);
+    ctx.drawImage(img || (bright ? drawDocentBright() : drawDocent()), 110, 40, 256, 560);
     ctx.strokeStyle = bright ? '#c9b48a' : '#4c3e27'; ctx.lineWidth = 3; ctx.strokeRect(14, 14, W - 28, H - 28);
     ctx.fillStyle = bright ? '#8a7350' : '#8e8676'; ctx.font = `600 30px ${SANS}`;
     ctx.fillText('— 해설사 —', 430, 130);
