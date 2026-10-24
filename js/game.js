@@ -13,13 +13,13 @@
   const H = 4.2;         // 천장 높이
   const EYE = 1.6;       // 눈 높이
   // 모드: 최고 난이도 미스터리 전시실(모든 시대 무작위, 제0~16) / 시대별 전시실(그 시대만, 제0~8)
-  const MODES = [{ id: 'mystery', name: '최고 난이도 미스터리 전시실', goal: 17 }]
-    .concat(ROOMS.map((r, i) => ({ id: 'era' + i, name: r.name, goal: 9, room: i })));
+  //   checks: 중간 저장되는 전시실 번호
+  const MODES = [{ id: 'mystery', name: '최고 난이도 미스터리 전시실', goal: 17, checks: [4, 8, 12] }]
+    .concat(ROOMS.map((r, i) => ({ id: 'era' + i, name: r.name, goal: 9, checks: [4, 6], room: i })));
   const modeOf = id => MODES.find(m => m.id === id) || null;
   const curMode = () => modeOf(S.gameMode) || MODES[0];
   const goal = () => curMode().goal;              // 이 수만큼 연속으로 지나면 출구
   const modeRooms = () => curMode().room != null ? [curMode().room] : ROOMS.map((r, i) => i);
-  const CHECK_EVERY = 4; // 중간 저장 간격
   const MAX_SAME = 3;    // 같은 주제가 연속으로 나올 수 있는 최대 횟수
   const MIN_VIEWS = 3;   // 전시물을 이만큼 자세히 봐야 문이 열린다
   const LAMP_AFTER = 2;  // 같은 주제에서 연속으로 이만큼 틀리면 힌트 등불
@@ -522,8 +522,8 @@
       if (S.history.length > 10) S.history.shift();
       S.anomaly = pickAnomaly();
       if (S.anomaly) S.lastAnomalyId = S.anomaly.id;
-      // 4개 전시실마다 중간 저장
-      if (!S.exitRoom && S.streak > S.checkpoint && S.streak % CHECK_EVERY === 0) {
+      // 정해진 전시실에 도착하면 중간 저장
+      if (!S.exitRoom && S.streak > S.checkpoint && curMode().checks.includes(S.streak)) {
         S.checkpoint = S.streak;
         setTimeout(() => showHint(`중간 저장 ─ 이제 틀려도 제 ${S.checkpoint} 전시실부터 다시 시작합니다`, 4500), 1200);
       }
@@ -1047,6 +1047,7 @@
       b.classList.toggle('saved', !!loadProgress(b.dataset.mode));
     });
     $('goalText').textContent = m && m.room != null ? '제8 전시실' : '제16 전시실';
+    $('checkInfo').textContent = `제${(m || MODES[0]).checks.join('·')} 전시실에서 중간 저장됩니다.`;
     $('modeInfo').textContent = !m ? '' : m.room != null
       ? `「${m.name}」 전시실만 나옵니다.`
       : '전시실마다 구석기 시대부터 고려까지 여러 시대가 무작위로 나옵니다.';
