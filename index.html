@@ -50,9 +50,24 @@
 
   /* 시작 화면 */
   .screen {
-    position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center;
+    position: fixed; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: flex-start;
     text-align: center; padding: 24px 16px; background: radial-gradient(ellipse at 50% 30%, #1d1510 0%, #050403 70%);
     overflow-y: auto; touch-action: pan-y;
+  }
+  /* 가운데 정렬은 위아래 auto 여백으로: 화면보다 길면 위쪽이 잘리지 않고 스크롤된다 */
+  .screen > :first-child { margin-top: auto !important; }
+  .screen > :last-child { margin-bottom: auto !important; }
+  /* 세로가 짧은 화면(작은 노트북, 브라우저 확대 등)에서는 조금 촘촘하게 */
+  @media (max-height: 820px) {
+    #title h1 { font-size: clamp(28px, 5vw, 46px); }
+    #title .en { margin-bottom: 14px; }
+    #title .rules { line-height: 1.65; padding: 10px 8px; margin-bottom: 14px; font-size: clamp(14px, 2vw, 17px); }
+    .theme-card { padding: 8px 10px; }
+    .theme-card .ic { font-size: 22px; }
+    .themes { margin-bottom: 10px; }
+    #title .unit { margin-top: 12px; }
+    #title .controls { margin-top: 6px; }
+    #title .credit { margin-top: 8px; }
   }
   .screen.on { display: flex; }
   #title h1 {
@@ -170,7 +185,7 @@
   /* 메뉴 & 기록장 */
   #menu .btn { margin: 6px; min-width: 220px; }
   #menu h2, #record h2, #ending h2 { font-family: var(--serif); color: #e2d3b0; letter-spacing: 0.1em; }
-  #record { justify-content: flex-start; }
+  #record > :first-child { margin-top: 0 !important; }
   #record .list { width: min(680px, 100%); text-align: left; margin: 10px 0 20px; }
   #record .item { border-bottom: 1px solid #2c2419; padding: 12px 4px; font-family: var(--serif); }
   #record .item .t { font-size: 15px; color: #e2d3b0; }
@@ -291,7 +306,7 @@
   <div id="loading">전시실을 준비하는 중…</div>
   <div class="controls" id="controlsInfo"></div>
   <div class="unit">초등학교 5학년 사회 2학기 1단원<br>「유적과 유물로 살펴본 옛 사람들의 생활」 복습 게임 · 소리를 켜고 플레이하세요</div>
-  <div class="credit">Created by gamtudyssam using AI · 0.009</div>
+  <div class="credit">Created by gamtudyssam using AI · 0.010</div>
 </div>
 
 <div id="inspect">
@@ -332,10 +347,10 @@
 </div>
 
 <script src="vendor/three.min.js"></script>
-<script src="js/data.js?v=0.2.9"></script>
-<script src="js/artifacts.js?v=0.2.9"></script>
-<script src="js/art.js?v=0.2.9"></script>
-<script src="js/audio.js?v=0.2.9"></script>
-<script src="js/game.js?v=0.2.9"></script>
+<script src="js/data.js?v=0.3.0"></script>
+<script src="js/artifacts.js?v=0.3.0"></script>
+<script src="js/art.js?v=0.3.0"></script>
+<script src="js/audio.js?v=0.3.0"></script>
+<script src="js/game.js?v=0.3.0"></script>
 </body>
 </html>
