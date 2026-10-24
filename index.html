@@ -218,11 +218,14 @@
   .g-card small { font-size: 12.5px; color: #a8987a; font-family: var(--sans); }
   .g-card.sel { border-color: var(--gold); box-shadow: 0 0 18px rgba(232,197,71,0.45); background: rgba(60,45,20,0.9); }
   #introVideo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
-  #introTrapped { position: absolute; inset: 0; background: #000; display: none; align-items: center; justify-content: center; pointer-events: none; }
-  #introTrapped.on { display: flex; }
-  #introTrapped span { font-family: var(--serif); font-weight: 700; font-size: clamp(34px, 8vw, 88px); letter-spacing: 0.12em; color: #c8141b;
+  #introTrapped, #meetAgain { position: absolute; inset: 0; background: #000; display: none; align-items: center; justify-content: center; pointer-events: none; }
+  #meetAgain { position: fixed; z-index: 90; pointer-events: auto; transition: opacity 1.2s; }
+  #meetAgain.out { opacity: 0; }
+  #introTrapped.on, #meetAgain.on { display: flex; }
+  #meetAgain span { text-align: center; padding: 0 16px; }
+  #introTrapped span, #meetAgain span { font-family: var(--serif); font-weight: 700; font-size: clamp(34px, 8vw, 88px); letter-spacing: 0.12em; color: #c8141b;
     text-shadow: 0 0 24px rgba(220,20,30,0.75), 0 0 60px rgba(150,0,0,0.6); opacity: 0; }
-  #introTrapped.on span { animation: trapIn 0.5s 0.55s ease-out forwards, trapShake 0.12s 0.55s steps(2) 8; }
+  #introTrapped.on span, #meetAgain.on span { animation: trapIn 0.5s 0.55s ease-out forwards, trapShake 0.12s 0.55s steps(2) 8; }
   @keyframes trapIn { from { opacity: 0; transform: scale(1.25); filter: blur(6px); } to { opacity: 1; transform: scale(1); filter: blur(0); } }
   @keyframes trapShake { 50% { transform: translate(3px, 2px); } }
   #introHint { position: absolute; left: 0; right: 0; bottom: calc(18px + env(safe-area-inset-bottom)); text-align: center; font-family: var(--serif); font-size: 15px;
@@ -443,7 +446,7 @@
   <div id="loading">전시실을 준비하는 중…</div>
   <div class="controls" id="controlsInfo"></div>
   <div class="unit">초등학교 5학년 사회 2학기 1단원<br>「유적과 유물로 살펴본 옛 사람들의 생활」 복습 게임 · 소리를 켜고 플레이하세요</div>
-  <div class="credit">Created by gamtudyssam using AI · 0.023</div>
+  <div class="credit">Created by gamtudyssam using AI · 0.024</div>
 </div>
 
 <div id="inspect">
@@ -479,6 +482,9 @@
   <button class="btn ghost" id="recordReset" style="margin-top:12px">기록 지우기</button>
 </div>
 
+<!-- 탈출 뒤: 아직 클리어하지 않은 전시실이 남아 있으면 (으스스한 박물관 · 순한 맛 아님) -->
+<div id="meetAgain"><span>넌, 또 만나게 될 거야.</span></div>
+
 <div id="ending" class="screen">
   <h2>출구</h2>
   <div class="stat" id="endStat"></div>
@@ -489,11 +495,11 @@
 </div>
 
 <script src="vendor/three.min.js"></script>
-<script src="js/data.js?v=0.4.3"></script>
-<script src="js/eras.js?v=0.4.3"></script>
-<script src="js/artifacts.js?v=0.4.3"></script>
-<script src="js/art.js?v=0.4.3"></script>
-<script src="js/audio.js?v=0.4.3"></script>
-<script src="js/game.js?v=0.4.3"></script>
+<script src="js/data.js?v=0.4.4"></script>
+<script src="js/eras.js?v=0.4.4"></script>
+<script src="js/artifacts.js?v=0.4.4"></script>
+<script src="js/art.js?v=0.4.4"></script>
+<script src="js/audio.js?v=0.4.4"></script>
+<script src="js/game.js?v=0.4.4"></script>
 </body>
 </html>

@@ -36,6 +36,7 @@
   };
   const found = new Set(store.get('found_v2', []));
   let cleared = store.get('cleared_v2', false);
+  const clearedModes = new Set(store.get('clearedModes', []));   // 탈출에 성공한 전시실(모드) id
   const settings = Object.assign({ sound: true, voice: true, low: false, invertX: false, invertY: false, scares: true, theme: null, gender: null, mild: null }, store.get('settings', {}));
 
   /* ---------- 분위기: 밝은 박물관 / 으스스한 박물관 ----------
@@ -935,6 +936,7 @@
     SFX.exitBell();
     const firstClear = !cleared;
     cleared = true; store.set('cleared_v2', true);
+    clearedModes.add(curMode().id); store.set('clearedModes', [...clearedModes]);
     const sec = Math.round(playTime() / 1000);
     S.started = false;
     clearProgress();
@@ -948,6 +950,29 @@
       ${firstClear ? '<br><span style="font-size:15px">다시 들어가면 안내판의 내용이 달라져 있을지도…</span>' : ''}`;
     showScreen('ending');
     $('hud').classList.remove('on');
+    // 아직 탈출하지 못한 전시실이 남아 있으면 마지막으로 한 번 더 놀라게 한다
+    if (!isBright() && !settings.mild && clearedModes.size < MODES.length) setTimeout(playMeetAgain, 2600);
+  }
+
+  // 갑자기 화면이 검어지고 빨간 글씨 "넌, 또 만나게 될 거야." + 쿵 소리와 낮은 목소리
+  const meetVoice = new Audio('intro/meet_again.mp3?v=1');
+  let meetPlaying = false;
+  function playMeetAgain() {
+    if (meetPlaying) return; meetPlaying = true;
+    const el = $('meetAgain');
+    el.classList.remove('out'); el.classList.add('on');
+    let ended = false;
+    const end = () => {
+      if (ended) return; ended = true;
+      el.classList.add('out');
+      setTimeout(() => { el.classList.remove('on', 'out'); meetPlaying = false; }, 1250);
+    };
+    if (settings.sound) {
+      meetVoice.currentTime = 0;
+      meetVoice.onended = () => setTimeout(end, 1500);
+      meetVoice.play().catch(() => setTimeout(end, 3800));
+    } else setTimeout(end, 3800);
+    setTimeout(end, 7000);   // 혹시 소리가 끝나지 않아도 돌아오도록
   }
 
   /* ---------- 화면(스크린) ---------- */
@@ -1223,6 +1248,7 @@
   $('recordReset').onclick = () => {
     if (!confirm('발견한 이상 현상 기록을 모두 지울까요?')) return;
     found.clear(); cleared = false; store.set('found_v2', []); store.set('cleared_v2', false);
+    clearedModes.clear(); store.set('clearedModes', []);
     openRecord(recordReturn);
   };
   const opts = { optSound: 'sound', optVoice: 'voice', optLow: 'low', optInvX: 'invertX', optInvY: 'invertY', optScare: 'scares' };
@@ -1657,6 +1683,14 @@
   }
   function startFlow() {
     setGender(settings.gender);
+    if (params.get('demo') === 'meet') {
+      $('endStat').innerHTML = '(미리보기) 탈출 뒤, 아직 클리어하지 않은 전시실이 남아 있을 때의 연출입니다.<br><b>화면(빈 곳)을 누를 때마다 다시 볼 수 있어요.</b>';
+      showScreen('ending');
+      const go = () => { SFX.init(); playMeetAgain(); };
+      window.addEventListener('pointerdown', e => { if (!e.target.closest('button')) go(); });
+      window.addEventListener('keydown', go);
+      return;
+    }
     const teacher = params.has('test') || params.has('room') || params.has('nointro');
     if (teacher) { showScreen('title'); return; }
     document.querySelectorAll('.optMild').forEach(c => { c.checked = !!settings.mild; });
@@ -1705,6 +1739,7 @@
     show(id) { S.anomaly = window.ANOMALIES.find(a => a.id === id) || null; setupRoom(); },
     goRoom(n) { S.forcedRoom = n; newGallery(); S.anomaly = null; setupRoom(); },
     tick(n) { for (let i = 0; i < (n || 1); i++) frame(last + 16.7); },   // 화면이 가려져도 몇 프레임 진행 (점검용)
-    view(n) { room(); Object.keys(room().exhibits).slice(0, n).forEach(markViewed); }
+    view(n) { room(); Object.keys(room().exhibits).slice(0, n).forEach(markViewed); },
+    ending: () => showEnding()   // 탈출 화면 바로 보기 (점검용)
   };
 })();
