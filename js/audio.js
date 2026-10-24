@@ -186,6 +186,49 @@
     const g = ac.createGain(); env(g, t, 0.02, vol, dur);
     s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(t + dur + 0.2);
   }
+  // 타이틀 화면 BGM: 낮은 울림 위로 음이 어긋난 오르골이 느리게 (A 단조)
+  let titleGain = null, titleTimer = 0, titleStep = 0;
+  function titleMusic(on) {
+    if (!ac) return;
+    if (!on) {
+      clearInterval(titleTimer); titleTimer = 0;
+      if (titleGain) { const g = titleGain; g.gain.cancelScheduledValues(ac.currentTime); g.gain.setValueAtTime(g.gain.value, ac.currentTime); g.gain.linearRampToValueAtTime(0, ac.currentTime + 1.2); setTimeout(() => g.disconnect(), 1500); titleGain = null; }
+      return;
+    }
+    if (titleGain) return;
+    titleGain = ac.createGain(); titleGain.gain.value = 0; titleGain.connect(master);
+    titleGain.gain.linearRampToValueAtTime(1, ac.currentTime + 2);
+    // 메아리
+    const dly = ac.createDelay(1.5); dly.delayTime.value = 0.42;
+    const fb = ac.createGain(); fb.gain.value = 0.45; const wet = ac.createGain(); wet.gain.value = 0.5;
+    dly.connect(fb); fb.connect(dly); dly.connect(wet); wet.connect(titleGain);
+    const g0 = titleGain;
+    // 낮은 울림
+    [55, 55.4, 82.4].forEach((f, i) => {
+      const o = ac.createOscillator(); o.type = i === 2 ? 'triangle' : 'sawtooth'; o.frequency.value = f;
+      const lp = ac.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 220;
+      const g = ac.createGain(); g.gain.value = i === 2 ? 0.03 : 0.05;
+      o.connect(lp); lp.connect(g); g.connect(g0); o.start();
+      setTimeout(() => { try { o.stop(); } catch (e) {} }, 600000);
+    });
+    const tune = [69, 72, 76, 81, 80, 76, 72, 71, 69, null, 76, 74, 72, 71, 68, null];   // 끝이 살짝 어긋나는 선율
+    titleStep = 0;
+    titleTimer = setInterval(() => {
+      if (!titleGain || ac.state !== 'running') return;
+      const n = tune[titleStep++ % tune.length];
+      const t = ac.currentTime;
+      if (n) {
+        const f = 440 * Math.pow(2, (n - 69) / 12) * (1 + (Math.random() - 0.5) * 0.012);
+        [1, 2.01].forEach((m, k) => {
+          const o = ac.createOscillator(); o.type = 'sine'; o.frequency.value = f * m;
+          const g = ac.createGain(); env(g, t, 0.004, k ? 0.012 : 0.05, 1.6);
+          o.connect(g); g.connect(g0); g.connect(dly); o.start(t); o.stop(t + 1.8);
+        });
+      }
+      if (titleStep % 16 === 1) { const o = ac.createOscillator(); o.frequency.setValueAtTime(60, t); o.frequency.exponentialRampToValueAtTime(32, t + 1.4); const g = ac.createGain(); env(g, t, 0.01, 0.18, 1.6); o.connect(g); g.connect(g0); o.start(t); o.stop(t + 1.8); }
+    }, 620);
+  }
+
   // 문 두드리는 소리 (똑, 똑, 똑 + 덜컹)
   function knock() {
     if (!ac || !enabled) return;
@@ -379,5 +422,5 @@
   function suspend() { if (ac && ac.state === 'running') ac.suspend(); stopSpeak(); }
   function resume() { if (ac && ac.state === 'suspended') ac.resume(); }
 
-  window.SFX = { knock, heart, scare, setTheme, setAmbience, init, step, buzz, whoosh, wrong, chime, exitBell, speak, voice, preloadVoice, stopSpeak, setEnabled, setVoice, suspend, resume };
+  window.SFX = { titleMusic, knock, heart, scare, setTheme, setAmbience, init, step, buzz, whoosh, wrong, chime, exitBell, speak, voice, preloadVoice, stopSpeak, setEnabled, setVoice, suspend, resume };
 })();

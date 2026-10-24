@@ -203,6 +203,54 @@
   #ending .stat { color: #2a2016; font-family: var(--serif); font-size: 18px; line-height: 1.9; margin-bottom: 18px; }
   #ending .btn { margin: 6px; }
 
+  /* 처음 화면들: 성별 고르기 / 인트로 영상 / 타이틀 */
+  .flow { position: fixed; inset: 0; display: none; z-index: 60; background: #000; color: #e9dcbc; touch-action: none; }
+  .flow.on { display: block; }
+  #gender .g-wrap { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 22px; padding: 16px;
+    background: radial-gradient(ellipse at 50% 40%, #1d1510 0%, #000 75%); }
+  .g-q { font-family: var(--serif); font-size: clamp(20px, 4vw, 30px); letter-spacing: 0.06em; text-align: center; }
+  .g-row { display: flex; gap: 16px; flex-wrap: wrap; justify-content: center; }
+  .g-card { width: 160px; padding: 20px 10px; border-radius: 12px; border: 2px solid #4c3e27; background: rgba(20,16,12,0.85); color: #e9dcbc; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 8px; font-family: var(--serif); }
+  .g-card span { font-size: 54px; } .g-card b { font-size: 20px; }
+  .g-card:hover, .g-card:focus-visible { border-color: var(--gold); box-shadow: 0 0 18px rgba(232,197,71,0.35); outline: none; }
+  .g-note { font-size: 13px; color: #8a7a5c; }
+  #introVideo { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; background: #000; }
+  #introTrapped { position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%); text-align: center; font-family: var(--serif); font-weight: 700;
+    font-size: clamp(34px, 8vw, 84px); color: #f2e6e6; letter-spacing: 0.12em; opacity: 0; transition: opacity 1.4s;
+    text-shadow: 0 0 30px rgba(180,20,20,0.6), 0 0 8px #000; pointer-events: none; }
+  #introTrapped.on { opacity: 1; animation: trapShake 0.18s steps(2) 6; }
+  @keyframes trapShake { 50% { transform: translate(2px, calc(-50% + 1px)); } }
+  #introHint { position: absolute; left: 0; right: 0; bottom: calc(18px + env(safe-area-inset-bottom)); text-align: center; font-family: var(--serif); font-size: 15px;
+    color: rgba(240,230,210,0.85); text-shadow: 0 0 6px #000; display: none; animation: blink 1.6s ease-in-out infinite; pointer-events: none; }
+  #introUnmute { position: absolute; top: 14px; left: 50%; transform: translateX(-50%); font-size: 14px; padding: 6px 14px; border-radius: 16px;
+    background: rgba(0,0,0,0.6); color: #e9dcbc; display: none; pointer-events: none; }
+  #skipAsk { position: absolute; inset: 0; display: none; align-items: flex-end; justify-content: center; padding-bottom: calc(40px + env(safe-area-inset-bottom)); }
+  #skipAsk.on { display: flex; }
+  .sk-box { background: rgba(10,8,6,0.88); border: 1px solid #8a7348; border-radius: 10px; padding: 16px 20px; text-align: center; }
+  .sk-q { font-family: var(--serif); font-size: 18px; margin-bottom: 12px; }
+  .sk-row { display: flex; gap: 10px; justify-content: center; } .sk-row .btn { min-width: 120px; font-size: 16px; padding: 10px 16px; }
+  @keyframes blink { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
+  #splashFx { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .sp-title { position: absolute; left: 0; right: 0; top: 42%; transform: translateY(-50%); text-align: center; pointer-events: none; }
+  .sp-title h1 { margin: 0; font-family: var(--serif); font-weight: 700; font-size: clamp(22px, 7.4vw, 92px); letter-spacing: 0.14em; color: #f0e2bd; white-space: nowrap;
+    text-shadow: 0 0 18px rgba(232,197,71,0.55), 0 0 60px rgba(150,90,30,0.5); animation: titleGlow 4.5s ease-in-out infinite; }
+  .sp-sub { font-family: var(--sans); letter-spacing: 0.6em; font-size: clamp(11px, 1.8vw, 15px); color: #9a8458; margin-bottom: 14px; animation: subDrift 6s ease-in-out infinite; }
+  @keyframes titleGlow {
+    0%, 100% { opacity: 0.88; letter-spacing: 0.14em; filter: blur(0); }
+    45% { opacity: 1; letter-spacing: 0.18em; }
+    48% { opacity: 0.55; filter: blur(1.5px); } 50% { opacity: 1; filter: blur(0); }
+  }
+  @keyframes subDrift { 0%, 100% { opacity: 0.4; } 50% { opacity: 0.9; } }
+  .sp-press { position: absolute; left: 0; right: 0; bottom: calc(14% + env(safe-area-inset-bottom)); text-align: center; font-family: var(--serif);
+    font-size: clamp(15px, 2.4vw, 20px); color: #e9dcbc; animation: blink 1.8s ease-in-out infinite; pointer-events: none; }
+  .player-row { margin: 0 0 14px; font-family: var(--serif); color: #bba882; font-size: 14px; display: flex; gap: 6px; align-items: center; justify-content: center; flex-wrap: wrap; }
+  .p-btn { font-family: var(--serif); font-size: 13.5px; padding: 4px 10px; border-radius: 14px; border: 1px solid #4c3e27; background: transparent; color: #bba882; cursor: pointer; }
+  .p-btn.sel { border-color: var(--gold); color: #f2e6c9; background: rgba(232,197,71,0.15); }
+  .p-link { font-family: var(--serif); font-size: 13.5px; background: none; border: none; color: #9a8458; cursor: pointer; text-decoration: underline; }
+  body.bright .player-row, body.bright .p-btn, body.bright .p-link { color: #7a6548; border-color: #c9a46a; }
+  body.bright .p-btn.sel { color: #3a2c1a; background: #f3e4c4; }
+
   /* 분위기 고르기 */
   .themes { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-bottom: 16px; }
   .theme-card {
@@ -301,13 +349,49 @@
 
 <div id="fade"></div>
 
-<div id="dupe" class="screen" style="z-index:50">
+<div id="dupe" class="screen" style="z-index:80">
   <h2 style="font-family:var(--serif);color:#e2d3b0">게임 창이 여러 개 열려 있어요</h2>
   <p style="font-family:var(--serif);color:#cbbd9c;line-height:1.8;max-width:460px" id="dupeMsg"></p>
   <button class="btn" id="dupeTake">이 창에서 계속하기</button>
 </div>
 
-<div id="title" class="screen on">
+<!-- 처음 접속: 성별 고르기 -->
+<div id="gender" class="flow">
+  <div class="g-wrap">
+    <div class="g-q">박물관에 들어갈 사람은 누구인가요?</div>
+    <div class="g-row">
+      <button class="g-card" data-g="male"><span>👦</span><b>남학생</b></button>
+      <button class="g-card" data-g="female"><span>👧</span><b>여학생</b></button>
+    </div>
+    <div class="g-note">나중에 설정에서 언제든 바꿀 수 있어요.</div>
+  </div>
+</div>
+
+<!-- 인트로 영상 -->
+<div id="intro" class="flow">
+  <video id="introVideo" playsinline webkit-playsinline preload="auto"></video>
+  <div id="introTrapped">너… 갇힌 거야.</div>
+  <div id="introHint">진행하려면 아무 조작이나 하세요</div>
+  <div id="introUnmute">🔇 화면을 누르면 소리가 켜져요</div>
+  <div id="skipAsk">
+    <div class="sk-box">
+      <div class="sk-q">인트로를 건너뛸까요?</div>
+      <div class="sk-row"><button class="btn" id="skipYes">건너뛰기</button><button class="btn ghost" id="skipNo">계속 보기</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- 타이틀 화면 -->
+<div id="splash" class="flow">
+  <canvas id="splashFx"></canvas>
+  <div class="sp-title">
+    <div class="sp-sub">MYSTERY HISTORY MUSEUM</div>
+    <h1>미스터리 역사 박물관</h1>
+  </div>
+  <div class="sp-press">진행하려면 아무것이나 누르세요</div>
+</div>
+
+<div id="title" class="screen">
   <h1>미스터리 역사 박물관</h1>
   <div class="en">MYSTERY HISTORY MUSEUM</div>
   <div class="rules">
@@ -327,6 +411,10 @@
     <div class="mode-head">전시실 고르기</div>
     <div class="mode-grid" id="modeGrid"></div>
   </div>
+  <div class="player-row">
+    플레이어: <button class="p-btn" data-g="male">👦 남학생</button><button class="p-btn" data-g="female">👧 여학생</button>
+    <button class="p-link" id="replayIntro">▶ 인트로 다시 보기</button>
+  </div>
   <div class="row">
     <button class="btn" id="startBtn" disabled>입장하기</button>
     <button class="btn ghost" id="newBtn" style="display:none">처음부터 하기</button>
@@ -335,7 +423,7 @@
   <div id="loading">전시실을 준비하는 중…</div>
   <div class="controls" id="controlsInfo"></div>
   <div class="unit">초등학교 5학년 사회 2학기 1단원<br>「유적과 유물로 살펴본 옛 사람들의 생활」 복습 게임 · 소리를 켜고 플레이하세요</div>
-  <div class="credit">Created by gamtudyssam using AI · 0.017</div>
+  <div class="credit">Created by gamtudyssam using AI · 0.018</div>
 </div>
 
 <div id="inspect">
@@ -350,6 +438,9 @@
   <button class="btn" id="resumeBtn">계속 관람하기</button>
   <button class="btn" id="recordBtn2">이상 현상 기록장</button>
   <button class="btn ghost" id="themeBtn" style="margin:8px 0">☀️ 밝은 박물관으로 바꾸기</button>
+  <div class="toggle">플레이어 성별:
+    <button class="p-btn" data-g="male">👦 남학생</button><button class="p-btn" data-g="female">👧 여학생</button>
+  </div>
   <div class="toggle"><label><input type="checkbox" id="optSound" checked> 소리</label></div>
   <div class="toggle"><label><input type="checkbox" id="optVoice" checked> 해설사 음성</label></div>
   <div class="toggle"><label><input type="checkbox" id="optScare" checked> 깜짝·공포 효과 (으스스한 박물관)</label></div>
@@ -377,11 +468,11 @@
 </div>
 
 <script src="vendor/three.min.js"></script>
-<script src="js/data.js?v=0.3.7"></script>
-<script src="js/eras.js?v=0.3.7"></script>
-<script src="js/artifacts.js?v=0.3.7"></script>
-<script src="js/art.js?v=0.3.7"></script>
-<script src="js/audio.js?v=0.3.7"></script>
-<script src="js/game.js?v=0.3.7"></script>
+<script src="js/data.js?v=0.3.8"></script>
+<script src="js/eras.js?v=0.3.8"></script>
+<script src="js/artifacts.js?v=0.3.8"></script>
+<script src="js/art.js?v=0.3.8"></script>
+<script src="js/audio.js?v=0.3.8"></script>
+<script src="js/game.js?v=0.3.8"></script>
 </body>
 </html>

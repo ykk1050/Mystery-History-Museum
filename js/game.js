@@ -36,7 +36,7 @@
   };
   const found = new Set(store.get('found_v2', []));
   let cleared = store.get('cleared_v2', false);
-  const settings = Object.assign({ sound: true, voice: true, low: false, invertX: false, invertY: false, scares: true, theme: null }, store.get('settings', {}));
+  const settings = Object.assign({ sound: true, voice: true, low: false, invertX: false, invertY: false, scares: true, theme: null, gender: null }, store.get('settings', {}));
 
   /* ---------- 분위기: 밝은 박물관 / 으스스한 박물관 ----------
      전시물은 그대로 두고 조명·안개·벽·바닥·해설사·소리·화면 효과만 바꾼다 */
@@ -1501,6 +1501,135 @@
   }
   S.gameMode = settings.mode || 'mystery';
 
+  /* ---------- 처음 흐름: 성별 고르기 → 인트로 영상 → 타이틀 화면 → 시작 화면 ----------
+     인트로를 처음 볼 때는 조작하면 "건너뛸까요?"를 묻고, 그다음부터는 아무 조작이나 하면 바로 넘어간다. */
+  const flowOn = id => ['gender', 'intro', 'splash'].forEach(f => $(f).classList.toggle('on', f === id));
+  function setGender(g) {
+    settings.gender = g; store.set('settings', settings);
+    document.querySelectorAll('.p-btn').forEach(b => b.classList.toggle('sel', b.dataset.g === g));
+  }
+  document.querySelectorAll('.p-btn').forEach(b => { b.onclick = () => setGender(b.dataset.g); });
+  document.querySelectorAll('.g-card').forEach(b => {
+    b.onclick = () => { setGender(b.dataset.g); SFX.init(); playIntro(true); };
+  });
+  $('replayIntro').onclick = () => { SFX.init(); playIntro(true); };
+
+  let introDone = null, introInput = null;
+  function playIntro(fromGesture) {
+    const v = $('introVideo');
+    const firstTime = !store.get('introSeen', false);
+    showScreen(null); flowOn('intro');
+    $('introTrapped').classList.remove('on');
+    $('skipAsk').classList.remove('on');
+    $('introHint').style.display = firstTime ? 'none' : 'block';
+    $('introUnmute').style.display = 'none';
+    v.src = 'intro/intro_' + (settings.gender === 'female' ? 'female' : 'male') + '.mp4?v=1';
+    v.currentTime = 0; v.muted = !settings.sound;
+    let trapped = false, finished = false;
+    const trappedVoice = new Audio('intro/trapped.mp3?v=1');
+    const finish = () => {
+      if (finished) return; finished = true;
+      store.set('introSeen', true);
+      v.pause(); trappedVoice.pause();
+      removeEventListener('keydown', introInput, true);
+      $('intro').removeEventListener('pointerdown', introInput, true);
+      showSplash();
+    };
+    introDone = finish;
+    // 끝부분: "너… 갇힌 거야." 음성과 큰 글자
+    v.ontimeupdate = () => {
+      if (!trapped && v.duration && v.currentTime >= v.duration - 3.4) {
+        trapped = true;
+        $('introTrapped').classList.add('on');
+        if (settings.sound) { trappedVoice.currentTime = 0; trappedVoice.play().catch(() => {}); }
+      }
+    };
+    v.onended = () => setTimeout(finish, 2200);
+    // 조작: 소리가 막혀 있으면 먼저 소리를 켜고, 처음 보는 중이면 건너뛸지 묻고, 아니면 바로 넘어간다
+    introInput = e => {
+      if (e.target && e.target.closest && e.target.closest('#skipAsk .btn')) return;
+      e.preventDefault();
+      if (v.muted && settings.sound && $('introUnmute').style.display !== 'none') {
+        v.muted = false; $('introUnmute').style.display = 'none'; SFX.init(); return;
+      }
+      if (store.get('introSeen', false)) finish();
+      else $('skipAsk').classList.add('on');
+    };
+    setTimeout(() => {
+      addEventListener('keydown', introInput, true);
+      $('intro').addEventListener('pointerdown', introInput, true);
+    }, 300);
+    const p = v.play();
+    if (p && p.catch) p.catch(() => {   // 브라우저가 소리 나는 자동 재생을 막으면 소리 없이 시작
+      v.muted = true; v.play().catch(() => finish());
+      if (settings.sound) $('introUnmute').style.display = 'block';
+    });
+  }
+  $('skipYes').onclick = () => introDone && introDone();
+  $('skipNo').onclick = () => $('skipAsk').classList.remove('on');
+
+  // 타이틀 화면: 무서운 BGM + 신비한 애니메이션, 아무것이나 누르면 시작 화면으로
+  let splashRaf = 0;
+  function showSplash() {
+    flowOn('splash');
+    SFX.init(); SFX.titleMusic(true);
+    const cv = $('splashFx'), ctx = cv.getContext('2d');
+    const motes = Array.from({ length: 70 }, () => ({ x: Math.random(), y: Math.random(), s: 0.5 + Math.random() * 2, v: 0.02 + Math.random() * 0.05, p: Math.random() * 6 }));
+    const t0 = performance.now();
+    const draw = now => {
+      splashRaf = requestAnimationFrame(draw);
+      const W = cv.width = cv.clientWidth * Math.min(2, devicePixelRatio || 1), Hh = cv.height = cv.clientHeight * Math.min(2, devicePixelRatio || 1);
+      const t = (now - t0) / 1000, cx = W / 2, cy = Hh * 0.42, R = Math.min(W, Hh) * 0.36;
+      const bg = ctx.createRadialGradient(cx, cy, 10, cx, cy, Math.max(W, Hh) * 0.75);
+      bg.addColorStop(0, '#1e1309'); bg.addColorStop(0.5, '#080503'); bg.addColorStop(1, '#000');
+      ctx.fillStyle = bg; ctx.fillRect(0, 0, W, Hh);
+      // 천천히 도는 청동 거울 무늬 고리
+      ctx.save(); ctx.translate(cx, cy);
+      [[1, 0.06, 0.35], [0.78, -0.09, 0.25], [0.56, 0.13, 0.18]].forEach(([k, sp, a]) => {
+        ctx.save(); ctx.rotate(t * sp);
+        ctx.strokeStyle = `rgba(214,170,90,${a * (0.75 + 0.25 * Math.sin(t * 1.3))})`; ctx.lineWidth = 1.2 * (devicePixelRatio || 1);
+        ctx.beginPath(); ctx.arc(0, 0, R * k, 0, Math.PI * 2); ctx.stroke();
+        for (let i = 0; i < 36; i++) {
+          const an = i / 36 * Math.PI * 2;
+          ctx.beginPath(); ctx.moveTo(Math.cos(an) * R * k, Math.sin(an) * R * k);
+          ctx.lineTo(Math.cos(an + 0.08) * R * (k - 0.07), Math.sin(an + 0.08) * R * (k - 0.07)); ctx.stroke();
+        }
+        ctx.restore();
+      });
+      ctx.restore();
+      // 떠오르는 불티와 먼지
+      motes.forEach(m => {
+        m.y -= m.v * 0.016; if (m.y < -0.05) { m.y = 1.05; m.x = Math.random(); }
+        const x = (m.x + Math.sin(t * 0.5 + m.p) * 0.01) * W, y = m.y * Hh;
+        const al = 0.25 + 0.5 * (0.5 + 0.5 * Math.sin(t * 2 + m.p));
+        ctx.fillStyle = `rgba(255,${190 + (m.p * 10 | 0)},120,${al})`;
+        ctx.beginPath(); ctx.arc(x, y, m.s * (devicePixelRatio || 1), 0, Math.PI * 2); ctx.fill();
+      });
+      // 가끔 어둠 속에서 깜빡이는 두 눈
+      const e = (t % 9);
+      if (e > 6.2 && e < 7.4 && !(e > 6.7 && e < 6.8)) {
+        const ex = W * 0.82, ey = Hh * 0.2, gap = 18 * (devicePixelRatio || 1);
+        [-gap, gap].forEach(d => { const g = ctx.createRadialGradient(ex + d, ey, 1, ex + d, ey, 12 * (devicePixelRatio || 1)); g.addColorStop(0, 'rgba(255,230,180,0.9)'); g.addColorStop(1, 'rgba(255,150,60,0)'); ctx.fillStyle = g; ctx.fillRect(ex + d - 20, ey - 20, 40, 40); });
+      }
+    };
+    cancelAnimationFrame(splashRaf); splashRaf = requestAnimationFrame(draw);
+    const go = e => {
+      e.preventDefault();
+      removeEventListener('keydown', go, true); $('splash').removeEventListener('pointerdown', go, true);
+      cancelAnimationFrame(splashRaf);
+      SFX.titleMusic(false);
+      flowOn(null); refreshTitle(); showScreen('title');
+    };
+    setTimeout(() => { addEventListener('keydown', go, true); $('splash').addEventListener('pointerdown', go, true); }, 600);
+  }
+  function startFlow() {
+    setGender(settings.gender);
+    const teacher = params.has('test') || params.has('room') || params.has('nointro');
+    if (teacher) { showScreen('title'); return; }
+    if (!settings.gender) { showScreen(null); flowOn('gender'); }
+    else playIntro(false);
+  }
+
   /* ---------- 불러오기 ---------- */
   function timeout(ms) { return new Promise(r => setTimeout(r, ms)); }
   async function boot() {
@@ -1531,6 +1660,7 @@
     $('loading').textContent = '';
     S.ready = true;
     if (settings.theme) setTheme(settings.theme); else refreshTitle();
+    startFlow();
     requestAnimationFrame(frame);
   }
   boot();
