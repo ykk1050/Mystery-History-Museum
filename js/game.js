@@ -1526,7 +1526,7 @@
     v.src = 'intro/intro_' + (settings.gender === 'female' ? 'female' : 'male') + '.mp4?v=1';
     v.currentTime = 0; v.muted = !settings.sound;
     let trapped = false, finished = false;
-    const trappedVoice = new Audio('intro/trapped.mp3?v=2');   // 쿵 소리 + "너, 갇힌 거야." (한 파일이라 어긋나지 않음)
+    const trappedVoice = new Audio('intro/trapped.mp3?v=3');   // 쿵 소리 + "너, 갇힌 거야." (한 파일이라 어긋나지 않음)
     const finish = () => {
       if (finished) return; finished = true;
       store.set('introSeen', true);
