@@ -955,7 +955,7 @@
   }
 
   // 갑자기 화면이 검어지고 빨간 글씨 "넌, 또 만나게 될 거야." + 쿵 소리와 낮은 목소리
-  const meetVoice = new Audio('intro/meet_again.mp3?v=2');
+  const meetVoice = new Audio('intro/meet_again.mp3?v=3');
   let meetPlaying = false;
   function playMeetAgain() {
     if (meetPlaying) return; meetPlaying = true;
