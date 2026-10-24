@@ -315,7 +315,7 @@
     loadVoice(url).then(buf => {
       stopSpeak();
       const src = ac.createBufferSource(); src.buffer = buf;
-      const g = ac.createGain(); g.gain.value = 2.2;
+      const g = ac.createGain(); g.gain.value = 1.3;
       src.connect(g); g.connect(master); src.start();
       voiceSrc = src;
     }).catch(() => speak(text));

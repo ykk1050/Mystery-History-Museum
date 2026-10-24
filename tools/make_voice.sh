@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# 해설사 대사(js/data.js)를 음성 파일(voice/*.mp3)로 다시 만든다.
+# 해설사 대사(js/data.js)를 음성 파일로 다시 만든다.
+#   1) 한국어 음성(Microsoft Heami)으로 녹음 → wav
+#   2) tools/encode_voice.sh 로 시대별 목소리(voice/)와 밝은 목소리(voice_bright/) mp3로 변환
 # 필요한 것: Windows(한국어 음성 'Microsoft Heami'), node, ffmpeg
 # 사용법: 저장소 폴더에서  bash tools/make_voice.sh
 set -e
@@ -18,14 +20,5 @@ require('fs').writeFileSync('$TMP/lines.json', JSON.stringify(out), 'utf8');
 
 powershell -NoProfile -ExecutionPolicy Bypass -File tools/tts.ps1 -Lines "$(cygpath -w "$TMP/lines.json")" -OutDir "$(cygpath -w "$TMP/wav")"
 
-mkdir -p voice voice_bright
-for f in "$TMP"/wav/*.wav; do
-  # 목소리를 조금 낮추고 울림을 더해 으스스하게
-  ffmpeg -loglevel error -y -i "$f" \
-    -af "asetrate=22050*0.86,aresample=22050,atempo=1.08,lowpass=f=3800,aecho=0.8:0.6:70|190:0.22|0.12,volume=1.4" \
-    -ac 1 -b:a 48k "voice/$(basename "$f" .wav).mp3"
-  # 밝은 박물관용: 조금 밝고 또렷하게
-  ffmpeg -loglevel error -y -i "$f"     -af "asetrate=22050*1.04,aresample=22050,atempo=1.05,volume=1.5"     -ac 1 -b:a 48k "voice_bright/$(basename "$f" .wav).mp3"
-done
+bash tools/encode_voice.sh "$TMP/wav"
 rm -rf "$TMP"
-echo "voice/ 에 $(ls voice | wc -l)개 파일"
