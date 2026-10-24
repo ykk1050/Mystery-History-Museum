@@ -36,7 +36,7 @@
   };
   const found = new Set(store.get('found_v2', []));
   let cleared = store.get('cleared_v2', false);
-  const settings = Object.assign({ sound: true, voice: true, low: false, invertX: false, invertY: false, scares: true, theme: null, gender: null }, store.get('settings', {}));
+  const settings = Object.assign({ sound: true, voice: true, low: false, invertX: false, invertY: false, scares: true, theme: null, gender: null, mild: null }, store.get('settings', {}));
 
   /* ---------- 분위기: 밝은 박물관 / 으스스한 박물관 ----------
      전시물은 그대로 두고 조명·안개·벽·바닥·해설사·소리·화면 효과만 바꾼다 */
@@ -1503,14 +1503,36 @@
 
   /* ---------- 처음 흐름: 성별 고르기 → 인트로 영상 → 타이틀 화면 → 시작 화면 ----------
      인트로를 처음 볼 때는 조작하면 "건너뛸까요?"를 묻고, 그다음부터는 아무 조작이나 하면 바로 넘어간다. */
-  const flowOn = id => ['gender', 'intro', 'splash'].forEach(f => $(f).classList.toggle('on', f === id));
+  const flowOn = id => ['gender', 'fear', 'intro', 'splash'].forEach(f => $(f).classList.toggle('on', f === id));
+  // 순한 맛: 인트로 끝의 무서운 장면(쿵·암전·빨간 글씨·"너, 돌아갈 수 없어.")을 빼고 영상만 본다
+  function setMild(on) {
+    settings.mild = !!on; store.set('settings', settings);
+    document.querySelectorAll('.optMild').forEach(c => { c.checked = !!on; });
+  }
+  document.querySelectorAll('.optMild').forEach(c => { c.onchange = () => setMild(c.checked); });
+  // 처음 접속 질문: "무서운 것을 보면 많이 힘든가요?" → 예(순한 맛) / 아니오, 고른 뒤 확인
+  let fearPick = null;
+  function askFear() {
+    fearPick = null;
+    document.querySelectorAll('.f-card').forEach(b => b.classList.remove('sel'));
+    $('fearOk').disabled = true;
+    showScreen(null); flowOn('fear');
+  }
+  document.querySelectorAll('.f-card').forEach(b => {
+    b.onclick = () => {
+      fearPick = b.dataset.mild === '1';
+      document.querySelectorAll('.f-card').forEach(x => x.classList.toggle('sel', x === b));
+      $('fearOk').disabled = false;
+    };
+  });
+  $('fearOk').onclick = () => { if (fearPick == null) return; setMild(fearPick); SFX.init(); playIntro(true); };
   function setGender(g) {
     settings.gender = g; store.set('settings', settings);
     document.querySelectorAll('.p-btn').forEach(b => b.classList.toggle('sel', b.dataset.g === g));
   }
   document.querySelectorAll('.p-btn').forEach(b => { b.onclick = () => setGender(b.dataset.g); });
-  document.querySelectorAll('.g-card').forEach(b => {
-    b.onclick = () => { setGender(b.dataset.g); SFX.init(); playIntro(true); };
+  document.querySelectorAll('#gender .g-card').forEach(b => {
+    b.onclick = () => { setGender(b.dataset.g); SFX.init(); if (settings.mild == null) askFear(); else playIntro(true); };
   });
   $('replayIntro').onclick = () => { SFX.init(); playIntro(true); };
 
@@ -1549,8 +1571,13 @@
       } else setTimeout(finish, 3800);
       setTimeout(finish, 7000);   // 혹시 소리가 끝나지 않아도 넘어가도록
     };
-    v.ontimeupdate = () => { if (v.duration && v.currentTime >= v.duration - 0.6) trap(); };
-    v.onended = trap;
+    if (settings.mild) {
+      v.ontimeupdate = null;
+      v.onended = () => setTimeout(finish, 600);
+    } else {
+      v.ontimeupdate = () => { if (v.duration && v.currentTime >= v.duration - 0.6) trap(); };
+      v.onended = trap;
+    }
     // 조작: 소리가 막혀 있으면 먼저 소리를 켜고, 처음 보는 중이면 건너뛸지 묻고, 아니면 바로 넘어간다
     introInput = e => {
       if (e.target && e.target.closest && e.target.closest('#skipAsk .btn')) return;
@@ -1632,7 +1659,9 @@
     setGender(settings.gender);
     const teacher = params.has('test') || params.has('room') || params.has('nointro');
     if (teacher) { showScreen('title'); return; }
+    document.querySelectorAll('.optMild').forEach(c => { c.checked = !!settings.mild; });
     if (!settings.gender) { showScreen(null); flowOn('gender'); }
+    else if (settings.mild == null) askFear();
     else playIntro(false);
   }
 
