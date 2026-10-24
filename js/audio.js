@@ -178,6 +178,32 @@
     }
   }
 
+  /* ---------- 깜짝 효과 소리 (짧고, 비명·괴성 없이) ---------- */
+  function noiseHit(t, dur, type, freq, q, vol, sweepTo) {
+    const s = ac.createBufferSource(); s.buffer = noiseBuffer(dur + 0.2, type === 'lowpass');
+    const f = ac.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q || 1;
+    if (sweepTo) f.frequency.exponentialRampToValueAtTime(sweepTo, t + dur);
+    const g = ac.createGain(); env(g, t, 0.02, vol, dur);
+    s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(t + dur + 0.2);
+  }
+  function scare(kind) {
+    if (!ac || !enabled) return;
+    const t = ac.currentTime;
+    if (kind === 'gust') { noiseHit(t, 1.4, 'bandpass', 300, 0.8, 0.5, 1400); }
+    if (kind === 'splash') { noiseHit(t, 0.5, 'bandpass', 900, 0.7, 0.45); noiseHit(t + 0.08, 0.7, 'lowpass', 500, 1, 0.3); }
+    if (kind === 'clang') [262, 330, 415, 523, 698].forEach((f, i) => {
+      const o = ac.createOscillator(); o.type = 'sine'; o.frequency.value = f * (1 + Math.random() * 0.01);
+      const g = ac.createGain(); env(g, t + i * 0.03, 0.005, 0.09, 2.6);
+      o.connect(g); g.connect(master); o.start(t + i * 0.03); o.stop(t + 3);
+    });
+    if (kind === 'growl') { noiseHit(t, 1.6, 'lowpass', 180, 1, 0.75); const o = ac.createOscillator(); o.frequency.value = 52; const g = ac.createGain(); env(g, t, 0.3, 0.12, 1.4); o.connect(g); g.connect(master); o.start(t); o.stop(t + 1.8); }
+    if (kind === 'drum') [0, 0.18].forEach(d => { const o = ac.createOscillator(); o.frequency.setValueAtTime(110, t + d); o.frequency.exponentialRampToValueAtTime(45, t + d + 0.4); const g = ac.createGain(); env(g, t + d, 0.005, 0.5, 0.6); o.connect(g); g.connect(master); o.start(t + d); o.stop(t + d + 0.8); });
+    if (kind === 'whoosh') { noiseHit(t, 1.1, 'bandpass', 1600, 0.6, 0.35, 250); }
+    if (kind === 'grind') { noiseHit(t, 1.5, 'bandpass', 220, 4, 0.5); noiseHit(t + 0.2, 1.2, 'bandpass', 140, 6, 0.35); }
+    if (kind === 'boom') { const o = ac.createOscillator(); o.frequency.setValueAtTime(80, t); o.frequency.exponentialRampToValueAtTime(35, t + 1); const g = ac.createGain(); env(g, t, 0.005, 0.6, 1.3); o.connect(g); g.connect(master); o.start(t); o.stop(t + 1.5); }
+    if (kind === 'rustle') { noiseHit(t, 1.2, 'highpass', 2200, 0.7, 0.3); noiseHit(t + 0.3, 0.9, 'highpass', 3200, 0.7, 0.2); }
+  }
+
   function env(g, t, a, peak, d) {
     peak = Math.max(peak, 0.0002);
     g.gain.setValueAtTime(0.0001, t);
@@ -331,5 +357,5 @@
   function suspend() { if (ac && ac.state === 'running') ac.suspend(); stopSpeak(); }
   function resume() { if (ac && ac.state === 'suspended') ac.resume(); }
 
-  window.SFX = { setTheme, setAmbience, init, step, buzz, whoosh, wrong, chime, exitBell, speak, voice, preloadVoice, stopSpeak, setEnabled, setVoice, suspend, resume };
+  window.SFX = { scare, setTheme, setAmbience, init, step, buzz, whoosh, wrong, chime, exitBell, speak, voice, preloadVoice, stopSpeak, setEnabled, setVoice, suspend, resume };
 })();

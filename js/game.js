@@ -36,7 +36,7 @@
   };
   const found = new Set(store.get('found_v2', []));
   let cleared = store.get('cleared_v2', false);
-  const settings = Object.assign({ sound: true, voice: true, low: false, invertX: false, invertY: false, theme: null }, store.get('settings', {}));
+  const settings = Object.assign({ sound: true, voice: true, low: false, invertX: false, invertY: false, scares: true, theme: null }, store.get('settings', {}));
 
   /* ---------- 분위기: 밝은 박물관 / 으스스한 박물관 ----------
      전시물은 그대로 두고 조명·안개·벽·바닥·해설사·소리·화면 효과만 바꾼다 */
@@ -494,6 +494,62 @@
       eraParts.points.visible = true;
     }
   }
+  /* ---------- 깜짝 효과 (으스스한 박물관, 전시실마다 최대 한 번, 약 50%) ---------- */
+  const SCARE_CHANCE = 0.5;
+  let ghost = null;
+  function planScare() {
+    const e = era();
+    S.scareAt = null; S.blackout = 0; S.boost = 0;
+    if (ghost) ghost.visible = false;
+    if (!e || !e.scare || !settings.scares || S.review || S.firstGallery || Math.random() > SCARE_CHANCE) return;
+    S.scareAt = -12 - Math.random() * 18;     // 복도 가운데쯤 어딘가에서
+  }
+  function placeAround(where, dist, side) {
+    const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd); fwd.y = 0; fwd.normalize();
+    const p = camera.position.clone();
+    if (where === 'front') p.addScaledVector(fwd, dist);
+    if (where === 'behind') p.addScaledVector(fwd, -dist);
+    if (where === 'side') p.add(new THREE.Vector3(-fwd.z, 0, fwd.x).multiplyScalar(dist));
+    if (side != null) p.x = side;
+    p.x = Math.max(-HW + 0.5, Math.min(HW - 0.4, p.x));
+    p.z = Math.max(-L + 0.6, Math.min(-0.4, p.z));
+    return p;
+  }
+  function runScare() {
+    const e = era(); if (!e || !e.scare) return;
+    const sc = e.scare;
+    SFX.scare(sc.sound);
+    if (sc.blackout) S.blackout = sc.blackout + (sc.blackoutDelay || 0), S.blackoutDelay = sc.blackoutDelay || 0;
+    if (sc.boost) S.boost = sc.boost;
+    if (sc.flash) { const f = $('scareFlash'); f.style.background = sc.flash; f.style.transition = 'none'; f.style.opacity = 1; setTimeout(() => { f.style.transition = 'opacity 0.9s'; f.style.opacity = 0; }, 80); }
+    if (sc.footRing) for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; S.docX = Math.cos(a) * 0.9; const z = S.docZ; S.docZ = S.z + Math.sin(a) * 0.9; dropFootprint(); S.docZ = z; S.docX = docMove() === 'wallSlide' ? 2.95 : 1.35; }
+    if (sc.docentBehind) { S.docZ = Math.min(-0.6, S.z + sc.docentBehind); S.docX = 0.6; }
+    if (sc.ghost) {
+      if (!ghost) {
+        ghost = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false, fog: false }));
+        ghost.scale.set(0.95, 2.1, 1); scene.add(ghost);
+      }
+      ghost.material.map = eraDocentTex(e.docent.look); ghost.material.needsUpdate = true;
+      const p = placeAround(sc.ghost.where, sc.ghost.dist, sc.ghost.side);
+      ghost.position.set(p.x, 1.02, p.z);
+      ghost.userData = { t: sc.ghost.sec, total: sc.ghost.sec, dash: sc.ghost.dash, dir: Math.random() < 0.5 ? 1 : -1 };
+      ghost.material.opacity = 0.95; ghost.visible = true;
+    }
+    if (sc.hint) setTimeout(() => showHint(sc.hint, 2600), 350);
+  }
+  function updateScare(dt) {
+    if (S.scareAt != null && S.mode === 'play' && S.z < S.scareAt) { S.scareAt = null; runScare(); }
+    if (S.boost > 0) S.boost -= dt;
+    if (S.blackout > 0) { S.blackout -= dt; if (S.blackoutDelay > 0) S.blackoutDelay -= dt; }
+    if (ghost && ghost.visible) {
+      const u = ghost.userData; u.t -= dt;
+      if (u.dash) ghost.position.z += u.dir * dt * 9;
+      ghost.material.opacity = Math.max(0, Math.min(0.95, u.t / Math.min(0.4, u.total) ));
+      if (u.t <= 0) ghost.visible = false;
+    }
+  }
+  const blackoutOn = () => S.blackout > 0 && !(S.blackoutDelay > 0);
+
   // 해설사가 나타나는 방식 (밝은 박물관은 늘 보통 걸음)
   const docMove = () => { const e = era(); return e ? e.docent.move : 'walk'; };
   const footprints = [];
@@ -557,8 +613,14 @@
     if (m === 'blink') { S.docAlpha = Math.min(1, S.docAlpha + dt * 2.5); alpha = S.docAlpha; }
     if (m === 'wallSlide') alpha = 0.92;
     docent.material.opacity = (S.docOpacity || 0.88) * alpha;
+    // 가까이 오면 가끔 고개를 까딱 비튼다 (으스스한 박물관)
+    if (era() && dist < 7) {
+      if (S.twitch > 0) { S.twitch -= dt; docent.material.rotation = S.twitchAng; }
+      else { docent.material.rotation *= 0.8; if (Math.random() < dt * 0.35) { S.twitch = 0.12 + Math.random() * 0.15; S.twitchAng = (Math.random() - 0.5) * 0.18; } }
+    } else docent.material.rotation = 0;
     docentHit.visible = docent.visible && alpha > 0.3;
     const sway = (m === 'statue' || m === 'wallSlide') ? 0 : Math.sin(now / 900) * 0.02;
+    if (era()) { docent.scale.set(0.92, 2.08, 1); y += 0.06; } else docent.scale.set(0.88, 1.92, 1);
     docent.position.set(S.docX + sway, y, S.docZ);
     docentHit.position.set(S.docX, 1.05, S.docZ);
     docentGlow.position.set(S.docX + 0.2, 1.1, S.docZ + 0.3);
@@ -641,6 +703,7 @@
     S.z = -2; S.yaw = 0; S.pitch = 0; S.turning = 0;
     applyTheme();
     resetDocent();
+    planScare();
     S.review = false;
     resetHelp();
     const wrongs = S.exitRoom ? 0 : (S.wrongStreak[S.roomIdx] || 0);
@@ -1025,6 +1088,7 @@
     S.z = -2; S.yaw = 0; S.pitch = 0; S.turning = 0;
     applyTheme();
     resetDocent();
+    planScare();
     updateHelpHud();
     S.mode = 'play';
     fadeTo(0, 900);
@@ -1077,12 +1141,13 @@
     found.clear(); cleared = false; store.set('found_v2', []); store.set('cleared_v2', false);
     openRecord(recordReturn);
   };
-  const opts = { optSound: 'sound', optVoice: 'voice', optLow: 'low', optInvX: 'invertX', optInvY: 'invertY' };
+  const opts = { optSound: 'sound', optVoice: 'voice', optLow: 'low', optInvX: 'invertX', optInvY: 'invertY', optScare: 'scares' };
   Object.keys(opts).forEach(id => { $(id).checked = settings[opts[id]]; });
   SFX.setEnabled(settings.sound); SFX.setVoice(settings.voice);
   $('optSound').onchange = e => { settings.sound = e.target.checked; SFX.setEnabled(settings.sound); store.set('settings', settings); };
   $('optVoice').onchange = e => { settings.voice = e.target.checked; SFX.setVoice(settings.voice); store.set('settings', settings); };
   $('optLow').onchange = e => { settings.low = e.target.checked; applyPixelRatio(); applyLow(); store.set('settings', settings); };
+  $('optScare').onchange = e => { settings.scares = e.target.checked; store.set('settings', settings); if (!settings.scares) { S.scareAt = null; S.blackout = 0; } };
   $('optInvX').onchange = e => { settings.invertX = e.target.checked; store.set('settings', settings); };
   $('optInvY').onchange = e => { settings.invertY = e.target.checked; store.set('settings', settings); };
   function applyLow() { $('grain').style.display = settings.low ? 'none' : 'block'; }
@@ -1222,9 +1287,11 @@
 
     // 해설사: 시대마다 다른 방식으로 나타난다
     if (docent.visible && S.mode !== 'ending') updateDocent(dt, now, active);
-    // 시대별 장식·떠다니는 것
-    if (eraDecor) eraDecor.update(dt, now / 1000, S.z);
-    if (eraParts) eraParts.update(dt, now / 1000, S.z);
+    // 깜짝 효과, 시대별 장식·떠다니는 것 (깜짝 효과 중에는 더 세게)
+    updateScare(dt);
+    const boost = S.boost > 0 ? 4 : 1;
+    if (eraDecor) eraDecor.update(dt * boost, now / 1000, S.z, S.boost > 0);
+    if (eraParts) eraParts.update(dt * boost, now / 1000, S.z);
 
     // 힌트 등불 빛
     if (S.lampTarget) {
@@ -1256,6 +1323,7 @@
       if (fl === 'pulse') k = 0.6 + 0.4 * Math.pow(Math.max(0, Math.sin(ts * 1.6)), 3);
       if (fl === 'candle') k = 0.55 + Math.random() * 0.12;
       if (fl === 'sequence') { const head = -((ts * 6) % (L + 10)) + 2; k = Math.max(0.12, 1 - Math.abs(l.z - head) / 7); }
+      if (blackoutOn()) k = 0.02;
       l.lampMat.color.copy(S.lampColor).multiplyScalar(k);
       l.pool.material.opacity = pool * k;
     });
@@ -1263,7 +1331,8 @@
     if (fl === 'torch') lk = 0.85 + Math.random() * 0.2;
     if (fl === 'slow') lk = 0.8 + 0.2 * Math.sin(ts * 0.6);
     if (fl === 'normal' && Math.random() < 0.01) lk = 0.5;
-    lantern.intensity = (S.lanternBase || 1) * lk;
+    lantern.intensity = (S.lanternBase || 1) * (blackoutOn() ? 0.06 : lk);
+    ambient.intensity = blackoutOn() ? 0.05 : (era() ? era().ambient[1] : theme().ambient[1]);
 
     renderer.render(scene, camera);
   }

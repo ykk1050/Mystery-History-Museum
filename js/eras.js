@@ -13,23 +13,32 @@
      docent.look: 해설사 모습, docent.move: 나타나는 방식 */
   const CONF = {
     paleo: { fog: 0x0a0603, density: 0.062, ambient: [0x6b4a30, 0.36], lantern: [0xff9a50, 1.25], lamp: 0xffa060,
-      flicker: 'torch', sound: 'drip', particles: 'dust', decor: 'hands', docent: { look: 'paleo', move: 'fadeIn' } },
+      flicker: 'torch', sound: 'drip', particles: 'dust', decor: 'hands', docent: { look: 'paleo', move: 'fadeIn' },
+      scare: { sound: 'gust', blackout: 1.5, ghost: { where: 'front', dist: 3.4, sec: 1.3 }, hint: '휘이잉… 횃불이 모두 꺼졌다!' } },
     neo: { fog: 0x0a141a, density: 0.07, ambient: [0x4a6070, 0.42], lantern: [0xbfd8ff, 0.9], lamp: 0xcfe0ff,
-      flicker: 'slow', sound: 'river', particles: 'mist', decor: 'reeds', docent: { look: 'neo', move: 'float' } },
+      flicker: 'slow', sound: 'river', particles: 'mist', decor: 'reeds', docent: { look: 'neo', move: 'float' },
+      scare: { sound: 'splash', boost: 3, ghost: { where: 'behind', dist: 2.4, sec: 2.2 }, hint: '첨벙! …등 뒤에서 무언가 물을 밟았다.' } },
     bronze: { fog: 0x041210, density: 0.055, ambient: [0x3f6f62, 0.45], lantern: [0x7fe0c0, 1.0], lamp: 0x9ff0d0,
-      flicker: 'pulse', sound: 'bell', particles: null, decor: 'rings', docent: { look: 'bronze', move: 'stopgo' } },
+      flicker: 'pulse', sound: 'bell', particles: null, decor: 'rings', docent: { look: 'bronze', move: 'stopgo' },
+      scare: { sound: 'clang', flash: 'rgba(120,255,200,0.32)', blackout: 0.8, boost: 2, hint: '데에엥—! 청동 방울이 한꺼번에 울렸다.' } },
     gojoseon: { fog: 0x070d05, density: 0.066, ambient: [0x55603a, 0.38], lantern: [0xd8e0a0, 1.0], lamp: 0xe0e8b0,
-      flicker: 'normal', sound: 'breath', particles: 'mist', decor: 'paws', docent: { look: 'bear', move: 'footprints' } },
+      flicker: 'normal', sound: 'breath', particles: 'mist', decor: 'paws', docent: { look: 'bear', move: 'footprints' },
+      scare: { sound: 'growl', footRing: true, hint: '바로 옆에서 커다란 숨소리가… 발밑에 발자국이 생겼다.' } },
     samguk: { fog: 0x120804, density: 0.05, ambient: [0x7a4a30, 0.42], lantern: [0xffb070, 1.1], lamp: 0xffc080,
-      flicker: 'normal', sound: 'wind', particles: 'dust', decor: 'flags', docent: { look: 'general', move: 'fromBehind' } },
+      flicker: 'normal', sound: 'wind', particles: 'dust', decor: 'flags', docent: { look: 'general', move: 'fromBehind' },
+      scare: { sound: 'drum', boost: 3, ghost: { where: 'side', dist: 1.5, sec: 0.45, dash: true }, hint: '둥! …무언가 옆을 휙 지나갔다.' } },
     samlife: { fog: 0x0d0904, density: 0.06, ambient: [0x6a5232, 0.4], lantern: [0xffcf80, 0.95], lamp: 0xffd690,
-      flicker: 'candle', sound: 'echo', particles: null, decor: 'murals', docent: { look: 'mural', move: 'wallSlide' } },
+      flicker: 'candle', sound: 'echo', particles: null, decor: 'murals', docent: { look: 'mural', move: 'wallSlide' },
+      scare: { sound: 'whoosh', blackout: 1.8, ghost: { where: 'front', dist: 3, sec: 1.6, side: 2.9 }, hint: '촛불이 꺼지자… 벽 속 그림이 움직였다.' } },
     unified: { fog: 0x040814, density: 0.05, ambient: [0x40507a, 0.45], lantern: [0xaac4ff, 1.0], lamp: 0xc8d8ff,
-      flicker: 'none', sound: 'chime', particles: 'fireflies', decor: 'moon', docent: { look: 'statue', move: 'statue' } },
+      flicker: 'none', sound: 'chime', particles: 'fireflies', decor: 'moon', docent: { look: 'statue', move: 'statue' },
+      scare: { sound: 'grind', docentBehind: 2.3, hint: '드르륵… 등 뒤에서 돌 끄는 소리가 났다.' } },
     goryeo1: { fog: 0x0c0608, density: 0.055, ambient: [0x6a4a58, 0.42], lantern: [0xffc0c8, 1.0], lamp: 0xffb8c8,
-      flicker: 'sequence', sound: 'drum', particles: null, decor: 'lanterns', docent: { look: 'official', move: 'walk' } },
+      flicker: 'sequence', sound: 'drum', particles: null, decor: 'lanterns', docent: { look: 'official', move: 'walk' },
+      scare: { sound: 'boom', flash: 'rgba(255,180,200,0.32)', boost: 1.6, blackout: 1.0, blackoutDelay: 1.6, hint: '쿵! 연등이 한꺼번에 켜졌다가… 모두 꺼졌다.' } },
     goryeo2: { fog: 0x0a0805, density: 0.06, ambient: [0x6a5a40, 0.4], lantern: [0xffe0a0, 1.0], lamp: 0xffe8b0,
-      flicker: 'normal', sound: 'paper', particles: 'paper', decor: 'shelves', docent: { look: 'monk', move: 'blink' } }
+      flicker: 'normal', sound: 'paper', particles: 'paper', decor: 'shelves', docent: { look: 'monk', move: 'blink' },
+      scare: { sound: 'rustle', boost: 3, ghost: { where: 'front', dist: 1.9, sec: 0.6 }, hint: '촤르륵! 종잇장이 휘몰아쳤다.' } }
   };
 
   function canvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
@@ -193,11 +202,27 @@
       [0, 1, 2, 3, 4, 5, 6, 7, 8, 9].forEach(i => ell(ctx, 104 + (i % 5) * 12, 220 + Math.floor(i / 5) * 12, 5, 5, '#4a3a24'));
     }
   };
+  // 해설사 주위의 어두운 기운과 희미하게 빛나는 눈 (무섭되 잔인하지 않게)
+  const EYES = {
+    paleo: [118, 138, 96, 'rgba(255,170,80,0.95)'], neo: [116, 140, 132, 'rgba(210,235,255,0.9)'],
+    bronze: [116, 140, 100, 'rgba(170,255,220,0.95)'], bear: [110, 146, 84, 'rgba(255,200,90,0.95)'],
+    general: [116, 140, 100, 'rgba(220,230,255,0.9)'], mural: [117, 139, 112, 'rgba(255,230,190,0.75)'],
+    statue: [112, 144, 104, 'rgba(190,210,255,0.95)'], official: [116, 140, 100, 'rgba(255,200,215,0.9)'],
+    monk: [116, 140, 134, 'rgba(255,240,200,0.9)']
+  };
   const docentCache = {};
   function docentCanvas(look) {
     if (docentCache[look]) return docentCache[look];
-    const c = canvas(256, 560);
-    (LOOKS[look] || LOOKS.paleo)(c.getContext('2d'));
+    const c = canvas(256, 560), ctx = c.getContext('2d');
+    // 몸을 감싼 연기 같은 어두운 기운
+    const aura = ctx.createRadialGradient(128, 260, 30, 128, 280, 250);
+    aura.addColorStop(0, 'rgba(0,0,0,0.55)'); aura.addColorStop(0.6, 'rgba(0,0,0,0.25)'); aura.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = aura; ctx.fillRect(0, 0, 256, 560);
+    (LOOKS[look] || LOOKS.paleo)(ctx);
+    const e = EYES[look];
+    if (e) {
+      [e[0], e[1]].forEach(x => { glow(ctx, x, e[2], 16, e[3]); ell(ctx, x, e[2], 3.2, 2.4, 'rgba(255,255,255,0.95)'); });
+    }
     docentCache[look] = c;
     return c;
   }
@@ -347,16 +372,16 @@
         line.position.set(m.position.x, H - 0.3, m.position.z); g.add(line);
         lanterns.push({ mat, z: m.position.z });
       }
-      update = (dt, t) => {
+      update = (dt, t, camZ, scared) => {
         const head = -((t * 6) % (L + 10)) + 2;   // 빛이 출구 쪽으로 흘러감
         lanterns.forEach(l => {
           const d = Math.abs(l.z - head);
-          const k = d < 4 ? 1 - d / 4 : 0;
+          const k = scared ? 1 : d < 4 ? 1 - d / 4 : 0;   // 깜짝 효과 때는 한꺼번에 켜짐
           l.mat.color.setRGB(0.25 + 0.75 * k, 0.12 + 0.55 * k, 0.16 + 0.6 * k);
         });
       };
     }
-    return { group: g, update: (dt, t, camZ) => update(dt, t, camZ) };
+    return { group: g, update: (dt, t, camZ, scared) => update(dt, t, camZ, scared) };
   }
 
   /* ---------- 떠다니는 것 (먼지 / 안개 / 반딧불 / 종잇장) ---------- */
