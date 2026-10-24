@@ -595,7 +595,7 @@
   }
 
   /* ---------------- 안내판 / 표지판 ---------------- */
-  function drawRules(info) {
+  function drawRules(info, goalNo) {
     const W = 600, H = 820;
     const c = canvas(W, H), ctx = c.getContext('2d');
     ctx.fillStyle = '#e9e1cf'; ctx.fillRect(0, 0, W, H);
@@ -610,7 +610,7 @@
       '즉시 되돌아가세요.',
       '이상한 전시가 없다면',
       '앞으로 나아가세요.',
-      '제16 전시실을 지나',
+      `제${goalNo == null ? 16 : goalNo} 전시실을 지나`,
       '출구로 나가세요.'
     ];
     let y = 180;

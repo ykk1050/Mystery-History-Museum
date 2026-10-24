@@ -12,7 +12,13 @@
   const HW = 3.5;        // 전시실 폭의 절반
   const H = 4.2;         // 천장 높이
   const EYE = 1.6;       // 눈 높이
-  const GOAL = 17;       // 제0~16 전시실을 모두 지나면 출구
+  // 모드: 최고 난이도 미스터리 전시실(모든 시대 무작위, 제0~16) / 시대별 전시실(그 시대만, 제0~8)
+  const MODES = [{ id: 'mystery', name: '최고 난이도 미스터리 전시실', goal: 17 }]
+    .concat(ROOMS.map((r, i) => ({ id: 'era' + i, name: r.name, goal: 9, room: i })));
+  const modeOf = id => MODES.find(m => m.id === id) || null;
+  const curMode = () => modeOf(S.gameMode) || MODES[0];
+  const goal = () => curMode().goal;              // 이 수만큼 연속으로 지나면 출구
+  const modeRooms = () => curMode().room != null ? [curMode().room] : ROOMS.map((r, i) => i);
   const CHECK_EVERY = 4; // 중간 저장 간격
   const MAX_SAME = 3;    // 같은 주제가 연속으로 나올 수 있는 최대 횟수
   const MIN_VIEWS = 3;   // 전시물을 이만큼 자세히 봐야 문이 열린다
@@ -416,6 +422,7 @@
   // 다음 주제: 무작위, 단 같은 주제가 3번 연속이면 다른 주제
   function pickRoom() {
     if (S.forcedRoom != null) { const r = S.forcedRoom; S.forcedRoom = null; return r; }
+    if (curMode().room != null) return curMode().room;   // 시대별 모드: 그 시대만
     const h = S.history, n = h.length;
     let pool = ROOMS.map((r, i) => i);
     if (n >= MAX_SAME && h.slice(n - MAX_SAME).every(x => x === h[n - 1])) pool = pool.filter(i => i !== h[n - 1]);
@@ -488,7 +495,8 @@
   }
 
   function rulesInfo() {
-    const remain = window.ANOMALIES.filter(a => !found.has(a.id)).length;
+    const scope = modeRooms();
+    const remain = window.ANOMALIES.filter(a => scope.includes(a.room) && !found.has(a.id)).length;
     if (!cleared) return '';
     if (remain === 0) return '모든 이상 현상을 발견했습니다. 관람해 주셔서 감사합니다.';
     return `아직 발견하지 못한 이상 현상: ${remain}개`;
@@ -506,7 +514,7 @@
   }
 
   function newGallery(restore) {
-    S.exitRoom = S.streak >= GOAL;
+    S.exitRoom = S.streak >= goal();
     if (!restore) {
       if (S.forced) S.forcedRoom = S.forced.room;
       S.roomIdx = pickRoom();
@@ -522,7 +530,7 @@
     }
     setupRoom();
     signTex.image = ART.drawSign(S.streak, S.exitRoom ? '' : room().name, S.exitRoom); signTex.needsUpdate = true;
-    rulesTex.image = ART.drawRules(rulesInfo()); rulesTex.needsUpdate = true;
+    rulesTex.image = ART.drawRules(rulesInfo(), goal() - 1); rulesTex.needsUpdate = true;
     exitGroup.visible = S.exitRoom;
     exitLight.intensity = S.exitRoom ? 2.2 : 0;
     farTunnel.visible = !S.exitRoom;
@@ -547,18 +555,18 @@
   function playTime() { return S.elapsed + (S.mode === 'title' ? 0 : performance.now() - S.startTime); }
   function saveProgress() {
     if (!S.started) return;
-    store.set('progress', {
+    store.set('progress_' + S.gameMode, {
       streak: S.streak, checkpoint: S.checkpoint, roomIdx: S.roomIdx, history: S.history,
       anomaly: S.anomaly ? S.anomaly.id : null, lastAnomalyId: S.lastAnomalyId,
       mistakes: S.mistakes, foundThisRun: S.foundThisRun, elapsed: playTime()
     });
   }
-  function loadProgress() {
-    const p = store.get('progress', null);
+  function loadProgress(mode) {
+    const p = store.get('progress_' + mode, null);
     if (!p || typeof p.streak !== 'number' || !ROOMS[p.roomIdx]) return null;
     return p;
   }
-  function clearProgress() { try { localStorage.removeItem('mhm_progress'); } catch (e) {} }
+  function clearProgress(mode) { try { localStorage.removeItem('mhm_progress_' + (mode || S.gameMode)); } catch (e) {} }
   window.addEventListener('pagehide', () => { if (S.started && S.mode !== 'ending') saveProgress(); });
 
   /* ---------- 화면 전환 ---------- */
@@ -682,7 +690,7 @@
     clearProgress();
     const remain = window.ANOMALIES.filter(a => !found.has(a.id)).length;
     $('endStat').innerHTML = `
-      당신은 박물관을 빠져나왔다.<br>
+      당신은 「${curMode().name}」에서 빠져나왔다.<br>
       걸린 시간: ${Math.floor(sec / 60)}분 ${sec % 60}초 · 놓친 횟수: ${S.mistakes}번<br>
       이번에 발견한 이상 현상: ${S.foundThisRun}개${S.helpCount ? ` · 힌트 등불 도움: ${S.helpCount}번` : ''}<br>
       전체 기록: ${found.size} / ${window.ANOMALIES.length}개<br>
@@ -977,6 +985,7 @@
 
   /* ---------- 시작 ---------- */
   function startGame(resume) {
+    S.gameMode = settings.mode;
     SFX.init();
     if (window.speechSynthesis) try { speechSynthesis.getVoices(); } catch (e) {}
     S.startTime = performance.now();
@@ -989,7 +998,6 @@
       newGallery(true);
     } else {
       Object.assign(S, { streak: 0, checkpoint: 0, history: [], firstGallery: true, mistakes: 0, foundThisRun: 0, elapsed: 0 });
-      if (S.startRoom) S.forcedRoom = S.startRoom;
       newGallery();
     }
     showScreen(null);
@@ -1009,14 +1017,43 @@
   }
   document.querySelectorAll('.theme-card').forEach(b => { b.onclick = () => setTheme(b.dataset.theme); });
   $('themeBtn').onclick = () => setTheme(isBright() ? 'dark' : 'bright');
-  $('newBtn').onclick = () => { clearProgress(); S.resumeData = null; startGame(null); };
-  $('againBtn').onclick = () => { fadeEl.style.opacity = 1; S.startRoom = 0; S.resumeData = null; startGame(null); };
+  $('newBtn').onclick = () => { clearProgress(settings.mode); S.resumeData = null; startGame(null); };
+  function setMode(id) {
+    settings.mode = id; store.set('settings', settings);
+    refreshTitle();
+  }
+  // 모드 고르기 단추 만들기
+  (function buildModeButtons() {
+    const grid = $('modeGrid');
+    MODES.forEach(m => {
+      const b = document.createElement('button');
+      b.className = 'mode-card' + (m.room == null ? ' hard' : '');
+      b.dataset.mode = m.id;
+      b.innerHTML = m.room == null
+        ? `<span class="badge">최고 난이도</span><b>🗝 ${m.name}</b><small>모든 시대가 무작위로 · 제16 전시실까지</small>`
+        : `<b>${m.name}</b><small>제8 전시실까지</small>`;
+      b.onclick = () => setMode(m.id);
+      grid.appendChild(b);
+    });
+  })();
+  $('againBtn').onclick = () => { fadeEl.style.opacity = 1; S.resumeData = null; startGame(null); };
   function refreshTitle() {
-    S.resumeData = (S.startRoom || S.forced) ? null : loadProgress();
+    const m = modeOf(settings.mode);
+    S.resumeData = (!m || S.forced) ? null : loadProgress(m.id);
     const r = S.resumeData;
     document.querySelectorAll('.theme-card').forEach(b => b.classList.toggle('sel', b.dataset.theme === settings.theme));
-    $('startBtn').disabled = !S.ready || !settings.theme;
-    $('startBtn').textContent = !settings.theme ? '박물관 분위기를 먼저 고르세요' : r ? `이어서 하기 (제 ${r.streak} 전시실)` : '입장하기';
+    document.querySelectorAll('.mode-card').forEach(b => {
+      b.classList.toggle('sel', b.dataset.mode === settings.mode);
+      b.classList.toggle('saved', !!loadProgress(b.dataset.mode));
+    });
+    $('goalText').textContent = m && m.room != null ? '제8 전시실' : '제16 전시실';
+    $('modeInfo').textContent = !m ? '' : m.room != null
+      ? `「${m.name}」 전시실만 나옵니다.`
+      : '전시실마다 구석기 시대부터 고려까지 여러 시대가 무작위로 나옵니다.';
+    $('startBtn').disabled = !S.ready || !settings.theme || !m;
+    $('startBtn').textContent = !settings.theme ? '박물관 분위기를 먼저 고르세요'
+      : !m ? '전시실을 먼저 고르세요'
+      : r ? `이어서 하기 (제 ${r.streak} 전시실)` : '입장하기';
     $('newBtn').style.display = r ? '' : 'none';
   }
 
@@ -1195,12 +1232,13 @@
   // ?test=이상현상ID (예: goryeo2.ce_white) → 그 전시실에서 그 이상 현상이 바로 나온다
   const params = new URLSearchParams(location.search);
   const roomParam = parseInt(params.get('room'), 10);
-  if (roomParam >= 0 && roomParam < ROOMS.length) S.startRoom = roomParam;  // 첫 전시실의 주제
+  if (roomParam >= 0 && roomParam < ROOMS.length) settings.mode = 'era' + roomParam;   // 그 시대 모드
   const testId = params.get('test');
   if (testId) {
     S.forced = window.ANOMALIES.find(a => a.id === testId || a.id.endsWith('.' + testId)) || null;
-    if (S.forced) S.startRoom = S.forced.room;
+    if (S.forced) settings.mode = 'era' + S.forced.room;
   }
+  S.gameMode = settings.mode || 'mystery';
 
   /* ---------- 불러오기 ---------- */
   function timeout(ms) { return new Promise(r => setTimeout(r, ms)); }
