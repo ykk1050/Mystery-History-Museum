@@ -10,7 +10,7 @@
      flicker: 조명 움직임(normal 가끔 깜빡 / torch 횃불 일렁임 / slow 천천히 숨쉬기 /
               pulse 맥박 / candle 촛불 / none 고요 / sequence 차례로 켜짐)
      sound: 배경 소리, particles: 떠다니는 것, decor: 벽·천장·바닥 장식
-     docent.look: 해설사 모습, docent.move: 나타나는 방식 */
+     docent.look: 해설사 모습, docent.move: 나타나는 방식, voice: 'male'이면 남자 목소리·남자 해설사(밝은 박물관) */
   const CONF = {
     paleo: { fog: 0x0a0603, density: 0.062, ambient: [0x6b4a30, 0.36], lantern: [0xff9a50, 1.25], lamp: 0xffa060,
       flicker: 'torch', sound: 'drip', particles: 'dust', decor: 'hands', docent: { look: 'paleo', move: 'fadeIn' },
@@ -21,22 +21,22 @@
     bronze: { fog: 0x041210, density: 0.055, ambient: [0x3f6f62, 0.45], lantern: [0x7fe0c0, 1.0], lamp: 0x9ff0d0,
       flicker: 'pulse', sound: 'bell', particles: null, decor: 'rings', docent: { look: 'bronze', move: 'stopgo' },
       scare: { sound: 'clang', flash: 'rgba(120,255,200,0.32)', blackout: 0.8, boost: 2, hint: '데에엥—! 청동 방울이 한꺼번에 울렸다.' } },
-    gojoseon: { fog: 0x070d05, density: 0.066, ambient: [0x55603a, 0.38], lantern: [0xd8e0a0, 1.0], lamp: 0xe0e8b0,
+    gojoseon: { voice: 'male', fog: 0x070d05, density: 0.066, ambient: [0x55603a, 0.38], lantern: [0xd8e0a0, 1.0], lamp: 0xe0e8b0,
       flicker: 'normal', sound: 'breath', particles: 'mist', decor: 'paws', docent: { look: 'bear', move: 'footprints' },
       scare: { sound: 'growl', footRing: true, hint: '바로 옆에서 커다란 숨소리가… 발밑에 발자국이 생겼다.' } },
-    samguk: { fog: 0x120804, density: 0.05, ambient: [0x7a4a30, 0.42], lantern: [0xffb070, 1.1], lamp: 0xffc080,
+    samguk: { voice: 'male', fog: 0x120804, density: 0.05, ambient: [0x7a4a30, 0.42], lantern: [0xffb070, 1.1], lamp: 0xffc080,
       flicker: 'normal', sound: 'wind', particles: 'dust', decor: 'flags', docent: { look: 'general', move: 'fromBehind' },
       scare: { sound: 'drum', boost: 3, ghost: { where: 'side', dist: 1.5, sec: 0.45, dash: true }, hint: '둥! …무언가 옆을 휙 지나갔다.' } },
     samlife: { fog: 0x0d0904, density: 0.06, ambient: [0x6a5232, 0.4], lantern: [0xffcf80, 0.95], lamp: 0xffd690,
       flicker: 'candle', sound: 'echo', particles: null, decor: 'murals', docent: { look: 'mural', move: 'wallSlide' },
       scare: { sound: 'whoosh', blackout: 1.8, ghost: { where: 'front', dist: 3, sec: 1.6, side: 2.9 }, hint: '촛불이 꺼지자… 벽 속 그림이 움직였다.' } },
-    unified: { fog: 0x040814, density: 0.05, ambient: [0x40507a, 0.45], lantern: [0xaac4ff, 1.0], lamp: 0xc8d8ff,
+    unified: { voice: 'male', fog: 0x040814, density: 0.05, ambient: [0x40507a, 0.45], lantern: [0xaac4ff, 1.0], lamp: 0xc8d8ff,
       flicker: 'none', sound: 'chime', particles: 'fireflies', decor: 'moon', docent: { look: 'statue', move: 'statue' },
       scare: { sound: 'grind', docentBehind: 2.3, hint: '드르륵… 등 뒤에서 돌 끄는 소리가 났다.' } },
-    goryeo1: { fog: 0x0c0608, density: 0.055, ambient: [0x6a4a58, 0.42], lantern: [0xffc0c8, 1.0], lamp: 0xffb8c8,
+    goryeo1: { voice: 'male', fog: 0x0c0608, density: 0.055, ambient: [0x6a4a58, 0.42], lantern: [0xffc0c8, 1.0], lamp: 0xffb8c8,
       flicker: 'sequence', sound: 'drum', particles: null, decor: 'lanterns', docent: { look: 'official', move: 'walk' },
       scare: { sound: 'boom', flash: 'rgba(255,180,200,0.32)', boost: 1.6, blackout: 1.0, blackoutDelay: 1.6, hint: '쿵! 연등이 한꺼번에 켜졌다가… 모두 꺼졌다.' } },
-    goryeo2: { fog: 0x0a0805, density: 0.06, ambient: [0x6a5a40, 0.4], lantern: [0xffe0a0, 1.0], lamp: 0xffe8b0,
+    goryeo2: { voice: 'male', fog: 0x0a0805, density: 0.06, ambient: [0x6a5a40, 0.4], lantern: [0xffe0a0, 1.0], lamp: 0xffe8b0,
       flicker: 'normal', sound: 'paper', particles: 'paper', decor: 'shelves', docent: { look: 'monk', move: 'blink' },
       scare: { sound: 'rustle', boost: 3, ghost: { where: 'front', dist: 1.9, sec: 0.6 }, hint: '촤르륵! 종잇장이 휘몰아쳤다.' } }
   };

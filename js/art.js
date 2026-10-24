@@ -826,10 +826,11 @@
     return c;
   }
   // 친절한 해설사: 웃는 얼굴, 남색 제복, 안내 책자
-  function drawDocentBright() {
+  function drawDocentBright(male) {
     const W = 256, H = 560;
     const c = canvas(W, H), ctx = c.getContext('2d');
-    if (IMG.docent_bright) { ctx.drawImage(IMG.docent_bright, 0, 0, W, H); return c; }
+    const img = male ? IMG.docent_bright_male : IMG.docent_bright;
+    if (img) { ctx.drawImage(img, 0, 0, W, H); return c; }
     // 다리와 신발
     ctx.fillStyle = '#2f3a55'; ctx.fillRect(96, 400, 26, 140); ctx.fillRect(134, 400, 26, 140);
     ctx.fillStyle = '#3a2a1e'; ctx.fillRect(90, 532, 36, 16); ctx.fillRect(130, 532, 36, 16);
@@ -838,7 +839,7 @@
     ctx.beginPath(); ctx.moveTo(84, 150); ctx.lineTo(172, 150); ctx.lineTo(186, 410); ctx.lineTo(70, 410); ctx.closePath(); ctx.fill();
     ctx.fillStyle = '#f4efe2';
     ctx.beginPath(); ctx.moveTo(116, 150); ctx.lineTo(140, 150); ctx.lineTo(128, 200); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = '#c0392b'; ctx.fillRect(124, 160, 8, 34);
+    ctx.fillStyle = male ? '#2c4f7c' : '#c0392b'; ctx.fillRect(124, 160, 8, 34);
     ctx.fillStyle = '#f2d16b'; ctx.fillRect(146, 196, 26, 12);
     // 팔과 책자
     ctx.strokeStyle = '#34486e'; ctx.lineWidth = 18; ctx.lineCap = 'round';
@@ -851,8 +852,15 @@
     ctx.fillStyle = '#f0c8a0';
     ctx.beginPath(); ctx.ellipse(128, 100, 34, 40, 0, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#3b2a20';
-    ctx.beginPath(); ctx.ellipse(128, 76, 38, 26, 0, Math.PI, Math.PI * 2); ctx.fill();
-    ctx.fillRect(92, 70, 10, 34); ctx.fillRect(154, 70, 10, 34);
+    if (male) {   // 짧은 머리와 굵은 눈썹
+      ctx.beginPath(); ctx.ellipse(128, 74, 36, 20, 0, Math.PI, Math.PI * 2); ctx.fill();
+      ctx.fillRect(94, 70, 8, 14); ctx.fillRect(154, 70, 8, 14);
+      ctx.fillRect(105, 90, 18, 4); ctx.fillRect(133, 90, 18, 4);
+    } else {      // 어깨까지 내려오는 머리
+      ctx.beginPath(); ctx.ellipse(128, 78, 40, 30, 0, Math.PI, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(88, 76); ctx.quadraticCurveTo(82, 130, 92, 160); ctx.lineTo(104, 160); ctx.lineTo(102, 80); ctx.fill();
+      ctx.beginPath(); ctx.moveTo(168, 76); ctx.quadraticCurveTo(174, 130, 164, 160); ctx.lineTo(152, 160); ctx.lineTo(154, 80); ctx.fill();
+    }
     // 웃는 눈과 입, 볼
     ctx.strokeStyle = '#2b1d14'; ctx.lineWidth = 3;
     ctx.beginPath(); ctx.arc(114, 102, 6, Math.PI * 1.1, Math.PI * 1.9); ctx.stroke();

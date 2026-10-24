@@ -126,7 +126,7 @@
     // 바닥, 천장, 벽
     texSet = {
       dark: { floor: tex(ART.floorTex(), 2, (L + 8) / 4), wall: tex(ART.wallTex(), L / 4, 1), docent: tex(ART.drawDocent()) },
-      bright: { floor: tex(ART.floorTexBright(), 2, (L + 8) / 4), wall: tex(ART.wallTexBright(), L / 4, 1), docent: tex(ART.drawDocentBright()) }
+      bright: { floor: tex(ART.floorTexBright(), 2, (L + 8) / 4), wall: tex(ART.wallTexBright(), L / 4, 1), docent: tex(ART.drawDocentBright()), docentMale: tex(ART.drawDocentBright(true)) }
     };
     floorMat = new THREE.MeshLambertMaterial({ map: texSet.dark.floor });
     const floor = addPlane(HW * 2, L + 8, floorMat, 0, 0, -L / 2);
@@ -462,7 +462,7 @@
     tunnelMat.color.setHex(t.tunnel); tunnelBackMat.color.setHex(t.tunnelBack);
     lamps.forEach(l => { l.flick = 0; l.lampMat.color.copy(S.lampColor); l.pool.material.opacity = t.pool; });
     washMat.opacity = t.wash;
-    docent.material.map = e ? eraDocentTex(e.docent.look) : set.docent; docent.material.needsUpdate = true;
+    docent.material.map = e ? eraDocentTex(e.docent.look) : (bright && maleRoom() ? set.docentMale : set.docent); docent.material.needsUpdate = true;
     S.docOpacity = t.docentOpacity;
     applyEraDecor(e);
     fadeEl.style.background = t.fade;
@@ -476,7 +476,13 @@
   const eraTexCache = {}, eraDecorCache = {}, eraPartCache = {};
   let eraDecor = null, eraParts = null;
   function eraDocentTex(look) { return eraTexCache[look] || (eraTexCache[look] = tex(ERAS.docentCanvas(look))); }
-  function eraDocentCanvas() { const e = era(); return e ? ERAS.docentCanvas(e.docent.look) : null; }
+  // 남자 목소리 시대인지 (밝은 박물관에서도 같은 시대 구분으로 해설사 모습을 고른다)
+  function maleRoom() { const c = window.ERAS && !S.exitRoom ? ERAS.CONF[room().id] : null; return !!(c && c.voice === 'male'); }
+  function eraDocentCanvas() {
+    const e = era();
+    if (e) return ERAS.docentCanvas(e.docent.look);
+    return isBright() && maleRoom() ? ART.drawDocentBright(true) : null;
+  }
   function applyEraDecor(e) {
     const env = { THREE, tex, HW, L, H };
     if (eraDecor) eraDecor.group.visible = false;
