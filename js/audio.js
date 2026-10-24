@@ -186,6 +186,28 @@
     const g = ac.createGain(); env(g, t, 0.02, vol, dur);
     s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(t + dur + 0.2);
   }
+  // 문 두드리는 소리 (똑, 똑, 똑 + 덜컹)
+  function knock() {
+    if (!ac || !enabled) return;
+    const t = ac.currentTime;
+    [0, 0.32, 0.64].forEach((d, i) => {
+      const o = ac.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(130, t + d); o.frequency.exponentialRampToValueAtTime(70, t + d + 0.12);
+      const g = ac.createGain(); env(g, t + d, 0.003, 0.32 - i * 0.04, 0.18);
+      o.connect(g); g.connect(master); o.start(t + d); o.stop(t + d + 0.25);
+      noiseHit(t + d, 0.08, 'bandpass', 900, 1.5, 0.12);
+    });
+    noiseHit(t + 0.95, 0.5, 'bandpass', 1500, 2, 0.1);
+  }
+  // 심장 소리 (쿵-쿵)
+  function heart() {
+    if (!ac || !enabled) return;
+    const t = ac.currentTime;
+    [[0, 0.32], [0.22, 0.2]].forEach(([d, v]) => {
+      const o = ac.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(70, t + d); o.frequency.exponentialRampToValueAtTime(40, t + d + 0.15);
+      const g = ac.createGain(); env(g, t + d, 0.01, v, 0.18);
+      o.connect(g); g.connect(master); o.start(t + d); o.stop(t + d + 0.3);
+    });
+  }
   function scare(kind) {
     if (!ac || !enabled) return;
     const t = ac.currentTime;
@@ -357,5 +379,5 @@
   function suspend() { if (ac && ac.state === 'running') ac.suspend(); stopSpeak(); }
   function resume() { if (ac && ac.state === 'suspended') ac.resume(); }
 
-  window.SFX = { scare, setTheme, setAmbience, init, step, buzz, whoosh, wrong, chime, exitBell, speak, voice, preloadVoice, stopSpeak, setEnabled, setVoice, suspend, resume };
+  window.SFX = { knock, heart, scare, setTheme, setAmbience, init, step, buzz, whoosh, wrong, chime, exitBell, speak, voice, preloadVoice, stopSpeak, setEnabled, setVoice, suspend, resume };
 })();

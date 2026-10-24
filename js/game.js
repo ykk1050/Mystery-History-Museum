@@ -102,6 +102,7 @@
   let signTex, rulesTex, farSignMesh, exitGroup, farTunnel, wallMat, centerModel = null, fireFx = null;
   let floorMat, ceilMat, endMat, tunnelMat, tunnelBackMat, texSet;
   const lampGlow = {};
+  let storeDoor = null;
 
   function addPlane(w, h, mat, x, y, z, ry, parent) {
     const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
@@ -228,7 +229,8 @@
     // 문 (분위기용)
     const doorMat = new THREE.MeshLambertMaterial({ color: 0x3a3631 });
     [[-22.5, '수장고'], [-4, '관계자 외 출입금지']].forEach(([z, label]) => {
-      addBox(0.08, 2.4, 1.2, doorMat, HW - 0.04, 1.2, z);
+      const door = addBox(0.08, 2.4, 1.2, doorMat, HW - 0.04, 1.2, z);
+      if (label === '수장고') storeDoor = door;
       addPlane(0.9, 0.28, new THREE.MeshBasicMaterial({ map: tex(ART.drawDoorPlate(label)) }), HW - 0.09, 2.0, z, -Math.PI / 2);
       addBox(0.1, 0.06, 0.18, new THREE.MeshLambertMaterial({ color: 0x8a8070 }), HW - 0.12, 1.1, z + 0.4);
     });
@@ -525,6 +527,7 @@
     const e = era(); if (!e || !e.scare) return;
     const sc = e.scare;
     SFX.scare(sc.sound);
+    S.shake = 0.55;
     if (sc.blackout) S.blackout = sc.blackout + (sc.blackoutDelay || 0), S.blackoutDelay = sc.blackoutDelay || 0;
     if (sc.boost) S.boost = sc.boost;
     if (sc.flash) { const f = $('scareFlash'); f.style.background = sc.flash; f.style.transition = 'none'; f.style.opacity = 1; setTimeout(() => { f.style.transition = 'opacity 0.9s'; f.style.opacity = 0; }, 80); }
@@ -555,6 +558,79 @@
     }
   }
   const blackoutOn = () => S.blackout > 0 && !(S.blackoutDelay > 0);
+
+  /* ---------- 은근한 공포 요소 (으스스한 박물관, 깜짝 효과 설정을 따름) ----------
+     따라오는 발소리 / 수장고 문 두드림 / 먼 끝의 창백한 형체 / 어둠 속 빛나는 눈 / 해설사가 가까우면 심장 소리 */
+  let farGhost = null, darkEyes = null;
+  function creepSprite(draw, sx, sy) {
+    const c = document.createElement('canvas'); c.width = 128; c.height = 256; draw(c.getContext('2d'));
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex(c), transparent: true, depthWrite: false, fog: false }));
+    sp.scale.set(sx, sy, 1); sp.visible = false; scene.add(sp);
+    return sp;
+  }
+  function planCreeps() {
+    const on = !!era() && settings.scares && !S.review;
+    S.follow = on && Math.random() < 0.35;
+    S.knockReady = on && Math.random() < 0.45;
+    S.farReady = on && Math.random() < 0.35;
+    S.eyesT = on ? 12 + Math.random() * 20 : Infinity;
+    S.farT = 0; S.eyesShow = 0; S.doorShake = 0; S.heartT = 0;
+    if (!farGhost) {
+      farGhost = creepSprite(x => {   // 창백하고 흐릿한 사람 형체
+        const g = x.createLinearGradient(0, 30, 0, 256); g.addColorStop(0, 'rgba(210,215,225,0.75)'); g.addColorStop(1, 'rgba(210,215,225,0)');
+        x.fillStyle = g; x.beginPath(); x.ellipse(64, 50, 22, 28, 0, 0, Math.PI * 2); x.fill();
+        x.beginPath(); x.moveTo(40, 84); x.lineTo(88, 84); x.lineTo(104, 256); x.lineTo(24, 256); x.fill();
+        x.fillStyle = 'rgba(20,20,30,0.85)'; x.beginPath(); x.ellipse(56, 50, 5, 4, 0, 0, Math.PI * 2); x.ellipse(72, 50, 5, 4, 0, 0, Math.PI * 2); x.fill();
+      }, 0.9, 1.9);
+      darkEyes = creepSprite(x => {   // 어둠 속 두 눈
+        [44, 84].forEach(cx => {
+          const g = x.createRadialGradient(cx, 128, 1, cx, 128, 22); g.addColorStop(0, 'rgba(255,240,200,1)'); g.addColorStop(0.3, 'rgba(255,200,120,0.7)'); g.addColorStop(1, 'rgba(255,160,80,0)');
+          x.fillStyle = g; x.fillRect(cx - 22, 106, 44, 44);
+        });
+      }, 0.5, 1.0);
+    }
+    farGhost.visible = false; darkEyes.visible = false;
+    if (storeDoor) storeDoor.position.x = HW - 0.04;
+  }
+  function updateCreeps(dt, now) {
+    if (!farGhost) return;
+    const on = !!era() && settings.scares && S.mode === 'play';
+    // 먼 끝 문간의 형체: 멀리서 앞을 볼 때 나타났다가, 다가가거나 시간이 지나면 사라짐
+    if (on && S.farReady && S.z > -30 && -Math.cos(S.yaw) < -0.85) {
+      S.farReady = false; S.farT = 4;
+      farGhost.position.set((Math.random() - 0.5) * 1.2, 1.0, -L - 0.9); farGhost.visible = true;
+    }
+    if (farGhost.visible) {
+      S.farT -= dt;
+      farGhost.material.opacity = Math.min(0.85, S.farT * 0.6);
+      if (S.farT <= 0 || S.z < -L + 26) farGhost.visible = false;
+    }
+    // 천장 구석 어둠 속에서 빛나는 두 눈 (깜빡이다 사라짐)
+    if (on) S.eyesT -= dt;
+    if (on && S.eyesT <= 0) {
+      S.eyesT = 25 + Math.random() * 20; S.eyesShow = 2.4;
+      const dir = -Math.cos(S.yaw) < 0 ? -1 : 1;
+      const z = Math.max(-L + 2, Math.min(-2, S.z + dir * (7 + Math.random() * 5)));
+      darkEyes.position.set((Math.random() < 0.5 ? -1 : 1) * (HW - 0.35), 3.7, z); darkEyes.visible = true;
+    }
+    if (darkEyes.visible) {
+      S.eyesShow -= dt;
+      const blink = (S.eyesShow > 1.1 && S.eyesShow < 1.25);
+      darkEyes.material.opacity = blink ? 0 : Math.min(0.95, S.eyesShow * 1.5);
+      if (S.eyesShow <= 0) darkEyes.visible = false;
+    }
+    // 수장고 문 앞을 지나면 안에서 두드리고 덜컹거림
+    if (on && S.knockReady && Math.abs(S.z - (-22.5)) < 1.8) { S.knockReady = false; S.doorShake = 0.9; SFX.knock(); }
+    if (storeDoor) {
+      if (S.doorShake > 0) { S.doorShake -= dt; storeDoor.position.x = HW - 0.04 - Math.abs(Math.sin(now / 40)) * 0.025; }
+      else storeDoor.position.x = HW - 0.04;
+    }
+    // 해설사가 아주 가까우면 심장 소리와 어두워지는 화면 가장자리
+    const near = on && docent.visible && docent.material.opacity > 0.4 && Math.abs(S.docZ - S.z) < 3.5 && Math.abs(S.docX - camera.position.x) < 3;
+    document.body.classList.toggle('tense', near);
+    if (near) { S.heartT -= dt; if (S.heartT <= 0) { S.heartT = 0.85; SFX.heart(); } }
+    if (S.shake > 0) S.shake -= dt;
+  }
 
   // 해설사가 나타나는 방식 (밝은 박물관은 늘 보통 걸음)
   const docMove = () => { const e = era(); return e ? e.docent.move : 'walk'; };
@@ -710,6 +786,7 @@
     applyTheme();
     resetDocent();
     planScare();
+    planCreeps();
     S.review = false;
     resetHelp();
     const wrongs = S.exitRoom ? 0 : (S.wrongStreak[S.roomIdx] || 0);
@@ -1095,6 +1172,7 @@
     applyTheme();
     resetDocent();
     planScare();
+    planCreeps();
     updateHelpHud();
     S.mode = 'play';
     fadeTo(0, 900);
@@ -1283,10 +1361,15 @@
     if (moving) {
       S.bob += dt * 7.5 * moving;
       const sgn = Math.sign(Math.sin(S.bob));
-      if (sgn !== S.lastStepSign) { S.lastStepSign = sgn; SFX.step(0.55, 1); }
+      if (sgn !== S.lastStepSign) {
+        S.lastStepSign = sgn; SFX.step(0.55, 1);
+        // 뒤에서 한 박자 늦게 따라오는 발소리 (내가 멈추면 같이 멈춤)
+        if (S.follow && era() && settings.scares) setTimeout(() => { if (S.mode === 'play') SFX.step(0.24, 0.82); }, 330);
+      }
     }
     const bobY = moving ? Math.abs(Math.sin(S.bob)) * 0.045 : 0;
     camera.position.set(Math.sin(S.bob * 0.5) * (moving ? 0.03 : 0), EYE + bobY, S.z);
+    if (S.shake > 0) camera.position.add(new THREE.Vector3((Math.random() - 0.5) * 0.06, (Math.random() - 0.5) * 0.05, 0));
     camera.rotation.y = S.yaw;
     camera.rotation.x = -S.pitch;
     lantern.position.set(0, 2.6, S.z - Math.cos(S.yaw) * 1.2);
@@ -1295,6 +1378,7 @@
     if (docent.visible && S.mode !== 'ending') updateDocent(dt, now, active);
     // 깜짝 효과, 시대별 장식·떠다니는 것 (깜짝 효과 중에는 더 세게)
     updateScare(dt);
+    updateCreeps(dt, now);
     const boost = S.boost > 0 ? 4 : 1;
     if (eraDecor) eraDecor.update(dt * boost, now / 1000, S.z, S.boost > 0);
     if (eraParts) eraParts.update(dt * boost, now / 1000, S.z);
