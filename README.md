@@ -76,5 +76,6 @@
 - `?room=번호` — 첫 전시실을 그 주제로 시작 (예: `?room=7` 고려의 건국과 사회)
 - `?test=이상현상ID` — 그 전시실에서 그 이상 현상이 바로 나옵니다. ID는 `js/data.js` 참고
   - 예: `?test=goryeo2.ce_white` (하얀 고려청자)
+- 이상 현상 전체 목록(교사용): [ANOMALIES.md](ANOMALIES.md)
 - 전시물·이상 현상 내용은 `js/data.js` 한 파일에서 고칠 수 있습니다.
 - 그림을 실제 이미지로 바꾸려면 [ASSETS.md](ASSETS.md) 를 참고하세요.
