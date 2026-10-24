@@ -1526,7 +1526,7 @@
     v.src = 'intro/intro_' + (settings.gender === 'female' ? 'female' : 'male') + '.mp4?v=1';
     v.currentTime = 0; v.muted = !settings.sound;
     let trapped = false, finished = false;
-    const trappedVoice = new Audio('intro/trapped.mp3?v=1');
+    const trappedVoice = new Audio('intro/trapped.mp3?v=2');   // 쿵 소리 + "너, 갇힌 거야." (한 파일이라 어긋나지 않음)
     const finish = () => {
       if (finished) return; finished = true;
       store.set('introSeen', true);
@@ -1536,15 +1536,21 @@
       showSplash();
     };
     introDone = finish;
-    // 끝부분: "너… 갇힌 거야." 음성과 큰 글자
-    v.ontimeupdate = () => {
-      if (!trapped && v.duration && v.currentTime >= v.duration - 3.4) {
-        trapped = true;
-        $('introTrapped').classList.add('on');
-        if (settings.sound) { trappedVoice.currentTime = 0; trappedVoice.play().catch(() => {}); }
-      }
+    // 끝부분: 쿵! 화면이 모두 검게 → 빨간 글씨 "너, 갇힌 거야." 와 음성
+    const trap = () => {
+      if (trapped) return; trapped = true;
+      v.pause();
+      $('introTrapped').classList.add('on');
+      $('introHint').style.display = 'none'; $('introUnmute').style.display = 'none'; $('skipAsk').classList.remove('on');
+      if (settings.sound) {
+        trappedVoice.currentTime = 0;
+        trappedVoice.onended = () => setTimeout(finish, 1300);
+        trappedVoice.play().catch(() => setTimeout(finish, 3800));
+      } else setTimeout(finish, 3800);
+      setTimeout(finish, 7000);   // 혹시 소리가 끝나지 않아도 넘어가도록
     };
-    v.onended = () => setTimeout(finish, 2200);
+    v.ontimeupdate = () => { if (v.duration && v.currentTime >= v.duration - 0.6) trap(); };
+    v.onended = trap;
     // 조작: 소리가 막혀 있으면 먼저 소리를 켜고, 처음 보는 중이면 건너뛸지 묻고, 아니면 바로 넘어간다
     introInput = e => {
       if (e.target && e.target.closest && e.target.closest('#skipAsk .btn')) return;
