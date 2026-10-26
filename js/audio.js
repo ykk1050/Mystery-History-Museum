@@ -19,8 +19,8 @@
     loadClips();
   }
 
-  // 녹음된 효과음 (잠긴 문의 쇠사슬 소리): 미리 받아 두었다가 바로 재생
-  const CLIPS = { chain: ['sfx/chain1.mp3', 'sfx/chain2.mp3'] };
+  // 녹음된 효과음 (잠긴 문의 쇠사슬 소리, 잠겼던 문이 열리는 소리): 미리 받아 두었다가 바로 재생
+  const CLIPS = { chain: ['sfx/chain1.mp3', 'sfx/chain2.mp3'], doorOpen: ['sfx/door_open.mp3'] };
   const clipBuf = {};
   function loadClips() {
     Object.keys(CLIPS).forEach(name => {
@@ -32,13 +32,13 @@
       });
     });
   }
-  function playClip(name, vol) {
+  function playClip(name, vol, dest, exact) {
     const list = clipBuf[name];
     if (!list || !list.length) return false;
     const s = ac.createBufferSource(); s.buffer = list[Math.floor(Math.random() * list.length)];
-    s.playbackRate.value = 0.94 + Math.random() * 0.12;   // 매번 조금씩 다르게
+    if (!exact) s.playbackRate.value = 0.94 + Math.random() * 0.12;   // 매번 조금씩 다르게
     const g = ac.createGain(); g.gain.value = vol || 1;
-    s.connect(g); g.connect(master); s.start();
+    s.connect(g); g.connect(dest || master); s.start();
     return true;
   }
 
@@ -295,6 +295,7 @@
   }
   function clunk() {   // 처음보다 4배 크게 (태블릿 스피커에서도 들리도록 중간 음역 '쿵'을 더함)
     if (!ac || !enabled) return;
+    if (playClip('doorOpen', 1, loud(), true)) return;   // 녹음 파일 (못 받았으면 아래 만든 소리)
     const t = ac.currentTime, out = loud();
     const o = ac.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(95, t); o.frequency.exponentialRampToValueAtTime(45, t + 0.25);
     const g = ac.createGain(); env(g, t, 0.004, 1.0, 0.35);

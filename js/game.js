@@ -1658,7 +1658,7 @@
     lobbyRefresh();
     if ($('doorPop').classList.contains('on')) renderDoor();
     if (keysIn.size >= KEY_ART.length) {
-      SFX.exitBell();
+      SFX.clunk(); setTimeout(() => SFX.exitBell(), 900);
       showHint('🗝 아홉 개의 조각이 모두 맞춰졌다… 미스터리 전시실의 문이 열렸다!', 4500);
     } else showHint(`「${KEY_NAMES[i]}」 조각을 끼웠다 (${keysIn.size} / 9)`, 2600);
   }
