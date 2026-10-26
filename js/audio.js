@@ -282,17 +282,17 @@
     noiseHit(t + 0.02, 0.18, 'bandpass', 180, 1.2, 0.18);   // 문이 살짝 밀리는 둔탁한 소리
   }
   // 덜컹: 문이 풀리며 열리는 소리 (낮은 쿵 + 걸쇠 소리 + 삐걱)
-  function clunk() {
+  function clunk() {   // 소리 크기 2배
     if (!ac || !enabled) return;
     const t = ac.currentTime;
     const o = ac.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(95, t); o.frequency.exponentialRampToValueAtTime(45, t + 0.25);
-    const g = ac.createGain(); env(g, t, 0.004, 0.5, 0.35);
+    const g = ac.createGain(); env(g, t, 0.004, 1.0, 0.35);
     o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.5);
-    noiseHit(t, 0.12, 'bandpass', 600, 1.2, 0.3);
-    noiseHit(t + 0.09, 0.05, 'highpass', 2500, 1, 0.16);
+    noiseHit(t, 0.12, 'bandpass', 600, 1.2, 0.6);
+    noiseHit(t + 0.09, 0.05, 'highpass', 2500, 1, 0.32);
     const c = ac.createOscillator(); c.type = 'sawtooth'; c.frequency.setValueAtTime(240, t + 0.25); c.frequency.linearRampToValueAtTime(170, t + 0.95);
     const cf = ac.createBiquadFilter(); cf.type = 'bandpass'; cf.frequency.value = 900; cf.Q.value = 6;
-    const cg = ac.createGain(); env(cg, t + 0.25, 0.08, 0.05, 0.6);
+    const cg = ac.createGain(); env(cg, t + 0.25, 0.08, 0.1, 0.6);
     c.connect(cf); cf.connect(cg); cg.connect(master); c.start(t + 0.25); c.stop(t + 1.1);
   }
   // 닫힌 나무문을 밀었을 때 덜그럭
