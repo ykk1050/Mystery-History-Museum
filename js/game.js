@@ -507,9 +507,9 @@
     guide.material.map = bright ? guideTex.bright : guideTex.dark;
     guide.position.y = 1.05 + Math.sin(now / 800) * 0.07;
     guide.material.opacity = bright ? 0.92 : 0.7 + Math.sin(now / 130) * 0.05 + (Math.random() < 0.02 ? -0.4 : 0);
-    // 가까이 가면 전시실마다 한 번만 말한다 (해설사가 말하는 중이면 기다림)
+    // 가까이 가면 입장할 때마다 한 번만 말한다 (해설사가 말하는 중이면 말하기 줄에서 기다림)
     const near = Math.hypot(camera.position.x - GUIDE.x, camera.position.z - GUIDE.z) < 5;
-    if (near && !S.guideSpoke && S.mode === 'play' && !$('subtitle').classList.contains('on')) {
+    if (near && !S.guideSpoke && S.mode === 'play') {
       S.guideSpoke = true;
       showSubtitle(GUIDE_LINE, '— 안내원 —', (bright ? 'voice_bright/' : 'voice/') + 'guide.mp3');
     }
@@ -529,7 +529,7 @@
   }
   // 전시실에서 로비로 (진행 저장)
   function backToLobby() {
-    SFX.stopSpeak(); saveProgress(); S.started = false;
+    stopTalk(); saveProgress(); S.started = false;
     showScreen(null); S.mode = 'trans'; SFX.whoosh();
     fadeTo(1, 500).then(() => goLobby(S.gameMode));
   }
@@ -962,7 +962,6 @@
     S.review = false;
     resetHelp();
     setDoors(doorsShouldOpen(), false); applyDoors();
-    S.guideSpoke = false;
     placeGuide();
     const wrongs = S.exitRoom ? 0 : (S.wrongStreak[S.roomIdx] || 0);
     S.lampReady = wrongs >= LAMP_AFTER;
@@ -1007,18 +1006,18 @@
     keys.fwd = keys.back = keys.run = false;
     // 정상 전시 다시 보기를 마치면 원래 가려던 다음 전시실로
     if (S.review) {
-      S.mode = 'trans'; SFX.whoosh(); SFX.stopSpeak();
+      S.mode = 'trans'; SFX.whoosh(); stopTalk();
       fadeTo(1, 700).then(() => { newGallery(); setTimeout(() => { S.mode = 'play'; fadeTo(0, 900); }, 350); });
       return;
     }
     if (S.exitRoom && dir === 'forward') {
-      S.mode = 'trans'; SFX.whoosh(); SFX.stopSpeak();
+      S.mode = 'trans'; SFX.whoosh(); stopTalk();
       fadeTo(1, 900).then(showEnding);
       return;
     }
     if (dir === 'back' && !S.exitRoom) {
       // 되돌아갈 때는 어느 전시물이 이상했는지 근거를 고르게 한다
-      S.mode = 'pick'; SFX.stopSpeak();
+      S.mode = 'pick'; stopTalk();
       showPick(key => judge('back', key), () => { S.z = -1.4; S.mode = 'play'; });
       return;
     }
@@ -1027,7 +1026,7 @@
 
   function judge(dir, picked) {
     S.mode = 'trans';
-    SFX.whoosh(); SFX.stopSpeak();
+    SFX.whoosh(); stopTalk();
     const had = S.anomaly;
     const roomName = S.exitRoom ? '' : `제 ${S.streak} 전시실 · ${room().name}`;
     const roomIdx = S.roomIdx;
@@ -1290,7 +1289,7 @@
     }
     if (h.distance > (h.object.userData.key === 'docent' ? 9 : INSPECT_RANGE)) { showHint('더 가까이 다가가세요…', 1600); return; }
     const u = h.object.userData;
-    if (u.key === 'docent') { markViewed('docent'); SFX.voice(S.docVoice, S.docSpeech); return openInspect(ART.drawDocentCard(S.docSpeech, isBright(), eraDocentCanvas())); }
+    if (u.key === 'docent') { markViewed('docent'); stopTalk(); SFX.voice(S.docVoice, S.docSpeech); return openInspect(ART.drawDocentCard(S.docSpeech, isBright(), eraDocentCanvas())); }
     if (u.key === 'guide') return askGuide();
     if (u.key === 'rules') return openInspect(rulesTex.image);
     if (u.key === 'sign') return openInspect(signTex.image);
@@ -1312,15 +1311,29 @@
 
   /* ---------- 자막 / 힌트 ---------- */
   let subTimer = 0;
+  // 말하기 줄: 해설사·안내원·귀띔이 겹치면 앞의 말이 끝난 뒤에 다음 말이 (자막도 함께)
+  const talkQ = [];
+  let talkCur = null;
   function showSubtitle(text, who, voiceUrl) {
     if (!text) return;
-    $('subWho').textContent = who || '— 해설사 —';
-    $('subText').textContent = text;
-    $('subtitle').classList.add('on');
-    clearTimeout(subTimer);
-    subTimer = setTimeout(hideSubtitle, voiceUrl ? 5000 : who ? 9000 : 6500);
-    if (voiceUrl) SFX.voice(voiceUrl, text); else if (who) SFX.speak(text); else SFX.voice(S.docVoice, text);
+    if ((talkCur && talkCur.text === text) || talkQ.some(q => q.text === text)) return;
+    talkQ.push({ text, who, url: voiceUrl, doc: !who ? S.docVoice : null });
+    if (!talkCur) nextTalk();
   }
+  function nextTalk() {
+    const t = talkQ.shift();
+    talkCur = t || null;
+    clearTimeout(subTimer);
+    if (!t) { subTimer = setTimeout(hideSubtitle, 1500); return; }
+    $('subWho').textContent = t.who || '— 해설사 —';
+    $('subText').textContent = t.text;
+    $('subtitle').classList.add('on');
+    let fin = false;
+    const done = () => { if (fin || talkCur !== t) return; fin = true; setTimeout(() => { if (talkCur === t) nextTalk(); }, 400); };
+    if (t.url) SFX.voice(t.url, t.text, done); else if (t.who) SFX.speak(t.text, done); else SFX.voice(t.doc, t.text, done);
+    setTimeout(done, 15000);   // 혹시 끝 알림이 오지 않아도 다음으로
+  }
+  function stopTalk() { talkQ.length = 0; talkCur = null; SFX.stopSpeak(); }
 
   /* ---------- 도움: 관람 수, 힌트 등불, 해설사의 귀띔, 정상 전시 다시 보기 ---------- */
   function exhibitName(ex, key) { return key === 'docent' ? '해설사의 말' : ex.title; }
@@ -1457,7 +1470,7 @@
   /* ---------- 시작 ---------- */
   function startGame(resume) {
     S.gameMode = settings.mode;
-    S.place = 'gallery'; S.entering = false;
+    S.place = 'gallery'; S.entering = false; S.guideSpoke = false;
     closeBag();
     SFX.init();
     if (window.speechSynthesis) try { speechSynthesis.getVoices(); } catch (e) {}
@@ -1524,7 +1537,7 @@
     if (farGhost) { farGhost.visible = false; darkEyes.visible = false; }
     docent.visible = false; docentHit.visible = false; docentGlow.intensity = 0;
     document.body.classList.remove('tense');
-    hideSubtitle(); SFX.stopSpeak();
+    hideSubtitle(); stopTalk();
     lobbyRefresh(); applyTheme(); updateHelpHud();
     showScreen(null);
     $('hud').classList.add('on'); $('touch').classList.add('on');

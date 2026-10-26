@@ -447,21 +447,24 @@
     return voiceCache[url];
   }
   function preloadVoice(url) { if (url) loadVoice(url).catch(() => {}); }
-  function voice(url, text) {
-    if (!voiceOn || !enabled) return;
+  // done: 말이 끝나면 부른다 (소리가 꺼져 있어도 글자 길이만큼 기다렸다가 부름 → 자막 순서가 맞는다)
+  const readTime = text => 700 + (text || '').length * 170;
+  function voice(url, text, done) {
+    if (!voiceOn || !enabled) { if (done) setTimeout(done, readTime(text)); return; }
     stopSpeak();
     resume();
-    if (!url || !ac) { speak(text); return; }
+    if (!url || !ac) { speak(text, done); return; }
     loadVoice(url).then(buf => {
       stopSpeak();
       const src = ac.createBufferSource(); src.buffer = buf;
       const g = ac.createGain(); g.gain.value = 1.3;
       src.connect(g); g.connect(master); src.start();
+      src.onended = () => { if (voiceSrc === src) { voiceSrc = null; if (done) done(); } };
       voiceSrc = src;
-    }).catch(() => speak(text));
+    }).catch(() => speak(text, done));
   }
-  function speak(text) {
-    if (!voiceOn || !enabled || !window.speechSynthesis || !text) return;
+  function speak(text, done) {
+    if (!voiceOn || !enabled || !window.speechSynthesis || !text) { if (done) setTimeout(done, readTime(text)); return; }
     try {
       if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();
       speechSynthesis.resume();
@@ -469,8 +472,9 @@
       u.lang = 'ko-KR'; u.rate = 0.8; u.pitch = 0.6; u.volume = 1;
       const v = speechSynthesis.getVoices().find(v => /^ko/i.test(v.lang));
       if (v) u.voice = v;
+      if (done) { u.onend = () => done(); u.onerror = () => done(); }
       speechSynthesis.speak(u);
-    } catch (e) { /* 음성 미지원 */ }
+    } catch (e) { if (done) setTimeout(done, readTime(text)); }
   }
   // iPad는 화면을 누른 순간에 한 번 말해 두어야 이후에도 말할 수 있다 → 입장 버튼에서 호출
   function unlockSpeech() {
