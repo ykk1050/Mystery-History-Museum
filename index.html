@@ -399,6 +399,10 @@
   body.bright #subtitle { color: #2d241a; text-shadow: none; background: rgba(255,250,240,0.9); border-radius: 12px; padding: 8px 14px; }
   body.bright #subtitle .who { color: #8a7350; }
   body.bright .card .btn { background: #3a2c1a; color: #fff6e4; }
+  /* 종이 카드 안의 테두리 단추: 두 분위기 모두 종이 위 진한 글씨 (배경색을 칠하면 글씨가 묻힌다) */
+  .card .btn.ghost, body.bright .card .btn.ghost { background: transparent; color: #3a2c1a; border-color: #9c8a66; }
+  .card .btn.ghost:hover, body.bright .card .btn.ghost:hover { background: rgba(58,44,26,0.08); }
+  body.bright .bag-head button { color: #3a2c1a; border-color: #c9a46a; }
   body.bright #dupe h2 { color: #3a2c1a !important; }
   body.bright #dupeMsg { color: #4a3c28 !important; }
   .btn:disabled { cursor: default; opacity: 0.55; }
@@ -513,7 +517,7 @@
     <button class="btn" id="rulesOk">확인</button>
     <div class="controls" id="controlsInfo"></div>
     <div class="unit">초등학교 5학년 사회 2학기 1단원<br>「유적과 유물로 살펴본 옛 사람들의 생활」 복습 게임 · 소리를 켜고 플레이하세요</div>
-    <div class="credit">Created by gamtudyssam using AI · 0.042</div>
+    <div class="credit">Created by gamtudyssam using AI · 0.043</div>
   </div>
 </div>
 
@@ -601,12 +605,12 @@
 </div>
 
 <script src="vendor/three.min.js"></script>
-<script src="js/data.js?v=0.6.3"></script>
-<script src="js/eras.js?v=0.6.3"></script>
-<script src="js/artifacts.js?v=0.6.3"></script>
-<script src="js/art.js?v=0.6.3"></script>
-<script src="js/audio.js?v=0.6.3"></script>
-<script src="js/lobby.js?v=0.6.3"></script>
-<script src="js/game.js?v=0.6.3"></script>
+<script src="js/data.js?v=0.6.4"></script>
+<script src="js/eras.js?v=0.6.4"></script>
+<script src="js/artifacts.js?v=0.6.4"></script>
+<script src="js/art.js?v=0.6.4"></script>
+<script src="js/audio.js?v=0.6.4"></script>
+<script src="js/lobby.js?v=0.6.4"></script>
+<script src="js/game.js?v=0.6.4"></script>
 </body>
 </html>

@@ -522,7 +522,7 @@
       <p style="font-size:19px">로비로 돌아가시겠습니까?</p>
       <p style="font-size:14px;color:#6d5a3a">지금까지의 진행(제 ${S.streak} 전시실)은 저장되어, 로비에서 이 통로로 다시 들어가면 이어서 할 수 있어요.</p>
       <button class="btn" id="gYes">네</button>
-      <button class="btn ghost" id="gNo" style="width:100%;margin-top:10px;color:#3a2c1a;border-color:#9c8a66">아니요</button>`;
+      <button class="btn ghost" id="gNo" style="width:100%;margin-top:10px">아니요</button>`;
     $('note').classList.add('on');
     $('gYes').onclick = () => { $('note').classList.remove('on'); backToLobby(); };
     $('gNo').onclick = () => { $('note').classList.remove('on'); S.mode = 'play'; };
@@ -1546,8 +1546,8 @@
     card.innerHTML = `<h2>${m.name}</h2>
       <p>제 ${p.streak} 전시실까지 진행한 기록이 있어요.</p>
       <button class="btn" id="rsCont">이어서 하기 (제 ${p.streak} 전시실)</button>
-      <button class="btn ghost" id="rsNew" style="width:100%;margin-top:10px;color:#3a2c1a;border-color:#9c8a66">처음부터 하기</button>
-      <button class="btn ghost" id="rsStay" style="width:100%;margin-top:8px;color:#6d5a3a;border-color:#c9b48a">← 로비에 남기</button>`;
+      <button class="btn ghost" id="rsNew" style="width:100%;margin-top:10px">처음부터 하기</button>
+      <button class="btn ghost" id="rsStay" style="width:100%;margin-top:8px">← 로비에 남기</button>`;
     $('note').classList.add('on');
     const close = () => $('note').classList.remove('on');
     $('rsCont').onclick = () => { close(); go(p); };
