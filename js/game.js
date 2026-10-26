@@ -487,14 +487,12 @@
     guide.material.map = bright ? guideTex.bright : guideTex.dark;
     guide.position.y = 1.05 + Math.sin(now / 800) * 0.07;
     guide.material.opacity = bright ? 0.92 : 0.7 + Math.sin(now / 130) * 0.05 + (Math.random() < 0.02 ? -0.4 : 0);
-    // 가까이 있으면 일정한 간격으로 말한다 (해설사가 말하는 중이면 기다림)
+    // 가까이 가면 전시실마다 한 번만 말한다 (해설사가 말하는 중이면 기다림)
     const near = Math.hypot(camera.position.x - GUIDE.x, camera.position.z - GUIDE.z) < 5;
-    S.guideT = (S.guideT || 0) - dt;
-    if (near && S.mode === 'play' && S.guideT <= 0 && !$('subtitle').classList.contains('on')) {
-      S.guideT = 15;
+    if (near && !S.guideSpoke && S.mode === 'play' && !$('subtitle').classList.contains('on')) {
+      S.guideSpoke = true;
       showSubtitle(GUIDE_LINE, '— 안내원 —', (bright ? 'voice_bright/' : 'voice/') + 'guide.mp3');
     }
-    if (!near && S.guideT < 4) S.guideT = Math.max(S.guideT, 1.5);   // 다시 다가오면 곧 말한다
   }
   // 안내원을 누르면: 로비로 돌아갈지 묻는 창
   function askGuide() {
@@ -944,6 +942,7 @@
     S.review = false;
     resetHelp();
     setDoors(doorsShouldOpen(), false); applyDoors();
+    S.guideSpoke = false;
     const wrongs = S.exitRoom ? 0 : (S.wrongStreak[S.roomIdx] || 0);
     S.lampReady = wrongs >= LAMP_AFTER;
     if (wrongs >= WHISPER_AFTER) setTimeout(() => { if (S.mode === 'play') whisper(); }, 2600);
