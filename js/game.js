@@ -1305,7 +1305,7 @@
   // 모드 고르기 단추 만들기
   (function buildModeButtons() {
     const grid = $('modeGrid');
-    MODES.forEach(m => {
+    MODES.filter(m => m.room != null).concat(MODES.filter(m => m.room == null)).forEach(m => {
       const b = document.createElement('button');
       b.className = 'mode-card' + (m.room == null ? ' hard' : '');
       b.dataset.mode = m.id;
@@ -1580,7 +1580,7 @@
       store.set('introSeen', true);
       v.pause(); trappedVoice.pause();
       removeEventListener('keydown', introInput, true);
-      $('intro').removeEventListener('pointerdown', introInput, true);
+      $('intro').removeEventListener('click', introInput, true);
       showSplash();
     };
     introDone = finish;
@@ -1609,14 +1609,23 @@
       if (e.target && e.target.closest && e.target.closest('#skipAsk .btn')) return;
       e.preventDefault();
       if (v.muted && settings.sound && $('introUnmute').style.display !== 'none') {
-        v.muted = false; $('introUnmute').style.display = 'none'; SFX.init(); return;
+        v.muted = false; $('introUnmute').style.display = 'none'; SFX.init();
+        // 그래도 브라우저가 막으면 소리 없이 계속 보여 준다
+        const pp = v.play();
+        if (pp && pp.catch) pp.catch(() => { v.muted = true; v.play().catch(() => {}); $('introUnmute').style.display = 'block'; });
+        return;
+      }
+      // 어떤 이유로든 영상이 멈춰 있으면 먼저 다시 재생
+      if (v.paused && !trapped && !finished && !v.ended) {
+        v.play().catch(() => { v.muted = true; v.play().catch(() => {}); });
+        return;
       }
       if (store.get('introSeen', false)) finish();
       else $('skipAsk').classList.add('on');
     };
     setTimeout(() => {
       addEventListener('keydown', introInput, true);
-      $('intro').addEventListener('pointerdown', introInput, true);
+      $('intro').addEventListener('click', introInput, true);
     }, 300);
     const p = v.play();
     if (p && p.catch) p.catch(() => {   // 브라우저가 소리 나는 자동 재생을 막으면 소리 없이 시작
@@ -1687,7 +1696,7 @@
       $('endStat').innerHTML = '(미리보기) 탈출 뒤, 아직 클리어하지 않은 전시실이 남아 있을 때의 연출입니다.<br><b>화면(빈 곳)을 누를 때마다 다시 볼 수 있어요.</b>';
       showScreen('ending');
       const go = () => { SFX.init(); playMeetAgain(); };
-      window.addEventListener('pointerdown', e => { if (!e.target.closest('button')) go(); });
+      window.addEventListener('click', e => { if (!e.target.closest('button')) go(); });
       window.addEventListener('keydown', go);
       return;
     }
