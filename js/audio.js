@@ -16,6 +16,30 @@
     master.connect(ac.destination);
     startDrone();
     const k = ambKind; ambKind = null; setAmbience(k);
+    loadClips();
+  }
+
+  // 녹음된 효과음 (잠긴 문의 쇠사슬 소리): 미리 받아 두었다가 바로 재생
+  const CLIPS = { chain: ['sfx/chain1.mp3', 'sfx/chain2.mp3'] };
+  const clipBuf = {};
+  function loadClips() {
+    Object.keys(CLIPS).forEach(name => {
+      clipBuf[name] = [];
+      CLIPS[name].forEach(url => {
+        fetch(url).then(r => r.arrayBuffer())
+          .then(b => new Promise((ok, no) => ac.decodeAudioData(b, ok, no)))
+          .then(buf => clipBuf[name].push(buf)).catch(() => {});
+      });
+    });
+  }
+  function playClip(name, vol) {
+    const list = clipBuf[name];
+    if (!list || !list.length) return false;
+    const s = ac.createBufferSource(); s.buffer = list[Math.floor(Math.random() * list.length)];
+    s.playbackRate.value = 0.94 + Math.random() * 0.12;   // 매번 조금씩 다르게
+    const g = ac.createGain(); g.gain.value = vol || 1;
+    s.connect(g); g.connect(master); s.start();
+    return true;
   }
 
   function noiseBuffer(sec, brown) {
@@ -244,7 +268,8 @@
   // 쇠사슬이 부딪히는 소리 (잠긴 문): 짤그랑거리는 쇳소리 여러 번
   function chain() {
     if (!ac || !enabled) return;
-    const t = ac.currentTime;
+    if (playClip('chain', 1.1)) return;
+    const t = ac.currentTime;   // 녹음 파일을 아직 못 받았으면 만든 소리로
     for (let i = 0; i < 7; i++) {
       const d = i * 0.055 + Math.random() * 0.04, v = 0.16 * (1 - i / 9);
       [2300, 3400, 5100].forEach((f, k) => {

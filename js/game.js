@@ -1562,7 +1562,7 @@
     S.lx = r.x; S.lz = r.z;
     S.touchCool = Math.max(0, (S.touchCool || 0) - dt);
     S.chainCool = Math.max(0, (S.chainCool || 0) - dt);
-    if (r.touch && r.touch !== 'stair' && input && !S.chainCool) { S.chainCool = 1.1; SFX.chain(); }
+    if (r.touch && r.touch !== 'stair' && input && !S.chainCool) { S.chainCool = 1.5; SFX.chain(); }
     if (r.touch && input && !S.touchCool) {
       S.touchCool = 3;
       showHint(r.touch === 'stair' ? '🚧 2층 전시실은 아직 공사 중이에요'
