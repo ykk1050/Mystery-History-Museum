@@ -879,7 +879,55 @@
     return Array.from(new Set(s)).join('');
   }
 
+  /* ---------------- 유물 모양 열쇠 조각 ----------------
+     kind: 'gold'(얻은 조각) / 'hole'(입구에 파인 홈) / 'locked'(아직 못 얻은 조각의 흐린 모양) */
+  const keyCache = {};
+  function maskTint(mask, color) {
+    const c = canvas(mask.width, mask.height), x = c.getContext('2d');
+    x.drawImage(mask, 0, 0); x.globalCompositeOperation = 'source-in'; x.fillStyle = color; x.fillRect(0, 0, c.width, c.height);
+    return c;
+  }
+  function drawKeyPiece(art, size, kind) {
+    const id = art + '|' + size + '|' + kind;
+    if (keyCache[id]) return keyCache[id];
+    const S = size, pad = Math.round(S * 0.06);
+    const src = canvas(S, S), sx = src.getContext('2d');
+    const im = imageFor(art, {});
+    if (im) {
+      const sc = Math.min((S - pad * 2) / im.width, (S - pad * 2) / im.height);
+      sx.drawImage(im, S / 2 - im.width * sc / 2, S / 2 - im.height * sc / 2, im.width * sc, im.height * sc);
+    } else {
+      try { ARTS[art](sx, S / 2, S / 2, S * 0.86, {}, undefined); } catch (e) { sx.fillStyle = '#888'; sx.fillRect(pad, pad, S - pad * 2, S - pad * 2); }
+    }
+    // 그림자는 빼고 또렷한 모양만 남긴다
+    const d = sx.getImageData(0, 0, S, S), mask = canvas(S, S), mx = mask.getContext('2d'), md = mx.createImageData(S, S);
+    for (let i = 0; i < d.data.length; i += 4) if (d.data[i + 3] > 200) { md.data[i] = md.data[i + 1] = md.data[i + 2] = 255; md.data[i + 3] = 255; }
+    mx.putImageData(md, 0, 0);
+    const out = canvas(S, S), o = out.getContext('2d');
+    const b = Math.max(2, Math.round(S / 60));
+    if (kind === 'hole') {
+      o.drawImage(maskTint(mask, '#a8916a'), -b, -b);
+      o.drawImage(maskTint(mask, '#1c140c'), b, b);
+      o.drawImage(maskTint(mask, '#070504'), 0, 0);
+    } else if (kind === 'locked') {
+      o.globalAlpha = 0.5; o.drawImage(maskTint(mask, '#6e6352'), 0, 0); o.globalAlpha = 1;
+    } else {
+      const dark = maskTint(mask, '#3a2408');
+      [[-b, 0], [b, 0], [0, -b], [0, b], [b, b]].forEach(([dx, dy]) => o.drawImage(dark, dx, dy));
+      const g = canvas(S, S), gx = g.getContext('2d');
+      const gr = gx.createLinearGradient(0, 0, S, S);
+      gr.addColorStop(0, '#fff3b8'); gr.addColorStop(0.35, '#e8bd4a'); gr.addColorStop(0.65, '#a8741a'); gr.addColorStop(1, '#f6d97c');
+      gx.fillStyle = gr; gx.fillRect(0, 0, S, S);
+      gx.globalAlpha = 0.55; gx.globalCompositeOperation = 'overlay'; gx.drawImage(src, 0, 0);
+      gx.globalAlpha = 1; gx.globalCompositeOperation = 'destination-in'; gx.drawImage(mask, 0, 0);
+      o.drawImage(g, 0, 0);
+    }
+    keyCache[id] = out;
+    return out;
+  }
+
   window.ART = {
+    drawKeyPiece,
     drawCase, drawMural, drawPanel, drawTimeline, drawLabel, drawRules, drawSign,
     drawSmallSign, drawDoorPlate, drawDocentCard, floorTex, wallTex, glowTex, stoneTex, drawDocent, floorTexBright, wallTexBright, drawDocentBright,
     loadImages, allText, overflowLog, FONT, SANS

@@ -16,6 +16,10 @@
   //   checks: 중간 저장되는 전시실 번호
   const MODES = [{ id: 'mystery', name: '최고 난이도 미스터리 전시실', goal: 17, checks: [4, 8, 12] }]
     .concat(ROOMS.map((r, i) => ({ id: 'era' + i, name: r.name, goal: 9, checks: [4, 6], room: i })));
+  // 시대별 전시실을 탈출하면 얻는 유물 모양 열쇠 조각 (9개를 모두 끼우면 미스터리 전시실이 열린다)
+  const KEY_ART = ['handaxe', 'comb', 'mirror', 'dagger', 'crown', 'horsepot', 'censer', 'lantern', 'celadon'];
+  const KEY_NAMES = ['주먹도끼', '빗살무늬 토기', '청동 거울', '비파형 동검', '금동관', '말 탄 무사 모양 토기', '발해 삼채 향로', '연등회 등불', '고려청자'];
+  const LX = 300;        // 로비는 전시실과 멀리 떨어진 곳에 짓는다
   const modeOf = id => MODES.find(m => m.id === id) || null;
   const curMode = () => modeOf(S.gameMode) || MODES[0];
   const goal = () => curMode().goal;              // 이 수만큼 연속으로 지나면 출구
@@ -37,6 +41,8 @@
   const found = new Set(store.get('found_v2', []));
   let cleared = store.get('cleared_v2', false);
   const clearedModes = new Set(store.get('clearedModes', []));   // 탈출에 성공한 전시실(모드) id
+  const keysIn = new Set(store.get('keysIn', []));               // 미스터리 전시실 입구에 끼운 열쇠 조각 (시대 번호)
+  const hasKey = i => clearedModes.has('era' + i);
   const settings = Object.assign({ sound: true, voice: true, low: false, invertX: false, invertY: false, scares: true, theme: null, gender: null, mild: null }, store.get('settings', {}));
 
   /* ---------- 분위기: 밝은 박물관 / 으스스한 박물관 ----------
@@ -104,6 +110,7 @@
   let floorMat, ceilMat, endMat, tunnelMat, tunnelBackMat, texSet;
   const lampGlow = {};
   let storeDoor = null;
+  let lobby = null;          // 로비 (js/lobby.js)
 
   function addPlane(w, h, mat, x, y, z, ry, parent) {
     const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
@@ -396,7 +403,9 @@
 
   /* ---------- 게임 상태 ---------- */
   const S = {
-    mode: 'title',          // title | play | inspect | note | menu | trans | ending
+    mode: 'title',          // title | play | inspect | note | menu | trans | ending | door | record
+    place: 'lobby',         // lobby(로비) | gallery(전시실)
+    lx: 0, lz: 10.6,        // 로비 안 위치
     streak: 0,              // = 지금 전시실 번호
     roomIdx: 0,             // 지금 전시실의 주제 (ROOMS 번호)
     history: [],            // 지금까지 나온 주제 (연속 제한용)
@@ -445,18 +454,27 @@
   }
 
   // 지금 시대의 으스스한 분위기 설정 (밝은 박물관이거나 출구면 없음)
-  const era = () => (!isBright() && !S.exitRoom && window.ERAS) ? ERAS.CONF[room().id] : null;
+  const era = () => (!isBright() && !S.exitRoom && S.place !== 'lobby' && window.ERAS) ? ERAS.CONF[room().id] : null;
+  // 로비는 조금 더 넓게 보이도록 안개·조명을 따로 둔다
+  const LOBBY_THEME = {
+    dark: { bg: 0x070504, fog: 0x070504, fogDensity: 0.03, ambient: [0x8a7a66, 0.5], lantern: [0xffd9a0, 0.9] },
+    bright: { bg: 0xf2eadb, fog: 0xf2eadb, fogDensity: 0.006, ambient: [0xfff6e8, 0.95], lantern: [0xfff3dc, 0.35] }
+  };
   function applyTheme() {
-    const t = theme(), bright = isBright();
+    const bright = isBright();
+    const lob = S.place === 'lobby';
+    const t = lob ? Object.assign({}, theme(), LOBBY_THEME[bright ? 'bright' : 'dark']) : theme();
     if (!texSet) return;
     const e = era();
     scene.background.setHex(e ? e.fog : t.bg);
     scene.fog.color.setHex(e ? e.fog : t.fog); scene.fog.density = e ? e.density : t.fogDensity;
     ambient.color.setHex(e ? e.ambient[0] : t.ambient[0]); ambient.intensity = e ? e.ambient[1] : t.ambient[1];
+    S.ambientBase = ambient.intensity;
     lantern.color.setHex(e ? e.lantern[0] : t.lantern[0]);
     S.lanternBase = e ? e.lantern[1] : t.lantern[1];
     S.lampColor = new THREE.Color(e ? e.lamp : 0xffe7bf);
-    S.flicker = e ? e.flicker : (t.flicker ? 'normal' : 'none');
+    S.flicker = lob ? 'none' : e ? e.flicker : (t.flicker ? 'normal' : 'none');
+    if (lobby) lobby.setTheme(bright);
     const set = bright ? texSet.bright : texSet.dark;
     floorMat.map = set.floor; floorMat.needsUpdate = true;
     wallMat.map = set.wall; wallMat.needsUpdate = true;
@@ -936,7 +954,13 @@
     SFX.exitBell();
     const firstClear = !cleared;
     cleared = true; store.set('cleared_v2', true);
-    clearedModes.add(curMode().id); store.set('clearedModes', [...clearedModes]);
+    const m = curMode(), newKey = m.room != null && !clearedModes.has(m.id);
+    clearedModes.add(m.id); store.set('clearedModes', [...clearedModes]);
+    // 시대별 전시실: 그 시대의 유물 모양 열쇠 조각
+    $('endKey').innerHTML = m.room != null
+      ? `<img src="${keyURL(m.room, 'gold')}" alt="">🗝 「${KEY_NAMES[m.room]}」 열쇠 조각${newKey ? '을 얻었다! 가방에 넣어 두었다.' : '은 이미 가방에 있다.'}`
+        + `<br><small style="font-size:14px">가진 열쇠 조각 ${ROOMS.filter((r, i) => hasKey(i)).length} / 9 · 9개를 모두 모으면 로비 어딘가의 문이 열린다…</small>`
+      : '최고 난이도 미스터리 전시실을 탈출했다!';
     const sec = Math.round(playTime() / 1000);
     S.started = false;
     clearProgress();
@@ -950,6 +974,7 @@
       ${firstClear ? '<br><span style="font-size:15px">다시 들어가면 안내판의 내용이 달라져 있을지도…</span>' : ''}`;
     showScreen('ending');
     $('hud').classList.remove('on');
+    closeBag();
     // 아직 탈출하지 못한 전시실이 남아 있으면 마지막으로 한 번 더 놀라게 한다
     if (!isBright() && !settings.mild && clearedModes.size < MODES.length) setTimeout(playMeetAgain, 2600);
   }
@@ -977,11 +1002,11 @@
 
   /* ---------- 화면(스크린) ---------- */
   function showScreen(id) {
-    ['title', 'menu', 'record', 'ending'].forEach(s => $(s).classList.toggle('on', s === id));
+    ['menu', 'record', 'ending'].forEach(s => $(s).classList.toggle('on', s === id));
   }
-  let recordReturn = 'title';
-  function openRecord(from) {
-    recordReturn = from;
+  // 이상 현상 기록장: 로비의 게시판을 누르면 떠 있는 창으로 자세히 본다
+  function openRecord() {
+    S.mode = 'record'; keys.fwd = keys.back = false;
     const list = $('recordList');
     list.innerHTML = '';
     ROOMS.forEach((r, no) => {
@@ -1011,7 +1036,7 @@
   /* ---------- 입력 ---------- */
   const keys = { fwd: false, back: false, left: false, right: false, run: false };
   window.addEventListener('keydown', e => {
-    if (blocked) return;
+    if (blocked || document.querySelector('.flow.on, .pop.on')) return;
     if (S.mode === 'inspect' && (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); closeInspect(); return; }
     if (S.mode === 'play' && e.key === 'Escape') { openMenu(); return; }
     if (S.mode === 'menu' && e.key === 'Escape') { closeMenu(); return; }
@@ -1103,6 +1128,10 @@
   function pickAt(x, y, center) {
     const h = rayAt(x, y, center);
     if (!h) return;
+    if (h.object.userData.lobby) {
+      if (h.distance > 12) { showHint('더 가까이 다가가세요…', 1600); return; }
+      return lobbyPick(h.object.userData);
+    }
     if (h.distance > (h.object.userData.key === 'docent' ? 9 : INSPECT_RANGE)) { showHint('더 가까이 다가가세요…', 1600); return; }
     const u = h.object.userData;
     if (u.key === 'docent') { markViewed('docent'); SFX.voice(S.docVoice, S.docSpeech); return openInspect(ART.drawDocentCard(S.docSpeech, isBright(), eraDocentCanvas())); }
@@ -1149,7 +1178,7 @@
     Object.values(lampGlow).forEach(m => { m.visible = false; });
   }
   function updateHelpHud() {
-    const playing = !S.exitRoom && !S.review;
+    const playing = S.place === 'gallery' && !S.exitRoom && !S.review;
     const vc = $('viewCount');
     vc.style.display = playing ? '' : 'none';
     vc.textContent = S.viewed.size >= MIN_VIEWS ? `🔍 관람 ${S.viewed.size} · 문이 열렸습니다` : `🔍 관람 ${S.viewed.size}/${MIN_VIEWS}`;
@@ -1232,24 +1261,26 @@
   function openMenu() {
     if (S.mode !== 'play') return;
     S.mode = 'menu'; keys.fwd = keys.back = false;
+    $('quitBtn').style.display = S.place === 'gallery' ? '' : 'none';
     showScreen('menu');
   }
   function closeMenu() { showScreen(null); S.mode = 'play'; }
   $('menuBtn').onclick = openMenu;
   $('resumeBtn').onclick = closeMenu;
+  // 전시실에서 로비로 나가기 (지금까지 진행은 저장되어 통로로 다시 들어가면 이어서 할 수 있다)
   $('quitBtn').onclick = () => {
-    SFX.stopSpeak(); saveProgress(); S.elapsed = playTime(); S.started = false;
-    $('hud').classList.remove('on'); fadeEl.style.opacity = 1; S.mode = 'title'; refreshTitle(); showScreen('title');
+    SFX.stopSpeak(); saveProgress(); S.started = false;
+    showScreen(null); S.mode = 'trans';
+    fadeTo(1, 500).then(() => goLobby(S.gameMode));
   };
-  $('recordBtn1').onclick = () => openRecord('title');
-  $('recordBtn2').onclick = () => openRecord('menu');
-  $('recordBtn3').onclick = () => openRecord('ending');
-  $('recordClose').onclick = () => showScreen(recordReturn);
+  $('recordClose').onclick = () => { showScreen(null); S.mode = 'play'; };
   $('recordReset').onclick = () => {
-    if (!confirm('발견한 이상 현상 기록을 모두 지울까요?')) return;
+    if (!confirm('발견한 이상 현상 기록과 탈출 기록, 열쇠 조각을 모두 지울까요?')) return;
     found.clear(); cleared = false; store.set('found_v2', []); store.set('cleared_v2', false);
     clearedModes.clear(); store.set('clearedModes', []);
-    openRecord(recordReturn);
+    keysIn.clear(); store.set('keysIn', []);
+    lobbyRefresh();
+    openRecord();
   };
   const opts = { optSound: 'sound', optVoice: 'voice', optLow: 'low', optInvX: 'invertX', optInvY: 'invertY', optScare: 'scares' };
   Object.keys(opts).forEach(id => { $(id).checked = settings[opts[id]]; });
@@ -1266,6 +1297,8 @@
   /* ---------- 시작 ---------- */
   function startGame(resume) {
     S.gameMode = settings.mode;
+    S.place = 'gallery'; S.entering = false;
+    closeBag();
     SFX.init();
     if (window.speechSynthesis) try { speechSynthesis.getVoices(); } catch (e) {}
     S.startTime = performance.now();
@@ -1289,58 +1322,252 @@
     fadeTo(0, 1600);
     setTimeout(() => showHint(isTouch ? '전시물을 눌러 자세히 볼 수 있습니다' : '전시물을 클릭하면 자세히 볼 수 있습니다', 4500), 1800);
   }
-  $('startBtn').onclick = () => startGame(S.resumeData);
   function setTheme(t) {
     settings.theme = t; store.set('settings', settings);
-    applyTheme(); refreshTitle();
+    applyTheme();
     $('themeBtn').textContent = isBright() ? '🌙 으스스한 박물관으로 바꾸기' : '☀️ 밝은 박물관으로 바꾸기';
-  }
-  document.querySelectorAll('.theme-card').forEach(b => { b.onclick = () => setTheme(b.dataset.theme); });
-  $('themeBtn').onclick = () => setTheme(isBright() ? 'dark' : 'bright');
-  $('newBtn').onclick = () => { clearProgress(settings.mode); S.resumeData = null; startGame(null); };
-  function setMode(id) {
-    settings.mode = id; store.set('settings', settings);
-    refreshTitle();
-  }
-  // 모드 고르기 단추 만들기
-  (function buildModeButtons() {
-    const grid = $('modeGrid');
-    MODES.filter(m => m.room != null).concat(MODES.filter(m => m.room == null)).forEach(m => {
-      const b = document.createElement('button');
-      b.className = 'mode-card' + (m.room == null ? ' hard' : '');
-      b.dataset.mode = m.id;
-      b.innerHTML = m.room == null
-        ? `<span class="badge">최고 난이도</span><b>🗝 ${m.name}</b><small>모든 시대가 무작위로 · 제16 전시실까지</small>`
-        : `<b>${m.name}</b><small>제8 전시실까지</small>`;
-      b.onclick = () => setMode(m.id);
-      grid.appendChild(b);
-    });
-  })();
-  $('againBtn').onclick = () => { fadeEl.style.opacity = 1; S.resumeData = null; startGame(null); };
-  function refreshTitle() {
-    const m = modeOf(settings.mode);
-    S.resumeData = (!m || S.forced) ? null : loadProgress(m.id);
-    const r = S.resumeData;
     document.querySelectorAll('.theme-card').forEach(b => b.classList.toggle('sel', b.dataset.theme === settings.theme));
-    document.querySelectorAll('.mode-card').forEach(b => {
-      b.classList.toggle('sel', b.dataset.mode === settings.mode);
-      b.classList.toggle('saved', !!loadProgress(b.dataset.mode));
-    });
-    $('goalText').textContent = m && m.room != null ? '제8 전시실' : '제16 전시실';
-    $('checkInfo').textContent = `제${(m || MODES[0]).checks.join('·')} 전시실에서 중간 저장됩니다.`;
-    $('modeInfo').textContent = !m ? '' : m.room != null
-      ? `「${m.name}」 전시실만 나옵니다.`
-      : '전시실마다 구석기 시대부터 고려까지 여러 시대가 무작위로 나옵니다.';
-    $('startBtn').disabled = !S.ready || !settings.theme || !m;
-    $('startBtn').textContent = !settings.theme ? '박물관 분위기를 먼저 고르세요'
-      : !m ? '전시실을 먼저 고르세요'
-      : r ? `이어서 하기 (제 ${r.streak} 전시실)` : '입장하기';
-    $('newBtn').style.display = r ? '' : 'none';
+    renderBag();
   }
+  $('themeBtn').onclick = () => setTheme(isBright() ? 'dark' : 'bright');
+  $('againBtn').onclick = () => { fadeEl.style.opacity = 1; startGame(null); };
+  $('lobbyBtn').onclick = () => { fadeEl.style.opacity = 1; goLobby(S.gameMode); };
 
   $('controlsInfo').innerHTML = isTouch
-    ? '▲ 걷기 · ▼ 뒷걸음 · » 뛰어서 이동하기(누른 채로 걷기) · ⟳ 90° 돌기<br>화면을 끌어서 둘러보기 · 전시물과 해설사를 눌러 자세히 보기'
-    : 'W/↑ 걷기 · S/↓ 뒷걸음 · A/D/←/→ 둘러보기 · 마우스로 끌어서 둘러보기<br>Space 90° 돌기 · Shift 뛰기 · 클릭 자세히 보기 · Esc 메뉴';
+    ? '▲ 걷기 · ▼ 뒷걸음 · » 뛰어서 이동하기(누른 채로 걷기) · ⟳ 90° 돌기<br>화면을 끌어서 둘러보기 · 전시물과 해설사를 눌러 자세히 보기 · 🎒 가방 · ⚙ 설정'
+    : 'W/↑ 걷기 · S/↓ 뒷걸음 · A/D/←/→ 둘러보기 · 마우스로 끌어서 둘러보기<br>Space 90° 돌기 · Shift 뛰기 · 클릭 자세히 보기 · 🎒 가방 · ⚙ 설정(Esc)';
+
+  /* ---------- 로비 ---------- */
+  const keyURLCache = {};
+  function keyURL(i, kind) {
+    const k = i + kind;
+    return keyURLCache[k] || (keyURLCache[k] = ART.drawKeyPiece(KEY_ART[i], 160, kind).toDataURL());
+  }
+  function lobbyState() {
+    return {
+      cleared: ROOMS.map((r, i) => hasKey(i)),
+      saved: ROOMS.map((r, i) => { const p = loadProgress('era' + i); return p ? p.streak : 0; }),
+      keys: keysIn, open: keysIn.size >= KEY_ART.length,
+      rooms: ROOMS.map(r => [r.anomalies.filter(a => found.has(a.id)).length, r.anomalies.length]),
+      total: [found.size, window.ANOMALIES.length]
+    };
+  }
+  function lobbyRefresh() { if (lobby) lobby.refresh(lobbyState()); renderBag(); }
+  // 로비로: 처음이면 정문 앞, 전시실에서 돌아오면 그 통로 앞에 선다
+  function goLobby(fromMode) {
+    const m = modeOf(fromMode);
+    const sp = lobby.spawn(m ? (m.room != null ? m.room : 'mystery') : null);
+    S.place = 'lobby'; S.started = false; S.entering = false; S.review = false;
+    S.lx = sp.x; S.lz = sp.z; S.yaw = sp.yaw; S.pitch = 0; S.turning = 0;
+    S.scareAt = null; S.blackout = 0; S.boost = 0; S.shake = 0;
+    if (ghost) ghost.visible = false;
+    if (farGhost) { farGhost.visible = false; darkEyes.visible = false; }
+    docent.visible = false; docentHit.visible = false; docentGlow.intensity = 0;
+    document.body.classList.remove('tense');
+    hideSubtitle(); SFX.stopSpeak();
+    lobbyRefresh(); applyTheme(); updateHelpHud();
+    showScreen(null);
+    $('hud').classList.add('on'); $('touch').classList.add('on');
+    $('lookHint').style.display = isTouch ? '' : 'none';
+    $('crosshair').style.display = isTouch ? 'none' : 'block';
+    S.mode = 'play';
+    fadeTo(0, 1000);
+  }
+  // 통로·문으로 들어가기: 저장된 진행이 있으면 이어서 할지 묻는다
+  function enterMode(id) {
+    const m = modeOf(id); if (!m) return;
+    settings.mode = id; store.set('settings', settings);
+    keys.fwd = keys.back = keys.run = false;
+    const go = resume => { S.mode = 'trans'; SFX.whoosh(); fadeTo(1, 700).then(() => startGame(resume)); };
+    const p = loadProgress(id);
+    if (!p || !p.streak) return go(null);
+    S.mode = 'note';
+    const card = $('noteCard');
+    card.innerHTML = `<h2>${m.name}</h2>
+      <p>제 ${p.streak} 전시실까지 진행한 기록이 있어요.</p>
+      <button class="btn" id="rsCont">이어서 하기 (제 ${p.streak} 전시실)</button>
+      <button class="btn ghost" id="rsNew" style="width:100%;margin-top:10px;color:#3a2c1a;border-color:#9c8a66">처음부터 하기</button>
+      <button class="btn ghost" id="rsStay" style="width:100%;margin-top:8px;color:#6d5a3a;border-color:#c9b48a">← 로비에 남기</button>`;
+    $('note').classList.add('on');
+    const close = () => $('note').classList.remove('on');
+    $('rsCont').onclick = () => { close(); go(p); };
+    $('rsNew').onclick = () => { close(); clearProgress(id); lobbyRefresh(); go(null); };
+    $('rsStay').onclick = () => {
+      close();
+      const sp = lobby.spawn(m.room != null ? m.room : 'mystery');
+      S.lx = sp.x; S.lz = sp.z; S.yaw = sp.yaw; S.entering = false; S.mode = 'play';
+    };
+  }
+  function lobbyPick(u) {
+    if (u.lobby === 'board') return openRecord();
+    if (u.lobby === 'map') return openInspect(lobby.mapCanvas());
+    if (u.lobby === 'sign') return openInspect(lobby.signCanvas(u.idx));
+    if (u.lobby === 'door') return openDoor();
+    if (u.lobby === 'stair') return showHint('🚧 2층 전시실은 아직 공사 중이에요', 2600);
+    if (u.lobby === 'entrance') return showHint(isBright() ? '정문은 지금 닫혀 있어요. 통로로 들어가 전시실을 둘러보세요!' : '문이 굳게 잠겨 있다… 돌아갈 수 없다.', 3000);
+  }
+  // 로비에서 걷기: 바라보는 쪽으로 자유롭게 (벽·기둥·계단에 막힌다)
+  function lobbyMove(dt, active) {
+    let moving = 0;
+    if (!active || S.turning !== 0) return 0;
+    const input = (keys.fwd ? 1 : 0) - (keys.back ? 1 : 0);
+    let x = S.lx, z = S.lz;
+    if (input) {
+      const speed = keys.run ? 4.6 : 2.8;
+      x -= Math.sin(S.yaw) * input * speed * dt;
+      z -= Math.cos(S.yaw) * input * speed * dt;
+      moving = keys.run ? 1.6 : 1;
+    }
+    const r = lobby.collide(x, z);
+    S.lx = r.x; S.lz = r.z;
+    S.touchCool = Math.max(0, (S.touchCool || 0) - dt);
+    if (r.touch && input && !S.touchCool) {
+      S.touchCool = 3;
+      showHint(r.touch === 'stair' ? '🚧 2층 전시실은 아직 공사 중이에요' : `🗝 굳게 닫힌 문… 열쇠 조각 ${keysIn.size} / 9 (문을 눌러 보세요)`, 2600);
+    }
+    if (r.enter != null && !S.entering) {
+      S.entering = true;
+      enterMode(r.enter === 'mystery' ? 'mystery' : 'era' + r.enter);
+    }
+    return moving;
+  }
+
+  /* ---------- 가방과 열쇠 조각 ---------- */
+  let bagOpen = false;
+  function renderBag() {
+    if (!$('bagGrid')) return;
+    const have = ROOMS.filter((r, i) => hasKey(i)).length;
+    $('bagCount').textContent = `열쇠 조각 ${have} / 9 · 입구에 끼운 조각 ${keysIn.size} / 9`;
+    $('bagGrid').innerHTML = ROOMS.map((r, i) => {
+      const got = hasKey(i), used = keysIn.has(i);
+      const cls = got && !used ? 'kcell piece' : used ? 'kcell used' : 'kcell';
+      return `<div class="${cls}" data-i="${i}"><img src="${keyURL(i, got ? 'gold' : 'locked')}" alt="">
+        <b>${got ? KEY_NAMES[i] : '???'}</b><small>${used ? '입구에 끼움' : r.name}</small></div>`;
+    }).join('');
+    $('bagTip').textContent = S.place === 'lobby'
+      ? (have > keysIn.size ? '조각을 끌어서 로비 구석의 미스터리 전시실 입구에 끼워 보세요.' : '시대별 전시실을 탈출하면 그 시대의 유물 모양 열쇠 조각을 얻어요.')
+      : '열쇠 조각은 로비에 있는 미스터리 전시실 입구에 끼울 수 있어요.';
+    bindPieces($('bagGrid'));
+  }
+  function openBag() { bagOpen = true; renderBag(); $('bag').classList.add('on'); document.body.classList.add('bag-open'); keys.fwd = keys.back = false; }
+  function closeBag() { bagOpen = false; $('bag').classList.remove('on'); document.body.classList.remove('bag-open'); }
+  $('bagBtn').onclick = () => { if (S.mode !== 'play') return; bagOpen ? closeBag() : openBag(); };
+  $('bagClose').onclick = closeBag;
+
+  // 조각 끌기: 열쇠판의 홈이나, 로비 화면 속 입구 위에 놓으면 끼워진다
+  let drag = null;
+  function bindPieces(root) {
+    root.querySelectorAll('.piece').forEach(el => {
+      el.onpointerdown = e => {
+        e.preventDefault(); e.stopPropagation();
+        const i = +el.dataset.i;
+        drag = { i, x0: e.clientX, y0: e.clientY, moved: 0 };
+        const g = $('dragGhost'); g.src = keyURL(i, 'gold'); g.style.display = 'block';
+        moveGhost(e.clientX, e.clientY);
+      };
+    });
+  }
+  function moveGhost(x, y) { $('dragGhost').style.left = x + 'px'; $('dragGhost').style.top = y + 'px'; }
+  window.addEventListener('pointermove', e => {
+    if (!drag) return;
+    drag.moved = Math.max(drag.moved, Math.hypot(e.clientX - drag.x0, e.clientY - drag.y0));
+    moveGhost(e.clientX, e.clientY);
+    document.querySelectorAll('.hole.hot').forEach(h => h.classList.remove('hot'));
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const hole = el && el.closest && el.closest('.hole:not(.filled)');
+    if (hole) hole.classList.add('hot');
+  });
+  window.addEventListener('pointerup', e => {
+    if (!drag) return;
+    const d = drag; drag = null;
+    $('dragGhost').style.display = 'none';
+    document.querySelectorAll('.hole.hot').forEach(h => h.classList.remove('hot'));
+    if (d.moved < 8) { showHint(`「${KEY_NAMES[d.i]}」 열쇠 조각 · ${ROOMS[d.i].name} 전시실을 탈출해 얻었다`, 2600); return; }
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    const hole = el && el.closest && el.closest('.hole');
+    if (hole) return tryInsert(d.i, +hole.dataset.i, hole);
+    if (el === canvasEl) return dropOnWorld(d.i, e.clientX, e.clientY);
+  });
+  window.addEventListener('pointercancel', () => { if (drag) { drag = null; $('dragGhost').style.display = 'none'; } });
+  function dropOnWorld(i, x, y) {
+    if (S.place !== 'lobby') return showHint('열쇠 조각은 로비에 있는 미스터리 전시실 입구에 끼울 수 있어요', 2600);
+    const h = rayAt(x, y);
+    if (!h || h.object.userData.lobby !== 'door') return showHint('여기에는 끼울 수 없어요. 로비 구석 어딘가의 수상한 문을 찾아보세요…', 2800);
+    if (h.distance > 10) return showHint('문에 더 가까이 다가가서 끼우세요', 2000);
+    // 문 그림에서 놓은 자리에 가장 가까운 홈 (문 그림: 512×720)
+    if (!h.uv || h.object.geometry.parameters.height < 3) return showHint('문에 파인 홈 위에 놓아 보세요', 2000);
+    const px = h.uv.x * 512, py = (1 - h.uv.y) * 720;
+    for (let k = 0; k < KEY_ART.length; k++) {
+      const [hx, hy] = lobby.holePos(k);
+      if (Math.abs(px - hx) < 75 && Math.abs(py - hy) < 72) return tryInsert(i, k);
+    }
+    showHint('조각과 같은 모양의 홈 위에 놓아 보세요', 2200);
+  }
+  function tryInsert(i, holeIdx, holeEl) {
+    if (keysIn.has(holeIdx)) return;
+    if (i !== holeIdx) {
+      SFX.wrong();
+      if (holeEl) { holeEl.classList.remove('bad'); void holeEl.offsetWidth; holeEl.classList.add('bad'); }
+      return showHint('모양이 맞지 않아요! 조각과 같은 모양의 홈을 찾아보세요', 2400);
+    }
+    keysIn.add(i); store.set('keysIn', [...keysIn]);
+    SFX.chime();
+    lobbyRefresh();
+    if ($('doorPop').classList.contains('on')) renderDoor();
+    if (keysIn.size >= KEY_ART.length) {
+      SFX.exitBell();
+      showHint('🗝 아홉 개의 조각이 모두 맞춰졌다… 미스터리 전시실의 문이 열렸다!', 4500);
+    } else showHint(`「${KEY_NAMES[i]}」 조각을 끼웠다 (${keysIn.size} / 9)`, 2600);
+  }
+  // 입구 열쇠판: 문을 누르면 가까이에서 홈과 가방 속 조각을 본다
+  function renderDoor() {
+    const open = keysIn.size >= KEY_ART.length;
+    $('doorTitle').textContent = open ? '🗝 최고 난이도 미스터리 전시실' : '??? 굳게 닫힌 문';
+    $('doorMsg').innerHTML = open
+      ? '문이 열렸다. 모든 시대가 무작위로 나오는 <b>제16 전시실</b>까지 이어진다…'
+      : '“아홉 시대의 유물을 모두 바쳐라.”<br>시대별 전시실을 탈출해 얻은 열쇠 조각을 같은 모양의 홈에 끌어다 끼우세요.';
+    $('doorBoard').innerHTML = ROOMS.map((r, i) => {
+      const f = keysIn.has(i);
+      return `<div class="hole${f ? ' filled' : ''}" data-i="${i}"><img src="${keyURL(i, f ? 'gold' : 'hole')}" alt=""><span>${f ? LOBBY.SHORT[i] : ''}</span></div>`;
+    }).join('');
+    const tray = ROOMS.map((r, i) => i).filter(i => hasKey(i) && !keysIn.has(i));
+    $('doorTray').innerHTML = tray.length
+      ? tray.map(i => `<div class="kcell piece" data-i="${i}"><img src="${keyURL(i, 'gold')}" alt=""><small>${KEY_NAMES[i]}</small></div>`).join('')
+      : `<div class="empty">${open ? '모든 조각을 끼웠어요.' : `끼울 조각이 없어요. 시대별 전시실을 탈출하면 열쇠 조각을 얻어요. (${keysIn.size} / 9)`}</div>`;
+    bindPieces($('doorTray'));
+    $('doorEnter').style.display = open ? '' : 'none';
+  }
+  function openDoor() {
+    S.mode = 'door'; keys.fwd = keys.back = false;
+    closeBag(); renderDoor();
+    $('doorPop').classList.add('on');
+  }
+  function closeDoor() { $('doorPop').classList.remove('on'); S.mode = 'play'; }
+  $('doorClose').onclick = closeDoor;
+  $('doorEnter').onclick = () => { $('doorPop').classList.remove('on'); enterMode('mystery'); };
+
+  /* ---------- 처음 들어올 때: 규칙 안내 창 → 분위기 고르기 → 로비 ---------- */
+  function showRules() {
+    S.mode = 'title';
+    fadeTo(0, 1200);
+    $('rulesPop').classList.add('on');
+  }
+  $('rulesOk').onclick = () => {
+    $('rulesPop').classList.remove('on');
+    document.querySelectorAll('.theme-card').forEach(b => b.classList.toggle('sel', b.dataset.theme === settings.theme));
+    $('themePop').classList.add('on');
+  };
+  document.querySelectorAll('#themePop .theme-card').forEach(b => {
+    b.onclick = () => {
+      setTheme(b.dataset.theme);
+      $('themePop').classList.remove('on');
+      SFX.init();
+      fadeTo(1, 500).then(() => {
+        goLobby(null);
+        setTimeout(() => showHint('통로로 걸어 들어가면 그 시대의 전시실로 이동해요', 5000), 1200);
+      });
+    };
+  });
 
   /* ---------- 매 프레임 ---------- */
   let last = performance.now();
@@ -1348,7 +1575,16 @@
     requestAnimationFrame(frame);
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
-    if (S.mode === 'title') { renderer.render(scene, camera); return; }
+    if (S.mode === 'title') {
+      // 처음 안내 창 뒤로 로비가 천천히 돌아 보인다
+      if (S.place === 'lobby' && lobby) {
+        S.yaw += dt * 0.05;
+        camera.position.set(LX + S.lx, EYE, S.lz); camera.rotation.set(-0.04, S.yaw, 0);
+        lantern.position.set(LX + S.lx, 2.6, S.lz);
+        lobby.update(dt, now / 1000);
+      }
+      renderer.render(scene, camera); return;
+    }
 
     const active = S.mode === 'play';
     // 뒤돌기 애니메이션
@@ -1364,7 +1600,9 @@
     }
     // 바라보는 방향 쪽으로 복도를 따라 걷는다
     let moving = 0;
-    if (active && S.turning === 0) {
+    const inLobby = S.place === 'lobby';
+    if (inLobby) moving = lobbyMove(dt, active);
+    else if (active && S.turning === 0) {
       const facing = -Math.cos(S.yaw);              // -1: 앞(출구 쪽), +1: 뒤(입구 쪽)
       const dir = Math.abs(facing) < 0.2 ? 0 : Math.sign(facing);
       const input = (keys.fwd ? 1 : 0) - (keys.back ? 1 : 0);
@@ -1394,10 +1632,19 @@
       }
     }
     const bobY = moving ? Math.abs(Math.sin(S.bob)) * 0.045 : 0;
-    camera.position.set(Math.sin(S.bob * 0.5) * (moving ? 0.03 : 0), EYE + bobY, S.z);
+    const sway = Math.sin(S.bob * 0.5) * (moving ? 0.03 : 0);
+    camera.rotation.set(-S.pitch, S.yaw, 0);
+    if (inLobby) {
+      camera.position.set(LX + S.lx + sway * Math.cos(S.yaw), EYE + bobY, S.lz - sway * Math.sin(S.yaw));
+      lantern.position.set(LX + S.lx - Math.sin(S.yaw) * 1.2, 2.6, S.lz - Math.cos(S.yaw) * 1.2);
+      lobby.update(dt, now / 1000);
+      lantern.intensity = S.lanternBase || 1;
+      ambient.intensity = S.ambientBase;
+      renderer.render(scene, camera);
+      return;
+    }
+    camera.position.set(sway, EYE + bobY, S.z);
     if (S.shake > 0) camera.position.add(new THREE.Vector3((Math.random() - 0.5) * 0.06, (Math.random() - 0.5) * 0.05, 0));
-    camera.rotation.y = S.yaw;
-    camera.rotation.x = -S.pitch;
     lantern.position.set(0, 2.6, S.z - Math.cos(S.yaw) * 1.2);
 
     // 해설사: 시대마다 다른 방식으로 나타난다
@@ -1448,7 +1695,7 @@
     if (fl === 'slow') lk = 0.8 + 0.2 * Math.sin(ts * 0.6);
     if (fl === 'normal' && Math.random() < 0.01) lk = 0.5;
     lantern.intensity = (S.lanternBase || 1) * (blackoutOn() ? 0.06 : lk);
-    ambient.intensity = blackoutOn() ? 0.05 : (era() ? era().ambient[1] : theme().ambient[1]);
+    ambient.intensity = blackoutOn() ? 0.05 : S.ambientBase;
 
     renderer.render(scene, camera);
   }
@@ -1560,7 +1807,9 @@
   document.querySelectorAll('#gender .g-card').forEach(b => {
     b.onclick = () => { setGender(b.dataset.g); SFX.init(); if (settings.mild == null) askFear(); else playIntro(true); };
   });
-  $('replayIntro').onclick = () => { SFX.init(); playIntro(true); };
+  // 설정에서 인트로 다시 보기: 다 보면(또는 건너뛰면) 타이틀 화면을 거쳐 설정 창으로 돌아온다
+  let afterSplash = null;
+  $('replayIntro').onclick = () => { afterSplash = () => showScreen('menu'); SFX.init(); playIntro(true); };
 
   let introDone = null, introInput = null;
   function playIntro(fromGesture) {
@@ -1686,7 +1935,9 @@
       removeEventListener('keydown', go, true); $('splash').removeEventListener('pointerdown', go, true);
       cancelAnimationFrame(splashRaf);
       SFX.titleMusic(false);
-      flowOn(null); refreshTitle(); showScreen('title');
+      flowOn(null);
+      const next = afterSplash || showRules; afterSplash = null;
+      next();
     };
     setTimeout(() => { addEventListener('keydown', go, true); $('splash').addEventListener('pointerdown', go, true); }, 600);
   }
@@ -1700,8 +1951,12 @@
       window.addEventListener('keydown', go);
       return;
     }
-    const teacher = params.has('test') || params.has('room') || params.has('nointro');
-    if (teacher) { showScreen('title'); return; }
+    // 교사용 주소: ?room=, ?test= 는 그 전시실로 바로, ?nointro=1 은 인트로 없이 규칙 안내부터
+    if (params.has('test') || params.has('room')) {
+      if (!settings.theme) settings.theme = 'dark';
+      setTheme(settings.theme); startGame(null); return;
+    }
+    if (params.has('nointro')) { showRules(); return; }
     document.querySelectorAll('.optMild').forEach(c => { c.checked = !!settings.mild; });
     if (!settings.gender) { showScreen(null); flowOn('gender'); }
     else if (settings.mild == null) askFear();
@@ -1730,14 +1985,20 @@
     buildDocent();
     const forced = S.forced;
     S.streak = 0;
+    S.place = 'gallery';
     newGallery();
     S.forced = forced;
     S.history = [];
-    refreshTitle();
-    camera.position.set(0, EYE, -2);
+    lobby = LOBBY.build({ THREE, tex, ART, ROOMS, X0: LX, keyCanvas: (i, kind) => ART.drawKeyPiece(KEY_ART[i], 256, kind) });
+    scene.add(lobby.group);
+    lobby.pickables.forEach(p => pickables.push(p));
+    // 처음 안내 창 뒤로는 로비가 보인다
+    S.place = 'lobby'; S.lx = 0; S.lz = 4; S.yaw = 0;
+    docent.visible = false; docentHit.visible = false; docentGlow.intensity = 0;
+    lobbyRefresh();
     $('loading').textContent = '';
     S.ready = true;
-    if (settings.theme) setTheme(settings.theme); else refreshTitle();
+    if (settings.theme) setTheme(settings.theme); else applyTheme();
     startFlow();
     requestAnimationFrame(frame);
   }
@@ -1749,6 +2010,9 @@
     goRoom(n) { S.forcedRoom = n; newGallery(); S.anomaly = null; setupRoom(); },
     tick(n) { for (let i = 0; i < (n || 1); i++) frame(last + 16.7); },   // 화면이 가려져도 몇 프레임 진행 (점검용)
     view(n) { room(); Object.keys(room().exhibits).slice(0, n).forEach(markViewed); },
-    ending: () => showEnding()   // 탈출 화면 바로 보기 (점검용)
+    ending: () => showEnding(),   // 탈출 화면 바로 보기 (점검용)
+    lobby: () => goLobby(null),
+    // 시대별 전시실 탈출 기록(=열쇠 조각)을 n개 준다 (점검용)
+    giveKeys(n) { for (let i = 0; i < n; i++) clearedModes.add('era' + i); store.set('clearedModes', [...clearedModes]); lobbyRefresh(); }
   };
 })();

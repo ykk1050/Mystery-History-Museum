@@ -296,8 +296,86 @@
   body.bright .mode-card.hard b { color: #6d1d12; }
   @media (max-width: 480px) { .mode-grid { grid-template-columns: repeat(2, 1fr); } }
 
+  /* 떠 있는 창 (규칙 안내, 분위기 고르기, 미스터리 입구) */
+  .pop { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 16px; z-index: 50;
+    background: rgba(0,0,0,0.45); touch-action: pan-y; }
+  .pop.on { display: flex; }
+  .pop-card { width: min(620px, 100%); max-height: calc(100% - 8px); overflow-y: auto; text-align: center; padding: 26px 22px 20px; border-radius: 14px;
+    background: radial-gradient(ellipse at 50% 20%, rgba(36,26,18,0.97), rgba(8,6,4,0.97)); border: 1px solid #6b5232; box-shadow: 0 0 60px rgba(0,0,0,0.85);
+    animation: popIn 0.45s ease-out; }
+  @keyframes popIn { from { opacity: 0; transform: translateY(14px) scale(0.98); } to { opacity: 1; transform: none; } }
+  .rules-card h1 { font-family: var(--serif); font-size: clamp(20px, 6.4vw, 52px); margin: 0 0 4px; color: #e9dcbc; letter-spacing: 0.1em; white-space: nowrap;
+    text-shadow: 0 0 24px rgba(232,197,71,0.25); }
+  .rules-card .en { font-family: var(--sans); letter-spacing: 0.5em; color: #7d6c4c; font-size: 12px; margin-bottom: 16px; }
+  .rules-card .rules { font-family: var(--serif); color: #cbbd9c; line-height: 1.85; font-size: clamp(15px, 2.3vw, 18px);
+    border-top: 1px solid #3a2f1f; border-bottom: 1px solid #3a2f1f; padding: 12px 6px; margin-bottom: 18px; }
+  .rules-card .rules b { color: var(--gold); }
+  .rules-card .rules .sub { font-size: 0.86em; color: #9a8b70; }
+  .rules-card .rules .sub b { color: #c9a45a; }
+  .rules-card .controls { margin-top: 14px; font-size: 13px; color: #9a8b70; line-height: 1.8; }
+  .rules-card .unit { margin-top: 10px; font-size: 12.5px; color: #6f6250; line-height: 1.7; }
+  .rules-card .credit { margin-top: 10px; font-size: 12px; color: #5c5040; letter-spacing: 0.05em; }
+  .pop-q { font-family: var(--serif); color: #e9dcbc; font-size: clamp(20px, 4vw, 28px); margin: 0 0 18px; letter-spacing: 0.04em; }
+  #loading { position: fixed; left: 0; right: 0; bottom: 24px; text-align: center; color: #8a7a5c; font-family: var(--serif); font-size: 14px; pointer-events: none; z-index: 70; }
+
+  /* 가방 */
+  #bagBtn { position: absolute; top: max(12px, env(safe-area-inset-top)); left: 66px; pointer-events: auto; height: 46px; padding: 0 12px; border-radius: 23px;
+    border: 1px solid #4c3e27; background: rgba(10,8,6,0.6); color: #e2d3b0; font-size: 20px; cursor: pointer; display: flex; align-items: center; gap: 4px; }
+  #bagBtn small { font-size: 13px; font-family: var(--serif); }
+  #bag { position: fixed; left: 50%; bottom: 0; transform: translateX(-50%); width: min(760px, 100%); display: none; z-index: 30;
+    background: rgba(14,10,7,0.94); border: 1px solid #6b5232; border-bottom: none; border-radius: 14px 14px 0 0; padding: 10px 12px calc(12px + env(safe-area-inset-bottom));
+    box-shadow: 0 -10px 40px rgba(0,0,0,0.6); touch-action: none; }
+  #bag.on { display: block; }
+  body.bag-open #touch, body.bag-open #lookHint { display: none !important; }
+  .bag-head { display: flex; align-items: center; gap: 10px; font-family: var(--serif); color: #e9dcbc; font-size: 17px; margin-bottom: 8px; }
+  .bag-head span { color: #9a8458; font-size: 13.5px; flex: 1; }
+  .bag-head button { background: none; border: 1px solid #4c3e27; color: #bba882; border-radius: 50%; width: 34px; height: 34px; cursor: pointer; font-size: 15px; }
+  .bag-grid { display: grid; grid-template-columns: repeat(9, 1fr); gap: 6px; }
+  @media (max-width: 640px) { .bag-grid { grid-template-columns: repeat(5, 1fr); } }
+  .kcell { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 2px; border-radius: 8px; border: 1px solid #3a2f1f; background: rgba(40,30,20,0.5); min-width: 0; touch-action: none; }
+  .kcell img { width: 100%; max-width: 70px; aspect-ratio: 1; object-fit: contain; pointer-events: none; }
+  .kcell b { font-family: var(--serif); font-size: 12px; color: #e2d3b0; text-align: center; line-height: 1.25; word-break: keep-all; }
+  .kcell small { font-size: 10.5px; color: #8a7a5c; text-align: center; line-height: 1.25; word-break: keep-all; }
+  .kcell.piece { cursor: grab; border-color: #8a7348; background: rgba(90,70,30,0.35); }
+  .kcell.used { opacity: 0.45; }
+  .bag-tip { margin-top: 8px; font-family: var(--serif); font-size: 13.5px; color: #bba882; text-align: center; }
+  #dragGhost { position: fixed; left: 0; top: 0; width: 84px; height: 84px; pointer-events: none; z-index: 100; display: none; transform: translate(-50%, -50%) scale(1.1);
+    filter: drop-shadow(0 6px 10px rgba(0,0,0,0.7)); }
+
+  /* 미스터리 입구 열쇠판 */
+  .door-card { width: min(560px, 100%); }
+  .door-msg { font-family: var(--serif); color: #cbbd9c; font-size: 15px; line-height: 1.6; margin: -6px 0 12px; }
+  .door-board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; padding: 16px; border-radius: 10px; margin: 0 auto 14px; width: min(380px, 100%);
+    background: linear-gradient(#4a443c, #2b2722); border: 3px solid #1c1916; box-shadow: inset 0 0 30px rgba(0,0,0,0.7); }
+  .hole { position: relative; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; border-radius: 8px; background: rgba(0,0,0,0.2); }
+  .hole img { width: 92%; height: 92%; object-fit: contain; pointer-events: none; }
+  .hole span { position: absolute; bottom: 2px; left: 0; right: 0; font-size: 10px; color: #b8a888; font-family: var(--sans); pointer-events: none; }
+  .hole.hot { outline: 2px dashed var(--gold); }
+  .hole.bad { animation: holeBad 0.4s; }
+  @keyframes holeBad { 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+  .door-tray-head { font-family: var(--serif); color: #e2d3b0; font-size: 14px; margin-bottom: 6px; }
+  .door-tray-head small { color: #8a7a5c; }
+  .door-tray { display: grid; grid-template-columns: repeat(auto-fill, minmax(62px, 1fr)); gap: 6px; min-height: 70px; padding: 6px; border-radius: 8px; border: 1px dashed #4c3e27; margin-bottom: 12px; }
+  .door-tray .empty { grid-column: 1 / -1; color: #8a7a5c; font-family: var(--serif); font-size: 13.5px; align-self: center; }
+  .pop .row { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+  #endKey { margin: 0 0 16px; font-family: var(--serif); color: #2a2016; font-size: 18px; }
+  #endKey img { width: 120px; height: 120px; display: block; margin: 0 auto 4px; filter: drop-shadow(0 0 14px rgba(232,180,60,0.8)); }
+  #record { background: rgba(0,0,0,0.8); }
+
   /* 밝은 박물관 */
   body.bright { background: #f3ede0; }
+  body.bright .pop { background: rgba(80,60,30,0.25); }
+  body.bright .pop-card { background: radial-gradient(ellipse at 50% 20%, #fffaf0, #eadcbf); border-color: #c9a46a; }
+  body.bright .pop-q, body.bright .rules-card h1 { color: #3a2c1a; text-shadow: none; }
+  body.bright .rules-card .rules { color: #4a3c28; border-color: #d6c4a0; }
+  body.bright .rules-card .rules b { color: #b06a10; }
+  body.bright .door-msg, body.bright .door-tray-head { color: #4a3c28; }
+  body.bright #bag { background: rgba(255,250,240,0.96); border-color: #c9a46a; }
+  body.bright .bag-head, body.bright .kcell b { color: #3a2c1a; }
+  body.bright .kcell { background: rgba(240,228,200,0.6); border-color: #d6c4a0; }
+  body.bright .bag-tip { color: #6d5a3a; }
+  body.bright #bagBtn, body.bright #menuBtn { background: rgba(255,250,240,0.85); color: #3a2c1a; border-color: #c9a46a; }
+  body.bright #record { background: rgba(243,237,224,0.94); }
   body.bright #vignette, body.bright #grain { display: none; }
   body.bright .screen { background: radial-gradient(ellipse at 50% 30%, #fffaf0 0%, #eadcbf 75%); }
   body.bright #title h1 { color: #3a2c1a; text-shadow: none; animation: none; }
@@ -341,7 +419,8 @@
 <div id="scareFlash" style="position:fixed;inset:0;pointer-events:none;opacity:0"></div>
 
 <div id="hud">
-  <button id="menuBtn" aria-label="메뉴">☰</button>
+  <button id="menuBtn" aria-label="설정">⚙</button>
+  <button id="bagBtn" aria-label="가방 열기">🎒<small>가방</small></button>
   <div id="hint"></div>
   <div id="crosshair"></div>
   <div id="subtitle"><span class="who" id="subWho">— 해설사 —</span><span id="subText"></span></div>
@@ -413,41 +492,64 @@
   <div class="sp-press">진행하려면 아무것이나 누르세요</div>
 </div>
 
-<div id="title" class="screen">
-  <h1>미스터리 역사 박물관</h1>
-  <div class="en">MYSTERY HISTORY MUSEUM</div>
-  <div class="rules">
-    <span class="only-dark">당신은 끝없이 이어지는 박물관 전시실에 갇히고 말았습니다.<br></span>
-    <span class="only-bright">끝없이 이어지는 박물관 전시실을 탐험해 보세요!<br></span>
-    <b>이상한 전시</b>를 하나도 놓치지 마세요.<br>
-    이상한 전시를 발견하면 <b>즉시 되돌아가세요.</b><br>
-    이상한 전시가 없다면 <b>앞으로 나아가세요.</b><br>
-    <b id="goalText">제16 전시실</b>을 지나 출구로 나가세요.<br>
-    <span style="font-size:0.88em;color:#9a8b70"><span id="modeInfo"></span><br><span id="checkInfo"></span></span>
+<!-- 타이틀 다음: 규칙 안내 (떠 있는 창) -->
+<div id="rulesPop" class="pop">
+  <div class="pop-card rules-card">
+    <h1>미스터리 역사 박물관</h1>
+    <div class="en">MYSTERY HISTORY MUSEUM</div>
+    <div class="rules">
+      당신은 끝없이 이어지는 박물관 전시실에 갇히고 말았습니다.<br>
+      <b>이상한 전시</b>를 하나도 놓치지 마세요.<br>
+      이상한 전시를 발견하면 <b>즉시 되돌아가세요.</b><br>
+      이상한 전시가 없다면 <b>앞으로 나아가세요.</b><br>
+      <b>제8 전시실</b>을 지나 출구로 나가세요.<br>
+      <span class="sub">로비의 9개 통로로 시대별 전시실에 들어갈 수 있습니다.<br>
+      제4·6 전시실에서 중간 저장됩니다.<br>
+      전시실을 탈출하면 그 시대의 <b>유물 모양 열쇠 조각</b>을 얻습니다.</span>
+    </div>
+    <button class="btn" id="rulesOk">확인</button>
+    <div class="controls" id="controlsInfo"></div>
+    <div class="unit">초등학교 5학년 사회 2학기 1단원<br>「유적과 유물로 살펴본 옛 사람들의 생활」 복습 게임 · 소리를 켜고 플레이하세요</div>
+    <div class="credit">Created by gamtudyssam using AI · 0.031</div>
   </div>
-  <div class="themes">
-    <button class="theme-card" data-theme="bright"><span class="ic">☀️</span><b>밝은 박물관</b><small>환하고 편안한 분위기</small></button>
-    <button class="theme-card" data-theme="dark"><span class="ic">🌙</span><b>으스스한 박물관</b><small>어둡고 긴장감 있는 분위기</small></button>
-  </div>
-  <div class="modes">
-    <div class="mode-head">전시실 고르기</div>
-    <div class="mode-grid" id="modeGrid"></div>
-  </div>
-  <div class="player-row">
-    플레이어: <button class="p-btn" data-g="male">👦 남학생</button><button class="p-btn" data-g="female">👧 여학생</button>
-    <button class="p-link" id="replayIntro">▶ 인트로 다시 보기</button>
-    <label class="p-mild"><input type="checkbox" class="optMild"> 😨 무서운 것을 무서워해요 – 순한 맛 인트로 영상만 보기</label>
-  </div>
-  <div class="row">
-    <button class="btn" id="startBtn" disabled>입장하기</button>
-    <button class="btn ghost" id="newBtn" style="display:none">처음부터 하기</button>
-    <button class="btn ghost" id="recordBtn1">이상 현상 기록장</button>
-  </div>
-  <div id="loading">전시실을 준비하는 중…</div>
-  <div class="controls" id="controlsInfo"></div>
-  <div class="unit">초등학교 5학년 사회 2학기 1단원<br>「유적과 유물로 살펴본 옛 사람들의 생활」 복습 게임 · 소리를 켜고 플레이하세요</div>
-  <div class="credit">Created by gamtudyssam using AI · 0.030</div>
 </div>
+
+<!-- 분위기 고르기 -->
+<div id="themePop" class="pop">
+  <div class="pop-card">
+    <h2 class="pop-q">어떤 박물관으로 관람할까요?</h2>
+    <div class="themes">
+      <button class="theme-card" data-theme="bright"><span class="ic">☀️</span><b>밝은 박물관</b><small>환하고 편안한 분위기</small></button>
+      <button class="theme-card" data-theme="dark"><span class="ic">🌙</span><b>으스스한 박물관</b><small>어둡고 긴장감 있는 분위기</small></button>
+    </div>
+    <div class="g-note">게임 중에도 ⚙ 설정에서 바꿀 수 있어요.</div>
+  </div>
+</div>
+
+<!-- 가방 -->
+<div id="bag">
+  <div class="bag-head"><b>🎒 가방</b><span id="bagCount"></span><button id="bagClose" aria-label="닫기">✕</button></div>
+  <div class="bag-grid" id="bagGrid"></div>
+  <div class="bag-tip" id="bagTip"></div>
+</div>
+<img id="dragGhost" alt="">
+
+<!-- 최고 난이도 미스터리 전시실 입구 열쇠판 -->
+<div id="doorPop" class="pop">
+  <div class="pop-card door-card">
+    <h2 class="pop-q" id="doorTitle">??? 전시실</h2>
+    <p class="door-msg" id="doorMsg"></p>
+    <div class="door-board" id="doorBoard"></div>
+    <div class="door-tray-head">🎒 가방 속 열쇠 조각 <small>(홈에 맞게 끌어다 끼우세요)</small></div>
+    <div class="door-tray" id="doorTray"></div>
+    <div class="row">
+      <button class="btn" id="doorEnter" style="display:none">🗝 입장하기</button>
+      <button class="btn ghost" id="doorClose">닫기</button>
+    </div>
+  </div>
+</div>
+
+<div id="loading">전시실을 준비하는 중…</div>
 
 <div id="inspect">
   <div id="inspectBox"></div>
@@ -457,13 +559,13 @@
 <div id="note"><div class="card" id="noteCard"></div></div>
 
 <div id="menu" class="screen">
-  <h2>일시 정지</h2>
-  <button class="btn" id="resumeBtn">계속 관람하기</button>
-  <button class="btn" id="recordBtn2">이상 현상 기록장</button>
+  <h2>⚙ 설정</h2>
+  <button class="btn" id="resumeBtn">계속하기</button>
   <button class="btn ghost" id="themeBtn" style="margin:8px 0">☀️ 밝은 박물관으로 바꾸기</button>
   <div class="toggle">플레이어 성별:
     <button class="p-btn" data-g="male">👦 남학생</button><button class="p-btn" data-g="female">👧 여학생</button>
   </div>
+  <div class="toggle"><button class="p-link" id="replayIntro">▶ 인트로 다시 보기</button></div>
   <div class="toggle"><label><input type="checkbox" class="optMild"> 😨 무서운 것을 무서워해요 – 순한 맛 인트로 영상만 보기</label></div>
   <div class="toggle"><label><input type="checkbox" id="optSound" checked> 소리</label></div>
   <div class="toggle"><label><input type="checkbox" id="optVoice" checked> 해설사 음성</label></div>
@@ -471,7 +573,7 @@
   <div class="toggle"><label><input type="checkbox" id="optLow"> 저사양 모드 (끊길 때)</label></div>
   <div class="toggle"><label><input type="checkbox" id="optInvX"> 좌우 끌기 반대로 (오른쪽으로 끌면 왼쪽 보기)</label></div>
   <div class="toggle"><label><input type="checkbox" id="optInvY"> 상하 끌기 반대로 (위로 끌면 아래 보기)</label></div>
-  <button class="btn ghost" id="quitBtn" style="margin-top:14px">처음 화면으로</button>
+  <button class="btn ghost" id="quitBtn" style="margin-top:14px">🏛 로비로 나가기 (진행 저장)</button>
 </div>
 
 <div id="record" class="screen">
@@ -488,18 +590,20 @@
 <div id="ending" class="screen">
   <h2>출구</h2>
   <div class="stat" id="endStat"></div>
+  <div id="endKey"></div>
   <div class="row">
-    <button class="btn" id="againBtn">다시 들어가기</button>
-    <button class="btn ghost" id="recordBtn3" style="color:#2a2016;border-color:#2a2016">이상 현상 기록장</button>
+    <button class="btn" id="lobbyBtn">🏛 로비로 돌아가기</button>
+    <button class="btn ghost" id="againBtn" style="color:#2a2016;border-color:#2a2016">다시 들어가기</button>
   </div>
 </div>
 
 <script src="vendor/three.min.js"></script>
-<script src="js/data.js?v=0.5.0"></script>
-<script src="js/eras.js?v=0.5.0"></script>
-<script src="js/artifacts.js?v=0.5.0"></script>
-<script src="js/art.js?v=0.5.0"></script>
-<script src="js/audio.js?v=0.5.0"></script>
-<script src="js/game.js?v=0.5.0"></script>
+<script src="js/data.js?v=0.5.1"></script>
+<script src="js/eras.js?v=0.5.1"></script>
+<script src="js/artifacts.js?v=0.5.1"></script>
+<script src="js/art.js?v=0.5.1"></script>
+<script src="js/audio.js?v=0.5.1"></script>
+<script src="js/lobby.js?v=0.5.1"></script>
+<script src="js/game.js?v=0.5.1"></script>
 </body>
 </html>
