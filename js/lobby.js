@@ -21,6 +21,24 @@
     for (let i = 0; i < n; i++) { ctx.fillStyle = `rgba(${r() < 0.5 ? '0,0,0' : '255,255,255'},${a * r()})`; ctx.fillRect(r() * w, r() * h, 1 + r() * 3, 1 + r() * 3); }
   }
 
+  // 문을 가로지르는 쇠사슬과 자물쇠
+  function drawChains(x, W, H, y0, y1) {
+    x.save();
+    [[0, y0, W, y1], [0, y1, W, y0]].forEach(([ax, ay, bx, by]) => {
+      const n = 16;
+      for (let k = 0; k <= n; k++) {
+        const t = k / n, px = ax + (bx - ax) * t, py = ay + (by - ay) * t + Math.sin(t * Math.PI) * 26;
+        x.strokeStyle = '#2a2a2a'; x.lineWidth = 9; x.beginPath(); x.ellipse(px, py, 17, 9, Math.atan2(by - ay, bx - ax) + (k % 2 ? 1.2 : 0), 0, 7); x.stroke();
+        x.strokeStyle = '#8a8a8a'; x.lineWidth = 4; x.stroke();
+      }
+    });
+    const cy = (y0 + y1) / 2 + 26;
+    x.fillStyle = '#5a5248'; x.fillRect(W / 2 - 28, cy - 10, 56, 50);
+    x.strokeStyle = '#3a342c'; x.lineWidth = 8; x.beginPath(); x.arc(W / 2, cy - 10, 18, Math.PI, 0); x.stroke();
+    x.fillStyle = '#1a1612'; x.beginPath(); x.arc(W / 2, cy + 12, 6, 0, 7); x.fill(); x.fillRect(W / 2 - 2.5, cy + 12, 5, 14);
+    x.restore();
+  }
+
   function build(env) {
     const { THREE, tex, ART, ROOMS, X0, keyCanvas } = env;
     const FONT = ART.FONT, SANS = ART.SANS;
@@ -269,11 +287,7 @@
       x.strokeRect(20, 20, 220, 560); x.strokeRect(272, 20, 220, 560);
       x.strokeRect(50, 60, 160, 220); x.strokeRect(302, 60, 160, 220); x.strokeRect(50, 320, 160, 220); x.strokeRect(302, 320, 160, 220);
       x.fillStyle = '#c9a45a'; x.beginPath(); x.arc(226, 330, 12, 0, 7); x.arc(286, 330, 12, 0, 7); x.fill();
-      if (!bright) {   // 쇠사슬로 묶여 있다
-        x.strokeStyle = '#6a6a6a'; x.lineWidth = 7;
-        for (let k = 0; k < 14; k++) { x.beginPath(); x.ellipse(60 + k * 30, 300 + Math.sin(k / 2) * 18, 16, 9, 0.3, 0, 7); x.stroke(); }
-        x.fillStyle = '#4a4a4a'; x.fillRect(236, 300, 40, 50);
-      }
+      drawChains(x, 512, 600, 230, 400);   // 쇠사슬로 잠겨 있다
       doorT.needsUpdate = true;
     }
     const ent = plane(3.6, 4.2, new THREE.MeshLambertMaterial({ map: doorT }), 0, 2.1, D2 - 0.05, Math.PI);
@@ -390,7 +404,9 @@
           const [hx, hy] = holePos(k);
           x.drawImage(keyCanvas(k, st.keys.has(k) ? 'gold' : 'hole'), hx - 62, hy - 62, 124, 124);
         }
-        x.font = `700 30px ${SANS}`; x.fillText(`${st.keys.size} / 9`, W / 2, 680);
+        x.font = `700 30px ${SANS}`; x.fillText(`${st.keys.size} / 9`, W / 2, 642);
+        // 홈을 가리지 않도록 문 아래쪽에 쇠사슬을 감아 둔다
+        drawChains(x, W, H, 662, 662);
       }
       mysT.needsUpdate = true;
       px.fillStyle = '#1a0d0a'; px.fillRect(0, 0, 768, 140);
@@ -493,6 +509,7 @@
         }
         if (x + z > lim) { const s = (x + z - lim) / 2; x -= s; z -= s; }
       }
+      if (z >= D2 - R - 0.02 && Math.abs(x) < 1.9) touch = 'entrance';
       circles.forEach(c => {
         const dx = x - c.x, dz = z - c.z, d = Math.hypot(dx, dz), m = c.r + R;
         if (d < m && d > 1e-4) { x = c.x + dx / d * m; z = c.z + dz / d * m; }

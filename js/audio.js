@@ -241,6 +241,41 @@
     });
     noiseHit(t + 0.95, 0.5, 'bandpass', 1500, 2, 0.1);
   }
+  // 쇠사슬이 부딪히는 소리 (잠긴 문): 짤그랑거리는 쇳소리 여러 번
+  function chain() {
+    if (!ac || !enabled) return;
+    const t = ac.currentTime;
+    for (let i = 0; i < 7; i++) {
+      const d = i * 0.055 + Math.random() * 0.04, v = 0.16 * (1 - i / 9);
+      [2300, 3400, 5100].forEach((f, k) => {
+        const o = ac.createOscillator(); o.type = 'triangle'; o.frequency.value = f * (0.94 + Math.random() * 0.12);
+        const g = ac.createGain(); env(g, t + d, 0.001, v / (k + 1), 0.09 + Math.random() * 0.08);
+        o.connect(g); g.connect(master); o.start(t + d); o.stop(t + d + 0.25);
+      });
+      noiseHit(t + d, 0.04, 'highpass', 3000, 1, v * 0.8);
+    }
+    noiseHit(t + 0.02, 0.18, 'bandpass', 180, 1.2, 0.18);   // 문이 살짝 밀리는 둔탁한 소리
+  }
+  // 덜컹: 문이 풀리며 열리는 소리 (낮은 쿵 + 걸쇠 소리 + 삐걱)
+  function clunk() {
+    if (!ac || !enabled) return;
+    const t = ac.currentTime;
+    const o = ac.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(95, t); o.frequency.exponentialRampToValueAtTime(45, t + 0.25);
+    const g = ac.createGain(); env(g, t, 0.004, 0.5, 0.35);
+    o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.5);
+    noiseHit(t, 0.12, 'bandpass', 600, 1.2, 0.3);
+    noiseHit(t + 0.09, 0.05, 'highpass', 2500, 1, 0.16);
+    const c = ac.createOscillator(); c.type = 'sawtooth'; c.frequency.setValueAtTime(240, t + 0.25); c.frequency.linearRampToValueAtTime(170, t + 0.95);
+    const cf = ac.createBiquadFilter(); cf.type = 'bandpass'; cf.frequency.value = 900; cf.Q.value = 6;
+    const cg = ac.createGain(); env(cg, t + 0.25, 0.08, 0.05, 0.6);
+    c.connect(cf); cf.connect(cg); cg.connect(master); c.start(t + 0.25); c.stop(t + 1.1);
+  }
+  // 닫힌 나무문을 밀었을 때 덜그럭
+  function rattle() {
+    if (!ac || !enabled) return;
+    const t = ac.currentTime;
+    [0, 0.07, 0.15].forEach((d, i) => noiseHit(t + d, 0.06, 'bandpass', 380 + i * 60, 2, 0.16 - i * 0.03));
+  }
   // 심장 소리 (쿵-쿵)
   function heart() {
     if (!ac || !enabled) return;
@@ -422,5 +457,5 @@
   function suspend() { if (ac && ac.state === 'running') ac.suspend(); stopSpeak(); }
   function resume() { if (ac && ac.state === 'suspended') ac.resume(); }
 
-  window.SFX = { titleMusic, knock, heart, scare, setTheme, setAmbience, init, step, buzz, whoosh, wrong, chime, exitBell, speak, voice, preloadVoice, stopSpeak, setEnabled, setVoice, suspend, resume };
+  window.SFX = { titleMusic, knock, chain, clunk, rattle, heart, scare, setTheme, setAmbience, init, step, buzz, whoosh, wrong, chime, exitBell, speak, voice, preloadVoice, stopSpeak, setEnabled, setVoice, suspend, resume };
 })();

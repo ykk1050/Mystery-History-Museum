@@ -111,6 +111,9 @@
   const lampGlow = {};
   let storeDoor = null;
   let lobby = null;          // 로비 (js/lobby.js)
+  let doorLeaves = [], doorLeafMat = null;
+  let guide = null, guideHit = null, guideTex = null;
+  const GUIDE = { x: 2.55, z: -5.8 };   // 입구 옆 '관계자 외 출입금지' 문 근처
 
   function addPlane(w, h, mat, x, y, z, ry, parent) {
     const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
@@ -259,11 +262,73 @@
     lampGlow.docent.scale.set(2.2, 3, 1); scene.add(lampGlow.docent);
     Object.values(lampGlow).forEach(m => { m.visible = false; m.renderOrder = 3; });
 
+    // 입구와 출구의 문짝: 전시물을 3개 이상 봐야 덜컹 하고 열린다 (경첩을 축으로 통로 쪽으로 젖혀짐)
+    const leafMat = new THREE.MeshLambertMaterial({ map: tex(doorLeafCanvas()) });
+    doorLeaves = [[0, 1], [-L, -1]].map(([z, dir]) => [-1, 1].map(side => {
+      const pivot = new THREE.Group();
+      pivot.position.set(side * dw / 2, 0, z);
+      addBox(dw / 2 - 0.02, dh - 0.02, 0.07, leafMat, -side * (dw / 4), dh / 2, 0, pivot);
+      scene.add(pivot);
+      return { pivot, ang: side * dir * Math.PI / 2 * 0.96 };
+    })).flat();
+    doorLeafMat = leafMat;
+
     const sign = addPlane(2.4, 0.7, new THREE.MeshBasicMaterial({ map: signTex }), 0, 3.35, -6.5, 0);
     sign.userData.key = 'sign'; pickables.push(sign);
     addPlane(2.4, 0.7, new THREE.MeshBasicMaterial({ map: tex(ART.drawSmallSign('← 지나온 전시실', 'BACK', '#c9b48a')) }), 0, 3.35, -6.52, Math.PI);
     addBox(0.03, 0.5, 0.03, darkMat, -0.9, 3.95, -6.51);
     addBox(0.03, 0.5, 0.03, darkMat, 0.9, 3.95, -6.51);
+  }
+
+  // 나무 문짝 그림 (한 짝): 테두리 판, 쇠 장식, 손잡이
+  function doorLeafCanvas() {
+    const c = document.createElement('canvas'); c.width = 256; c.height = 640;
+    const x = c.getContext('2d');
+    const g = x.createLinearGradient(0, 0, 256, 0); g.addColorStop(0, '#5a3c24'); g.addColorStop(0.5, '#6e4a2c'); g.addColorStop(1, '#4e3420');
+    x.fillStyle = g; x.fillRect(0, 0, 256, 640);
+    for (let i = 0; i < 400; i++) { x.fillStyle = `rgba(${Math.random() < 0.5 ? '20,12,6' : '140,100,60'},0.12)`; x.fillRect(Math.random() * 256, Math.random() * 640, 2, 20 + Math.random() * 60); }
+    x.strokeStyle = '#2e1e12'; x.lineWidth = 10; x.strokeRect(5, 5, 246, 630);
+    x.lineWidth = 6; x.strokeRect(36, 40, 184, 250); x.strokeRect(36, 340, 184, 260);
+    x.fillStyle = '#2b2b2b'; [70, 570].forEach(y => x.fillRect(0, y, 256, 18));
+    x.fillStyle = '#b08a4a'; x.beginPath(); x.arc(220, 320, 13, 0, 7); x.fill();
+    return c;
+  }
+  // 로비로 데려다주는 귀신 안내원 (으스스한 박물관: 창백하고 눈이 텅 빈 모습 / 밝은 박물관: 순한 유령)
+  function guideCanvas(bright) {
+    const c = document.createElement('canvas'); c.width = 256; c.height = 512;
+    const x = c.getContext('2d');
+    const body = x.createLinearGradient(0, 80, 0, 512);
+    body.addColorStop(0, bright ? 'rgba(235,245,255,0.95)' : 'rgba(200,215,225,0.85)'); body.addColorStop(1, 'rgba(200,215,225,0)');
+    // 몸 (아래로 갈수록 흐려지는 제복)
+    x.fillStyle = body;
+    x.beginPath(); x.moveTo(78, 170); x.quadraticCurveTo(128, 150, 178, 170); x.lineTo(206, 500); x.quadraticCurveTo(128, 470, 50, 500); x.closePath(); x.fill();
+    x.fillStyle = bright ? 'rgba(70,90,140,0.5)' : 'rgba(40,50,60,0.55)';
+    x.fillRect(118, 175, 20, 220);                                      // 제복 가운데 단
+    [205, 245, 285].forEach(y => { x.fillStyle = bright ? '#e8c060' : 'rgba(190,170,110,0.8)'; x.beginPath(); x.arc(128, y, 5, 0, 7); x.fill(); });
+    // 머리
+    x.fillStyle = bright ? 'rgba(245,250,255,0.98)' : 'rgba(215,225,232,0.9)';
+    x.beginPath(); x.ellipse(128, 112, 44, 52, 0, 0, Math.PI * 2); x.fill();
+    // 모자
+    x.fillStyle = bright ? '#4a5a8a' : 'rgba(30,34,40,0.92)';
+    x.fillRect(78, 58, 100, 22); x.beginPath(); x.ellipse(128, 60, 46, 18, 0, Math.PI, 0); x.fill();
+    x.fillStyle = bright ? '#e8c060' : 'rgba(170,150,90,0.8)'; x.fillRect(118, 62, 20, 12);
+    if (bright) {   // 순한 눈과 미소
+      x.fillStyle = '#2d2a3a'; x.beginPath(); x.arc(110, 112, 6, 0, 7); x.arc(146, 112, 6, 0, 7); x.fill();
+      x.strokeStyle = '#2d2a3a'; x.lineWidth = 3; x.beginPath(); x.arc(128, 128, 14, 0.2, Math.PI - 0.2); x.stroke();
+      x.fillStyle = 'rgba(255,150,150,0.4)'; x.beginPath(); x.arc(96, 130, 8, 0, 7); x.arc(160, 130, 8, 0, 7); x.fill();
+    } else {        // 텅 빈 검은 눈과 벌어진 입
+      x.fillStyle = 'rgba(5,5,10,0.95)';
+      x.beginPath(); x.ellipse(110, 110, 11, 15, 0.1, 0, 7); x.ellipse(146, 110, 11, 15, -0.1, 0, 7); x.fill();
+      x.beginPath(); x.ellipse(128, 145, 9, 13, 0, 0, 7); x.fill();
+      x.fillStyle = 'rgba(255,90,60,0.9)'; x.beginPath(); x.arc(110, 112, 2.5, 0, 7); x.arc(146, 112, 2.5, 0, 7); x.fill();
+    }
+    // 손에 든 등불
+    const lg = x.createRadialGradient(196, 300, 4, 196, 300, 60);
+    lg.addColorStop(0, bright ? 'rgba(255,240,190,0.95)' : 'rgba(150,220,255,0.9)'); lg.addColorStop(1, 'rgba(150,220,255,0)');
+    x.fillStyle = lg; x.fillRect(136, 240, 120, 120);
+    x.strokeStyle = bright ? '#7a6040' : 'rgba(60,60,60,0.9)'; x.lineWidth = 3; x.strokeRect(184, 284, 24, 32);
+    x.beginPath(); x.moveTo(196, 284); x.lineTo(196, 262); x.lineTo(172, 236); x.stroke();
+    return c;
   }
 
   function makeSlot(name, group, w, h, x, y, z, ry, drawFn) {
@@ -400,6 +465,76 @@
     scene.add(docentHit);
     pickables.push(docentHit);
   }
+
+  /* ---------- 귀신 안내원: 가까이 가면 "로비로 돌아가서, 잠깐 쉬고 싶나." / 누르면 로비로 ---------- */
+  function buildGuide() {
+    guideTex = { dark: tex(guideCanvas(false)), bright: tex(guideCanvas(true)) };
+    guide = new THREE.Sprite(new THREE.SpriteMaterial({ map: guideTex.dark, transparent: true, depthWrite: false }));
+    guide.scale.set(0.95, 1.9, 1);
+    guide.position.set(GUIDE.x, 1.05, GUIDE.z);
+    scene.add(guide);
+    guideHit = new THREE.Mesh(new THREE.BoxGeometry(1.0, 2.0, 1.0), new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, colorWrite: false }));
+    guideHit.position.set(GUIDE.x, 1.0, GUIDE.z);
+    guideHit.userData.key = 'guide';
+    scene.add(guideHit); pickables.push(guideHit);
+  }
+  const GUIDE_LINE = '로비로 돌아가서, 잠깐 쉬고 싶나.';
+  function updateGuide(dt, now) {
+    const on = S.place === 'gallery' && !S.exitRoom;
+    guide.visible = guideHit.visible = on;
+    if (!on) return;
+    const bright = isBright();
+    guide.material.map = bright ? guideTex.bright : guideTex.dark;
+    guide.position.y = 1.05 + Math.sin(now / 800) * 0.07;
+    guide.material.opacity = bright ? 0.92 : 0.7 + Math.sin(now / 130) * 0.05 + (Math.random() < 0.02 ? -0.4 : 0);
+    // 가까이 있으면 일정한 간격으로 말한다 (해설사가 말하는 중이면 기다림)
+    const near = Math.hypot(camera.position.x - GUIDE.x, camera.position.z - GUIDE.z) < 5;
+    S.guideT = (S.guideT || 0) - dt;
+    if (near && S.mode === 'play' && S.guideT <= 0 && !$('subtitle').classList.contains('on')) {
+      S.guideT = 15;
+      showSubtitle(GUIDE_LINE, '— 안내원 —', (bright ? 'voice_bright/' : 'voice/') + 'guide.mp3');
+    }
+    if (!near && S.guideT < 4) S.guideT = Math.max(S.guideT, 1.5);   // 다시 다가오면 곧 말한다
+  }
+  // 안내원을 누르면: 로비로 돌아갈지 묻는 창
+  function askGuide() {
+    S.mode = 'note'; keys.fwd = keys.back = keys.run = false;
+    const card = $('noteCard');
+    card.innerHTML = `<h2>${isBright() ? '👻 안내원' : '…안내원'}</h2>
+      <p style="font-size:19px">로비로 돌아가시겠습니까?</p>
+      <p style="font-size:14px;color:#6d5a3a">지금까지의 진행(제 ${S.streak} 전시실)은 저장되어, 로비에서 이 통로로 다시 들어가면 이어서 할 수 있어요.</p>
+      <button class="btn" id="gYes">네</button>
+      <button class="btn ghost" id="gNo" style="width:100%;margin-top:10px;color:#3a2c1a;border-color:#9c8a66">아니요</button>`;
+    $('note').classList.add('on');
+    $('gYes').onclick = () => { $('note').classList.remove('on'); backToLobby(); };
+    $('gNo').onclick = () => { $('note').classList.remove('on'); S.mode = 'play'; };
+  }
+  // 전시실에서 로비로 (진행 저장)
+  function backToLobby() {
+    SFX.stopSpeak(); saveProgress(); S.started = false;
+    showScreen(null); S.mode = 'trans'; SFX.whoosh();
+    fadeTo(1, 500).then(() => goLobby(S.gameMode));
+  }
+
+  /* ---------- 전시실 문: 관람 3개 전에는 닫혀 있다가 덜컹 열린다 ---------- */
+  const doorsShouldOpen = () => S.exitRoom || S.review || S.viewed.size >= MIN_VIEWS;
+  function setDoors(open, animate) {
+    S.doorTarget = open ? 1 : 0;
+    if (!animate) S.doorK = S.doorTarget;
+  }
+  function updateDoors(dt) {
+    const k0 = S.doorK || 0, tgt = S.doorTarget || 0;
+    if (k0 === tgt) return;
+    // 처음 0.15초는 덜컹 걸리듯 살짝 움직였다가 확 열린다
+    S.doorT = (S.doorT || 0) + dt;
+    let k = tgt > k0 ? Math.min(1, k0 + dt / 0.9) : Math.max(0, k0 - dt / 0.6);
+    S.doorK = k;
+    const ease = 1 - Math.pow(1 - k, 3);
+    const jolt = S.doorT < 0.18 ? Math.sin(S.doorT * 80) * 0.03 : 0;
+    doorLeaves.forEach(d => { d.pivot.rotation.y = d.ang * ease + jolt; });
+    if (S.doorK === tgt) S.doorT = 0;
+  }
+  function applyDoors() { doorLeaves.forEach(d => { d.pivot.rotation.y = d.ang * (S.doorK || 0); }); }
 
   /* ---------- 게임 상태 ---------- */
   const S = {
@@ -808,6 +943,7 @@
     planCreeps();
     S.review = false;
     resetHelp();
+    setDoors(doorsShouldOpen(), false); applyDoors();
     const wrongs = S.exitRoom ? 0 : (S.wrongStreak[S.roomIdx] || 0);
     S.lampReady = wrongs >= LAMP_AFTER;
     if (wrongs >= WHISPER_AFTER) setTimeout(() => { if (S.mode === 'play') whisper(); }, 2600);
@@ -1135,6 +1271,7 @@
     if (h.distance > (h.object.userData.key === 'docent' ? 9 : INSPECT_RANGE)) { showHint('더 가까이 다가가세요…', 1600); return; }
     const u = h.object.userData;
     if (u.key === 'docent') { markViewed('docent'); SFX.voice(S.docVoice, S.docSpeech); return openInspect(ART.drawDocentCard(S.docSpeech, isBright(), eraDocentCanvas())); }
+    if (u.key === 'guide') return askGuide();
     if (u.key === 'rules') return openInspect(rulesTex.image);
     if (u.key === 'sign') return openInspect(signTex.image);
     if (u.slot && slots[u.slot]) { markViewed(slots[u.slot].key); openInspect(slots[u.slot].canvas); }
@@ -1155,22 +1292,28 @@
 
   /* ---------- 자막 / 힌트 ---------- */
   let subTimer = 0;
-  function showSubtitle(text, who) {
+  function showSubtitle(text, who, voiceUrl) {
     if (!text) return;
     $('subWho').textContent = who || '— 해설사 —';
     $('subText').textContent = text;
     $('subtitle').classList.add('on');
     clearTimeout(subTimer);
-    subTimer = setTimeout(hideSubtitle, who ? 9000 : 6500);
-    if (who) SFX.speak(text); else SFX.voice(S.docVoice, text);
+    subTimer = setTimeout(hideSubtitle, voiceUrl ? 5000 : who ? 9000 : 6500);
+    if (voiceUrl) SFX.voice(voiceUrl, text); else if (who) SFX.speak(text); else SFX.voice(S.docVoice, text);
   }
 
   /* ---------- 도움: 관람 수, 힌트 등불, 해설사의 귀띔, 정상 전시 다시 보기 ---------- */
   function exhibitName(ex, key) { return key === 'docent' ? '해설사의 말' : ex.title; }
   function markViewed(key) {
     if (!key || S.review) return;
+    const wasOpen = doorsShouldOpen();
     S.viewed.add(key);
     updateHelpHud();
+    // 3개째를 보는 순간 덜컹! 하고 입구와 출구가 열린다
+    if (!wasOpen && doorsShouldOpen()) {
+      SFX.clunk(); setDoors(true, true); S.shake = 0.25;
+      setTimeout(() => showHint('덜컹… 입구와 출구의 문이 열렸다', 3000), 400);
+    }
   }
   function resetHelp() {
     S.viewed = new Set();
@@ -1220,6 +1363,7 @@
     S.roomIdx = roomIdx;
     S.anomaly = null;
     resetHelp();
+    setDoors(true, false); applyDoors();
     setupRoom();
     signTex.image = ART.drawSign(S.streak, room().name + ' · 정상 전시', false); signTex.needsUpdate = true;
     S.z = -2; S.yaw = 0; S.pitch = 0; S.turning = 0;
@@ -1268,11 +1412,7 @@
   $('menuBtn').onclick = openMenu;
   $('resumeBtn').onclick = closeMenu;
   // 전시실에서 로비로 나가기 (지금까지 진행은 저장되어 통로로 다시 들어가면 이어서 할 수 있다)
-  $('quitBtn').onclick = () => {
-    SFX.stopSpeak(); saveProgress(); S.started = false;
-    showScreen(null); S.mode = 'trans';
-    fadeTo(1, 500).then(() => goLobby(S.gameMode));
-  };
+  $('quitBtn').onclick = backToLobby;
   $('recordClose').onclick = () => { showScreen(null); S.mode = 'play'; };
   $('recordReset').onclick = () => {
     if (!confirm('발견한 이상 현상 기록과 탈출 기록, 열쇠 조각을 모두 지울까요?')) return;
@@ -1402,9 +1542,9 @@
     if (u.lobby === 'board') return openRecord();
     if (u.lobby === 'map') return openInspect(lobby.mapCanvas());
     if (u.lobby === 'sign') return openInspect(lobby.signCanvas(u.idx));
-    if (u.lobby === 'door') return openDoor();
+    if (u.lobby === 'door') { if (keysIn.size < KEY_ART.length) SFX.chain(); return openDoor(); }
     if (u.lobby === 'stair') return showHint('🚧 2층 전시실은 아직 공사 중이에요', 2600);
-    if (u.lobby === 'entrance') return showHint(isBright() ? '정문은 지금 닫혀 있어요. 통로로 들어가 전시실을 둘러보세요!' : '문이 굳게 잠겨 있다… 돌아갈 수 없다.', 3000);
+    if (u.lobby === 'entrance') return SFX.chain(), showHint(isBright() ? '정문은 지금 닫혀 있어요. 통로로 들어가 전시실을 둘러보세요!' : '문이 굳게 잠겨 있다… 돌아갈 수 없다.', 3000);
   }
   // 로비에서 걷기: 바라보는 쪽으로 자유롭게 (벽·기둥·계단에 막힌다)
   function lobbyMove(dt, active) {
@@ -1421,9 +1561,13 @@
     const r = lobby.collide(x, z);
     S.lx = r.x; S.lz = r.z;
     S.touchCool = Math.max(0, (S.touchCool || 0) - dt);
+    S.chainCool = Math.max(0, (S.chainCool || 0) - dt);
+    if (r.touch && r.touch !== 'stair' && input && !S.chainCool) { S.chainCool = 1.1; SFX.chain(); }
     if (r.touch && input && !S.touchCool) {
       S.touchCool = 3;
-      showHint(r.touch === 'stair' ? '🚧 2층 전시실은 아직 공사 중이에요' : `🗝 굳게 닫힌 문… 열쇠 조각 ${keysIn.size} / 9 (문을 눌러 보세요)`, 2600);
+      showHint(r.touch === 'stair' ? '🚧 2층 전시실은 아직 공사 중이에요'
+        : r.touch === 'entrance' ? (isBright() ? '정문은 쇠사슬로 잠겨 있어요. 통로로 들어가 전시실을 둘러보세요!' : '쇠사슬이 철컹거린다… 돌아갈 수 없다.')
+        : `🗝 쇠사슬로 잠긴 문… 열쇠 조각 ${keysIn.size} / 9 (문을 눌러 보세요)`, 2600);
     }
     if (r.enter != null && !S.entering) {
       S.entering = true;
@@ -1616,6 +1760,8 @@
       const open = S.exitRoom || S.review || S.viewed.size >= MIN_VIEWS;
       if (!open && (S.z > -1.1 || S.z < -L + 1.1)) {
         S.z = Math.max(-L + 1.1, Math.min(-1.1, S.z));
+        // 닫힌 문을 밀면 덜그럭
+        if (!S.rattleT || performance.now() - S.rattleT > 900) { S.rattleT = performance.now(); SFX.rattle(); }
         showHint(`전시물을 ${MIN_VIEWS}개 이상 자세히 봐야 문이 열립니다 (${S.viewed.size}/${MIN_VIEWS})`, 1800);
       }
       if (S.z > -0.25) { S.z = -0.25; exitGallery('back'); }
@@ -1647,6 +1793,8 @@
     if (S.shake > 0) camera.position.add(new THREE.Vector3((Math.random() - 0.5) * 0.06, (Math.random() - 0.5) * 0.05, 0));
     lantern.position.set(0, 2.6, S.z - Math.cos(S.yaw) * 1.2);
 
+    updateDoors(dt);
+    updateGuide(dt, now);
     // 해설사: 시대마다 다른 방식으로 나타난다
     if (docent.visible && S.mode !== 'ending') updateDocent(dt, now, active);
     // 깜짝 효과, 시대별 장식·떠다니는 것 (깜짝 효과 중에는 더 세게)
@@ -1983,6 +2131,7 @@
     await Promise.race([ART.loadImages(), timeout(4000)]);
     buildMuseum();
     buildDocent();
+    buildGuide();
     const forced = S.forced;
     S.streak = 0;
     S.place = 'gallery';
