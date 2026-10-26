@@ -361,6 +361,10 @@
   #endKey { margin: 0 0 16px; font-family: var(--serif); color: #2a2016; font-size: 18px; }
   #endKey img { width: 120px; height: 120px; display: block; margin: 0 auto 4px; filter: drop-shadow(0 0 14px rgba(232,180,60,0.8)); }
   #record { background: rgba(0,0,0,0.8); }
+  #recordClose { position: fixed; top: max(14px, env(safe-area-inset-top)); right: 14px; width: 48px; height: 48px; border-radius: 50%; z-index: 5;
+    border: 1px solid #8a7348; background: rgba(20,16,12,0.9); color: #f2e6c9; font-size: 22px; line-height: 1; cursor: pointer; }
+  #recordClose:hover { background: #3a2c1a; }
+  body.bright #recordClose { background: #fffaf0; color: #3a2c1a; border-color: #c9a46a; }
 
   /* 밝은 박물관 */
   body.bright { background: #f3ede0; }
@@ -509,7 +513,7 @@
     <button class="btn" id="rulesOk">확인</button>
     <div class="controls" id="controlsInfo"></div>
     <div class="unit">초등학교 5학년 사회 2학기 1단원<br>「유적과 유물로 살펴본 옛 사람들의 생활」 복습 게임 · 소리를 켜고 플레이하세요</div>
-    <div class="credit">Created by gamtudyssam using AI · 0.036</div>
+    <div class="credit">Created by gamtudyssam using AI · 0.037</div>
   </div>
 </div>
 
@@ -579,8 +583,8 @@
   <h2>이상 현상 기록장</h2>
   <div class="count" id="recordCount"></div>
   <div class="list" id="recordList"></div>
-  <button class="btn" id="recordClose">닫기</button>
   <button class="btn ghost" id="recordReset" style="margin-top:12px">기록 지우기</button>
+  <button id="recordClose" aria-label="닫기">✕</button>
 </div>
 
 <!-- 탈출 뒤: 아직 클리어하지 않은 전시실이 남아 있으면 (으스스한 박물관 · 순한 맛 아님) -->
@@ -597,12 +601,12 @@
 </div>
 
 <script src="vendor/three.min.js"></script>
-<script src="js/data.js?v=0.5.6"></script>
-<script src="js/eras.js?v=0.5.6"></script>
-<script src="js/artifacts.js?v=0.5.6"></script>
-<script src="js/art.js?v=0.5.6"></script>
-<script src="js/audio.js?v=0.5.6"></script>
-<script src="js/lobby.js?v=0.5.6"></script>
-<script src="js/game.js?v=0.5.6"></script>
+<script src="js/data.js?v=0.5.8"></script>
+<script src="js/eras.js?v=0.5.8"></script>
+<script src="js/artifacts.js?v=0.5.8"></script>
+<script src="js/art.js?v=0.5.8"></script>
+<script src="js/audio.js?v=0.5.8"></script>
+<script src="js/lobby.js?v=0.5.8"></script>
+<script src="js/game.js?v=0.5.8"></script>
 </body>
 </html>

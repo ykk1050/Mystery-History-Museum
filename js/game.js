@@ -1149,7 +1149,7 @@
       const got = r.anomalies.filter(a => found.has(a.id)).length;
       const h = document.createElement('div');
       h.className = 'roomhead';
-      h.textContent = `제 ${no} 전시실 · ${r.name}  (${got} / ${r.anomalies.length})`;
+      h.textContent = `전시관 ${no + 1} · ${r.name}  (${got} / ${r.anomalies.length})`;
       list.appendChild(h);
       r.anomalies.forEach(a => {
         const d = document.createElement('div');

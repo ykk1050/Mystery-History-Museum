@@ -200,13 +200,13 @@
       x.drawImage(key, 40, 50, 200, 200);
       x.textAlign = 'left'; x.textBaseline = 'alphabetic';
       x.fillStyle = bright ? '#8a6a30' : '#9a8458'; x.font = `700 30px ${SANS}`;
-      x.fillText(`통로 ${i + 1}`, 262, 78);
+      x.fillText(`전시관 ${i + 1}`, 262, 78);
       x.fillStyle = bright ? '#2d241a' : '#f0e2bd';
       let fs = 70; do { x.font = `700 ${fs}px ${FONT}`; fs -= 2; } while (x.measureText(ROOMS[i].name).width > 470 && fs > 30);
       x.fillText(ROOMS[i].name, 262, 160);
       x.font = `500 30px ${SANS}`;
       x.fillStyle = st.earned ? (bright ? '#2c6d3d' : '#9fd8a8') : st.saved ? (bright ? '#9a5d10' : '#e8c547') : (bright ? '#7a6548' : '#8a7a5c');
-      x.fillText(st.earned ? '🗝 탈출 성공 · 열쇠 조각 획득' : st.saved ? `이어하기 · 제 ${st.saved} 전시실까지 진행` : '제8 전시실을 지나 탈출하세요', 262, 230);
+      x.fillText(st.earned ? '🗝 탈출 성공' : st.saved ? `이어하기 · 제 ${st.saved} 전시실까지 진행` : '제8 전시실을 지나 탈출하세요', 262, 230);
       signs[i].t.needsUpdate = true;
     }
 
