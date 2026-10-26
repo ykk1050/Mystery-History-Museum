@@ -14,7 +14,7 @@
   const CONF = {
     paleo: { fog: 0x0a0603, density: 0.062, ambient: [0x6b4a30, 0.36], lantern: [0xff9a50, 1.25], lamp: 0xffa060,
       flicker: 'torch', sound: 'drip', particles: 'dust', decor: 'hands', docent: { look: 'paleo', move: 'fadeIn' },
-      scare: { sound: 'gust', blackout: 1.5, ghost: { where: 'front', dist: 3.4, sec: 1.3 }, hint: '휘이잉… 횃불이 모두 꺼졌다!' } },
+      scare: { sound: 'gust', blackout: 1.5, ghost: { where: 'front', dist: 3.4, sec: 1.3 }, hint: '휘이잉… 불이 모두 꺼졌다!' } },
     neo: { fog: 0x0a141a, density: 0.07, ambient: [0x4a6070, 0.42], lantern: [0xbfd8ff, 0.9], lamp: 0xcfe0ff,
       flicker: 'slow', sound: 'river', particles: 'mist', decor: 'reeds', docent: { look: 'neo', move: 'float' },
       scare: { sound: 'splash', boost: 3, ghost: { where: 'behind', dist: 2.4, sec: 2.2 }, hint: '첨벙! …등 뒤에서 무언가 물을 밟았다.' } },
