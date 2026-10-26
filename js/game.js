@@ -1094,8 +1094,8 @@
     clearedModes.add(m.id); store.set('clearedModes', [...clearedModes]);
     // 시대별 전시실: 그 시대의 유물 모양 열쇠 조각
     $('endKey').innerHTML = m.room != null
-      ? `<img src="${keyURL(m.room, 'gold')}" alt="">🗝 「${KEY_NAMES[m.room]}」 열쇠 조각${newKey ? '을 얻었다! 가방에 넣어 두었다.' : '은 이미 가방에 있다.'}`
-        + `<br><small style="font-size:14px">가진 열쇠 조각 ${ROOMS.filter((r, i) => hasKey(i)).length} / 9 · 9개를 모두 모으면 로비 어딘가의 문이 열린다…</small>`
+      ? `<img src="${keyURL(m.room, 'gold')}" alt="">🗝 「${KEY_NAMES[m.room]}」 조각${newKey ? '을 얻었다! 가방에 넣어 두었다.' : '은 이미 가방에 있다.'}`
+        + `<br><small style="font-size:14px">가진 조각 ${ROOMS.filter((r, i) => hasKey(i)).length} / 9 · 9개를 모두 모으면 로비 어딘가의 문이 열린다…</small>`
       : '최고 난이도 미스터리 전시실을 탈출했다!';
     const sec = Math.round(playTime() / 1000);
     S.started = false;
