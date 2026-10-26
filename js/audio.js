@@ -203,12 +203,12 @@
   }
 
   /* ---------- 깜짝 효과 소리 (짧고, 비명·괴성 없이) ---------- */
-  function noiseHit(t, dur, type, freq, q, vol, sweepTo) {
+  function noiseHit(t, dur, type, freq, q, vol, sweepTo, dest) {
     const s = ac.createBufferSource(); s.buffer = noiseBuffer(dur + 0.2, type === 'lowpass');
     const f = ac.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q || 1;
     if (sweepTo) f.frequency.exponentialRampToValueAtTime(sweepTo, t + dur);
     const g = ac.createGain(); env(g, t, 0.02, vol, dur);
-    s.connect(f); f.connect(g); g.connect(master); s.start(t); s.stop(t + dur + 0.2);
+    s.connect(f); f.connect(g); g.connect(dest || master); s.start(t); s.stop(t + dur + 0.2);
   }
   // 타이틀 화면 BGM: 낮은 울림 위로 음이 어긋난 오르골이 느리게 (A 단조)
   let titleGain = null, titleTimer = 0, titleStep = 0;
@@ -282,18 +282,32 @@
     noiseHit(t + 0.02, 0.18, 'bandpass', 180, 1.2, 0.18);   // 문이 살짝 밀리는 둔탁한 소리
   }
   // 덜컹: 문이 풀리며 열리는 소리 (낮은 쿵 + 걸쇠 소리 + 삐걱)
-  function clunk() {   // 소리 크기 2배
+  // 크게 내야 하는 소리용: 2배로 키운 뒤 리미터로 찢어지는 소리를 막는다
+  let loudBus = null;
+  function loud() {
+    if (loudBus) return loudBus;
+    const comp = ac.createDynamicsCompressor();
+    comp.threshold.value = -12; comp.knee.value = 6; comp.ratio.value = 12; comp.attack.value = 0.002; comp.release.value = 0.25;
+    const make = ac.createGain(); make.gain.value = 1.5;
+    loudBus = ac.createGain(); loudBus.gain.value = 2;
+    loudBus.connect(comp); comp.connect(make); make.connect(master);
+    return loudBus;
+  }
+  function clunk() {   // 처음보다 4배 크게 (태블릿 스피커에서도 들리도록 중간 음역 '쿵'을 더함)
     if (!ac || !enabled) return;
-    const t = ac.currentTime;
+    const t = ac.currentTime, out = loud();
     const o = ac.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(95, t); o.frequency.exponentialRampToValueAtTime(45, t + 0.25);
     const g = ac.createGain(); env(g, t, 0.004, 1.0, 0.35);
-    o.connect(g); g.connect(master); o.start(t); o.stop(t + 0.5);
-    noiseHit(t, 0.12, 'bandpass', 600, 1.2, 0.6);
-    noiseHit(t + 0.09, 0.05, 'highpass', 2500, 1, 0.32);
+    o.connect(g); g.connect(out); o.start(t); o.stop(t + 0.5);
+    const m = ac.createOscillator(); m.type = 'triangle'; m.frequency.setValueAtTime(190, t); m.frequency.exponentialRampToValueAtTime(95, t + 0.2);
+    const mg = ac.createGain(); env(mg, t, 0.003, 0.8, 0.25);
+    m.connect(mg); mg.connect(out); m.start(t); m.stop(t + 0.4);
+    noiseHit(t, 0.12, 'bandpass', 600, 1.2, 0.6, null, out);
+    noiseHit(t + 0.09, 0.05, 'highpass', 2500, 1, 0.32, null, out);
     const c = ac.createOscillator(); c.type = 'sawtooth'; c.frequency.setValueAtTime(240, t + 0.25); c.frequency.linearRampToValueAtTime(170, t + 0.95);
     const cf = ac.createBiquadFilter(); cf.type = 'bandpass'; cf.frequency.value = 900; cf.Q.value = 6;
     const cg = ac.createGain(); env(cg, t + 0.25, 0.08, 0.1, 0.6);
-    c.connect(cf); cf.connect(cg); cg.connect(master); c.start(t + 0.25); c.stop(t + 1.1);
+    c.connect(cf); cf.connect(cg); cg.connect(out); c.start(t + 0.25); c.stop(t + 1.1);
   }
   // 닫힌 나무문을 밀었을 때 덜그럭
   function rattle() {
