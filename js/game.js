@@ -507,7 +507,7 @@
     guide.material.map = bright ? guideTex.bright : guideTex.dark;
     guide.position.y = 1.05 + Math.sin(now / 800) * 0.07;
     guide.material.opacity = bright ? 0.92 : 0.7 + Math.sin(now / 130) * 0.05 + (Math.random() < 0.02 ? -0.4 : 0);
-    // 가까이 가면 입장할 때마다 한 번만 말한다 (해설사가 말하는 중이면 말하기 줄에서 기다림)
+    // 가까이 가면 전시실마다 한 번 말한다 (해설사가 말하는 중이면 말하기 줄에서 기다림)
     const near = Math.hypot(camera.position.x - GUIDE.x, camera.position.z - GUIDE.z) < 5;
     if (near && !S.guideSpoke && S.mode === 'play') {
       S.guideSpoke = true;
@@ -962,6 +962,7 @@
     S.review = false;
     resetHelp();
     setDoors(doorsShouldOpen(), false); applyDoors();
+    S.guideSpoke = false;
     placeGuide();
     const wrongs = S.exitRoom ? 0 : (S.wrongStreak[S.roomIdx] || 0);
     S.lampReady = wrongs >= LAMP_AFTER;
@@ -1470,7 +1471,7 @@
   /* ---------- 시작 ---------- */
   function startGame(resume) {
     S.gameMode = settings.mode;
-    S.place = 'gallery'; S.entering = false; S.guideSpoke = false;
+    S.place = 'gallery'; S.entering = false;
     closeBag();
     SFX.init();
     if (window.speechSynthesis) try { speechSynthesis.getVoices(); } catch (e) {}
