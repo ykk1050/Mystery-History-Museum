@@ -1190,7 +1190,8 @@
   }
 
   /* ---------- 입력 ---------- */
-  const keys = { fwd: false, back: false, left: false, right: false, run: false };
+  // left/right: 화살표(돌아보기) · a/d: A·D 키 (전시실에서는 돌아보기, 로비에서는 옆걸음) · sl/sr: 로비의 ◀ ▶ 단추
+  const keys = { fwd: false, back: false, left: false, right: false, a: false, d: false, sl: false, sr: false, run: false };
   window.addEventListener('keydown', e => {
     if (blocked || document.querySelector('.flow.on, .pop.on')) return;
     if (S.mode === 'inspect' && (e.key === 'Escape' || e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); closeInspect(); return; }
@@ -1200,8 +1201,10 @@
     const k = e.key.toLowerCase();
     if (k === 'w' || k === 'arrowup') keys.fwd = true;
     if (k === 's' || k === 'arrowdown') keys.back = true;
-    if (k === 'a' || k === 'arrowleft') keys.left = true;
-    if (k === 'd' || k === 'arrowright') keys.right = true;
+    if (k === 'arrowleft') keys.left = true;
+    if (k === 'arrowright') keys.right = true;
+    if (k === 'a') keys.a = true;
+    if (k === 'd') keys.d = true;
     if (k === 'shift') keys.run = true;
     if (k === ' ' || k === 'q') { e.preventDefault(); turnAround(); }
     if (k === 'e' || k === 'enter') { pickAt(0, 0, true); }
@@ -1210,11 +1213,13 @@
     const k = e.key.toLowerCase();
     if (k === 'w' || k === 'arrowup') keys.fwd = false;
     if (k === 's' || k === 'arrowdown') keys.back = false;
-    if (k === 'a' || k === 'arrowleft') keys.left = false;
-    if (k === 'd' || k === 'arrowright') keys.right = false;
+    if (k === 'arrowleft') keys.left = false;
+    if (k === 'arrowright') keys.right = false;
+    if (k === 'a') keys.a = false;
+    if (k === 'd') keys.d = false;
     if (k === 'shift') keys.run = false;
   });
-  window.addEventListener('blur', () => { keys.fwd = keys.back = keys.left = keys.right = keys.run = false; });
+  window.addEventListener('blur', () => { Object.keys(keys).forEach(k => { keys[k] = false; }); });
 
   // 끌어서 둘러보기 / 눌러서 자세히 보기
   let look = null;
@@ -1253,9 +1258,11 @@
   }
   holdBtn($('tFwd'), () => { keys.fwd = true; }, () => { keys.fwd = false; });
   holdBtn($('tBack'), () => { keys.back = true; }, () => { keys.back = false; });
+  holdBtn($('tLeft'), () => { keys.sl = true; }, () => { keys.sl = false; });
+  holdBtn($('tRight'), () => { keys.sr = true; }, () => { keys.sr = false; });
   holdBtn($('tRun'), () => { keys.run = true; }, () => { keys.run = false; });
   holdBtn($('tTurn'), () => { if (S.mode === 'play') turnAround(); });
-  ['tFwd', 'tBack', 'tRun', 'tTurn'].forEach(id => $(id).addEventListener('contextmenu', e => e.preventDefault()));
+  ['tFwd', 'tBack', 'tLeft', 'tRight', 'tRun', 'tTurn'].forEach(id => $(id).addEventListener('contextmenu', e => e.preventDefault()));
 
   function turnAround() {
     const target = (S.turning > 0 ? S.turnTo : S.yaw) - Math.PI / 2;
@@ -1472,6 +1479,7 @@
   function startGame(resume) {
     S.gameMode = settings.mode;
     S.place = 'gallery'; S.entering = false;
+    document.body.classList.remove('in-lobby'); keys.sl = keys.sr = false;
     closeBag();
     SFX.init();
     if (window.speechSynthesis) try { speechSynthesis.getVoices(); } catch (e) {}
@@ -1508,8 +1516,8 @@
   $('lobbyBtn').onclick = () => { fadeEl.style.opacity = 1; goLobby(S.gameMode); };
 
   $('controlsInfo').innerHTML = isTouch
-    ? '▲ 걷기 · ▼ 뒷걸음 · » 뛰어서 이동하기(누른 채로 걷기) · ⟳ 90° 돌기<br>화면을 끌어서 둘러보기 · 전시물과 해설사를 눌러 자세히 보기 · 🎒 가방 · ⚙ 설정'
-    : 'W/↑ 걷기 · S/↓ 뒷걸음 · A/D/←/→ 둘러보기 · 마우스로 끌어서 둘러보기<br>Space 90° 돌기 · Shift 뛰기 · 클릭 자세히 보기 · 🎒 가방 · ⚙ 설정(Esc)';
+    ? '▲ 걷기 · ▼ 뒷걸음 · (로비) ◀ ▶ 옆으로 걷기 · » 뛰어서 이동하기(누른 채로 걷기) · ⟳ 90° 돌기<br>화면을 끌어서 둘러보기 · 전시물과 해설사를 눌러 자세히 보기 · 🎒 가방 · ⚙ 설정'
+    : 'W/↑ 걷기 · S/↓ 뒷걸음 · A/D/←/→ 둘러보기 · 마우스로 끌어서 둘러보기 (로비에서는 A/D 옆으로 걷기)<br>Space 90° 돌기 · Shift 뛰기 · 클릭 자세히 보기 · 🎒 가방 · ⚙ 설정(Esc)';
 
   /* ---------- 로비 ---------- */
   const keyURLCache = {};
@@ -1532,6 +1540,7 @@
     const m = modeOf(fromMode);
     const sp = lobby.spawn(m ? (m.room != null ? m.room : 'mystery') : null);
     S.place = 'lobby'; S.started = false; S.entering = false; S.review = false;
+    document.body.classList.add('in-lobby');
     S.lx = sp.x; S.lz = sp.z; S.yaw = sp.yaw; S.pitch = 0; S.turning = 0;
     S.scareAt = null; S.blackout = 0; S.boost = 0; S.shake = 0;
     if (ghost) ghost.visible = false;
@@ -1584,12 +1593,15 @@
   function lobbyMove(dt, active) {
     let moving = 0;
     if (!active || S.turning !== 0) return 0;
-    const input = (keys.fwd ? 1 : 0) - (keys.back ? 1 : 0);
+    const fwd = (keys.fwd ? 1 : 0) - (keys.back ? 1 : 0);
+    const side = ((keys.d || keys.sr) ? 1 : 0) - ((keys.a || keys.sl) ? 1 : 0);   // 오른쪽 +
+    const input = fwd || side;
     let x = S.lx, z = S.lz;
     if (input) {
-      const speed = keys.run ? 4.6 : 2.8;
-      x -= Math.sin(S.yaw) * input * speed * dt;
-      z -= Math.cos(S.yaw) * input * speed * dt;
+      const speed = keys.run ? 4.6 : 2.8, k = fwd && side ? Math.SQRT1_2 : 1;   // 대각선도 같은 빠르기
+      const sn = Math.sin(S.yaw), cs = Math.cos(S.yaw);
+      x += (-sn * fwd + cs * side) * k * speed * dt;
+      z += (-cs * fwd - sn * side) * k * speed * dt;
       moving = keys.run ? 1.6 : 1;
     }
     const r = lobby.collide(x, z);
@@ -1773,8 +1785,9 @@
       if (S.turning >= 1) S.turning = 0;
     }
     if (active) {
-      if (keys.left) S.yaw += 1.8 * dt;
-      if (keys.right) S.yaw -= 1.8 * dt;
+      const inL = S.place === 'lobby';
+      if (keys.left || (!inL && keys.a)) S.yaw += 1.8 * dt;
+      if (keys.right || (!inL && keys.d)) S.yaw -= 1.8 * dt;
     }
     // 바라보는 방향 쪽으로 복도를 따라 걷는다
     let moving = 0;

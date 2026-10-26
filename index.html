@@ -147,6 +147,13 @@
   .tbtn.active { background: rgba(232,197,71,0.25); border-color: var(--gold); }
   #tFwd { left: 28px; bottom: calc(118px + env(safe-area-inset-bottom)); }
   #tBack { left: 28px; bottom: calc(28px + env(safe-area-inset-bottom)); }
+  /* 로비에서는 ▲▼ 양옆에 ◀ ▶ (십자 모양) */
+  .lobby-only { display: none !important; }
+  body.in-lobby .lobby-only { display: flex !important; }
+  body.in-lobby #tFwd { left: 104px; bottom: calc(112px + env(safe-area-inset-bottom)); }
+  body.in-lobby #tBack { left: 104px; bottom: calc(22px + env(safe-area-inset-bottom)); }
+  #tLeft { left: 22px; bottom: calc(67px + env(safe-area-inset-bottom)); }
+  #tRight { left: 186px; bottom: calc(67px + env(safe-area-inset-bottom)); }
   #tRun { right: 34px; bottom: calc(128px + env(safe-area-inset-bottom)); font-size: 20px; line-height: 1; }
   #tRun small { font-size: 10px; line-height: 1.1; text-align: center; margin-top: 1px; }
   #tTurn { right: 28px; bottom: calc(28px + env(safe-area-inset-bottom)); width: 86px; height: 86px; }
@@ -412,6 +419,10 @@
     #tTurn { width: 76px; height: 76px; }
     #tFwd { bottom: calc(100px + env(safe-area-inset-bottom)); left: 18px; }
     #tBack { left: 18px; bottom: calc(22px + env(safe-area-inset-bottom)); }
+    body.in-lobby #tFwd { left: 84px; bottom: calc(92px + env(safe-area-inset-bottom)); }
+    body.in-lobby #tBack { left: 84px; bottom: calc(18px + env(safe-area-inset-bottom)); }
+    #tLeft { left: 14px; bottom: calc(55px + env(safe-area-inset-bottom)); }
+    #tRight { left: 154px; bottom: calc(55px + env(safe-area-inset-bottom)); }
     #tRun { right: 24px; bottom: calc(108px + env(safe-area-inset-bottom)); }
     #tTurn { right: 18px; bottom: calc(22px + env(safe-area-inset-bottom)); }
     #subtitle { bottom: 175px; }
@@ -437,6 +448,8 @@
   <div id="touch">
     <div class="tbtn" id="tFwd">▲<small>걷기</small></div>
     <div class="tbtn" id="tBack">▼<small>뒷걸음</small></div>
+    <div class="tbtn lobby-only" id="tLeft">◀<small>왼쪽</small></div>
+    <div class="tbtn lobby-only" id="tRight">▶<small>오른쪽</small></div>
     <div class="tbtn" id="tRun">»<small>뛰어서<br>이동하기</small></div>
     <div class="tbtn" id="tTurn">⟳<small>90° 돌기</small></div>
     <div id="lookHint">화면을 끌어서 둘러보기<br>전시물을 눌러 자세히 보기</div>
@@ -517,7 +530,7 @@
     <button class="btn" id="rulesOk">확인</button>
     <div class="controls" id="controlsInfo"></div>
     <div class="unit">초등학교 5학년 사회 2학기 1단원<br>「유적과 유물로 살펴본 옛 사람들의 생활」 복습 게임 · 소리를 켜고 플레이하세요</div>
-    <div class="credit">Created by gamtudyssam using AI · 0.045</div>
+    <div class="credit">Created by gamtudyssam using AI · 0.046</div>
   </div>
 </div>
 
@@ -605,12 +618,12 @@
 </div>
 
 <script src="vendor/three.min.js"></script>
-<script src="js/data.js?v=0.6.6"></script>
-<script src="js/eras.js?v=0.6.6"></script>
-<script src="js/artifacts.js?v=0.6.6"></script>
-<script src="js/art.js?v=0.6.6"></script>
-<script src="js/audio.js?v=0.6.6"></script>
-<script src="js/lobby.js?v=0.6.6"></script>
-<script src="js/game.js?v=0.6.6"></script>
+<script src="js/data.js?v=0.6.7"></script>
+<script src="js/eras.js?v=0.6.7"></script>
+<script src="js/artifacts.js?v=0.6.7"></script>
+<script src="js/art.js?v=0.6.7"></script>
+<script src="js/audio.js?v=0.6.7"></script>
+<script src="js/lobby.js?v=0.6.7"></script>
+<script src="js/game.js?v=0.6.7"></script>
 </body>
 </html>
