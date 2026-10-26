@@ -113,7 +113,18 @@
   let lobby = null;          // 로비 (js/lobby.js)
   let doorLeaves = [], doorLeafMat = null;
   let guide = null, guideHit = null, guideTex = null;
-  const GUIDE = { x: 2.55, z: -5.8 };   // 입구 옆 '관계자 외 출입금지' 문 근처
+  // 안내원이 나타날 수 있는 자리 (전시물·모형을 가리지 않는 벽 쪽). 전시실마다 무작위
+  const GUIDE_SPOTS = [
+    { x: 2.55, z: -5.8 },    // 입구 옆 '관계자 외 출입금지' 문 근처
+    { x: 2.6, z: -13.5 },    // 오른쪽 벽, 첫 설명판들 사이
+    { x: 2.6, z: -22.5 },    // 수장고 문 앞
+    { x: 2.6, z: -31.5 },    // 오른쪽 벽 가운데
+    { x: 2.6, z: -38.5 },    // 출구 쪽 오른쪽 벽
+    { x: -2.6, z: -12 },     // 왼쪽 진열장 사이
+    { x: -2.6, z: -36 },     // 왼쪽 진열장 사이 (안쪽)
+    { x: 1.8, z: -46 }       // 출구 바로 앞
+  ];
+  const GUIDE = { x: 2.55, z: -5.8 };
 
   function addPlane(w, h, mat, x, y, z, ry, parent) {
     const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat);
@@ -479,6 +490,15 @@
     scene.add(guideHit); pickables.push(guideHit);
   }
   const GUIDE_LINE = '로비로 돌아가서, 잠깐 쉬고 싶나.';
+  // 전시실마다 다른 자리에 (바로 전과 같은 자리는 피함)
+  function placeGuide() {
+    if (!guide) return;
+    let spot;
+    do { spot = GUIDE_SPOTS[Math.floor(Math.random() * GUIDE_SPOTS.length)]; } while (spot.x === GUIDE.x && spot.z === GUIDE.z);
+    GUIDE.x = spot.x; GUIDE.z = spot.z;
+    guide.position.set(GUIDE.x, 1.05, GUIDE.z);
+    guideHit.position.set(GUIDE.x, 1.0, GUIDE.z);
+  }
   function updateGuide(dt, now) {
     const on = S.place === 'gallery' && !S.exitRoom;
     guide.visible = guideHit.visible = on;
@@ -943,6 +963,7 @@
     resetHelp();
     setDoors(doorsShouldOpen(), false); applyDoors();
     S.guideSpoke = false;
+    placeGuide();
     const wrongs = S.exitRoom ? 0 : (S.wrongStreak[S.roomIdx] || 0);
     S.lampReady = wrongs >= LAMP_AFTER;
     if (wrongs >= WHISPER_AFTER) setTimeout(() => { if (S.mode === 'play') whisper(); }, 2600);
@@ -2160,6 +2181,7 @@
     view(n) { room(); Object.keys(room().exhibits).slice(0, n).forEach(markViewed); },
     ending: () => showEnding(),   // 탈출 화면 바로 보기 (점검용)
     lobby: () => goLobby(null),
+    guidePos: () => Object.assign({}, GUIDE),   // 안내원 자리 (점검용)
     // 시대별 전시실 탈출 기록(=열쇠 조각)을 n개 준다 (점검용)
     giveKeys(n) { for (let i = 0; i < n; i++) clearedModes.add('era' + i); store.set('clearedModes', [...clearedModes]); lobbyRefresh(); }
   };
