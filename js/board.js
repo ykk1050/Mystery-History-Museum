@@ -39,7 +39,7 @@
       if (d.nicks[id] && d.nicks[id] !== tok) return { error: 'taken' };
       const last = Math.max(0, ...d.clears.filter(x => x.id === id).map(x => x.last || x.first), d.tokLast && d.tokLast[tok] || 0);
       const since = (Date.now() - last) / 1000;
-      if (since < 120) return { error: 'tooFast', wait: Math.ceil(120 - since) };
+      if (since < 120) return { error: 'fail' };   // 진짜 서버처럼 이유를 알려 주지 않음
       d.tokLast = d.tokLast || {}; d.tokLast[tok] = Date.now();
       d.nicks[id] = tok;
       let c = d.clears.find(x => x.mode === mode && x.id === id);
@@ -169,7 +169,6 @@
     $('nickOk').disabled = true;
     try {
       const r = await api('register', { id, mode: reg.mode });
-      if (r.error === 'tooFast') { msg.className = 'nick-msg bad'; msg.textContent = `너무 빨리 다시 올렸어요. ${r.wait || 60}초 뒤에 다시 해 주세요.`; renderState(); return; }
       if (r.error === 'taken') { msg.className = 'nick-msg bad'; msg.textContent = '그 닉네임은 다른 친구가 먼저 만들었어요. 다른 조합을 골라 주세요.'; reg.avail = 'taken'; renderState(); return; }
       if (!r.ok) throw new Error('fail');
       if (!isMine(id)) { const l = myNicks(); l.unshift({ id, n: r.name || N.text(N.parse(id)) }); store.set('myNicks', l.slice(0, 20)); }

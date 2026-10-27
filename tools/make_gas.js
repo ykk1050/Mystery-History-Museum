@@ -75,13 +75,14 @@ function doPost(e) {
     const nick = findRow_(ns, v => String(v[0]) === id);
     if (nick && String(nick.values[2]) !== token) return out_({ error: 'taken' });   // 다른 사람이 만든 닉네임
     // 너무 빨리 다시 올리면 거절 (서버 시계 기준: 기기 시계는 조작할 수 있다)
+    // 조작하는 사람에게 단서가 되지 않도록 이유·남은 시간은 알려 주지 않고 다른 실패와 똑같이 답한다
     const cache = CacheService.getScriptCache();
     let last = 0;
     const cs0 = clearSheet_().getDataRange().getValues();
     for (let r = 1; r < cs0.length; r++) if (String(cs0[r][1]) === id && cs0[r][5]) last = Math.max(last, new Date(cs0[r][5]).getTime());
     const tokLast = Number(cache.get('t:' + token) || 0);
     const since = (now.getTime() - Math.max(last, tokLast)) / 1000;
-    if (since < MIN_GAP) return out_({ error: 'tooFast', wait: Math.ceil(MIN_GAP - since) });
+    if (since < MIN_GAP) return out_({ error: 'fail' });
     cache.put('t:' + token, String(now.getTime()), MIN_GAP + 30);
     if (!nick) ns.appendRow([id, name, token, now]);
     const cs = clearSheet_();
