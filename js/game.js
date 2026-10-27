@@ -2109,13 +2109,13 @@
 
   /* ---------- 최고 난이도 미스터리 전시실 탈출 영상 ----------
      남학생 intro/escape_male.mp4, 여학생 intro/escape_female.mp4.
-     밝은 박물관이거나 '순한 맛'이면 무서운 장면 전까지만: 남학생 6.8초(창가의 괴물 전), 여학생 4.3초(창문 장면으로 바뀌기 전).
+     밝은 박물관이거나 '순한 맛'이면 무서운 장면 전까지만: 남학생 6.8초(창가의 괴물 전), 여학생 6.3초(건물 밖 창문 장면까지, 안쪽 장면으로 바뀌기 전).
      처음 볼 때는 건너뛸 수 없고, 두 번째 탈출부터는 아무 조작이나 하면 넘어간다. */
   function playOutro(done) {
     const v = $('outroVideo');
     const female = settings.gender === 'female';
     const seen = store.get('outroSeen', false);
-    const limit = (isBright() || settings.mild) ? (female ? 4.3 : 6.8) : 0;
+    const limit = (isBright() || settings.mild) ? (female ? 6.3 : 6.8) : 0;
     showScreen(null); $('hud').classList.remove('on'); closeBag();
     SFX.suspend();   // 게임 배경음은 잠시 멈춤
     flowOn('outro');
