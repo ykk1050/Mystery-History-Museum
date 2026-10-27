@@ -2109,13 +2109,13 @@
 
   /* ---------- 최고 난이도 미스터리 전시실 탈출 영상 ----------
      남학생 intro/escape_male.mp4, 여학생 intro/escape_female.mp4.
-     밝은 박물관이거나 '순한 맛'이면 무서운 장면(창가의 괴물) 전까지만: 남학생 6.8초, 여학생 6초.
+     밝은 박물관이거나 '순한 맛'이면 무서운 장면 전까지만: 남학생 6.8초(창가의 괴물 전), 여학생 4.3초(창문 장면으로 바뀌기 전).
      처음 볼 때는 건너뛸 수 없고, 두 번째 탈출부터는 아무 조작이나 하면 넘어간다. */
   function playOutro(done) {
     const v = $('outroVideo');
     const female = settings.gender === 'female';
     const seen = store.get('outroSeen', false);
-    const limit = (isBright() || settings.mild) ? (female ? 6 : 6.8) : 0;
+    const limit = (isBright() || settings.mild) ? (female ? 4.3 : 6.8) : 0;
     showScreen(null); $('hud').classList.remove('on'); closeBag();
     SFX.suspend();   // 게임 배경음은 잠시 멈춤
     flowOn('outro');
@@ -2124,23 +2124,26 @@
     v.style.transition = 'none'; v.style.opacity = 1;
     v.src = 'intro/escape_' + (female ? 'female' : 'male') + '.mp4?v=1';
     v.currentTime = 0; v.muted = !settings.sound;
-    let finished = false, cutting = false;
+    let finished = false, cutting = false, watch = 0;
     const finish = () => {
       if (finished) return; finished = true;
       store.set('outroSeen', true);
-      v.pause(); v.ontimeupdate = v.onended = null;
+      v.pause(); v.ontimeupdate = v.onended = null; clearInterval(watch);
       removeEventListener('keydown', input, true); $('outro').removeEventListener('click', input, true);
       flowOn(null); SFX.resume();
       done();
     };
-    // 순한 맛: 정해진 초에서 영상을 서서히 어둡게 하고 넘어간다
-    v.ontimeupdate = () => {
+    // 순한 맛: 정해진 초에서 영상을 멈추고 서서히 어둡게 한 뒤 넘어간다
+    // (timeupdate는 0.25초까지 늦게 오기도 해서 30ms마다 직접 확인 → 다음 장면이 한 프레임도 나오지 않게)
+    const check = () => {
       if (limit && !cutting && v.currentTime >= limit) {
         cutting = true; v.pause();
         v.style.transition = 'opacity 0.6s'; v.style.opacity = 0;
         setTimeout(finish, 650);
       }
     };
+    v.ontimeupdate = check;
+    if (limit) watch = setInterval(check, 30);
     v.onended = () => setTimeout(finish, 300);
     const input = e => {
       e.preventDefault();
