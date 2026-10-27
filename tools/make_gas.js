@@ -17,6 +17,8 @@ const code = `/* 미스터리 역사 박물관 ─ 정복자 명단 (구글 스�
 const SIZES = ${JSON.stringify(sizes)};
 const WORDS = ${JSON.stringify(window.NICK.STEPS.map(s => W[s.key]))};
 const MODES = ['mystery', 'era0', 'era1', 'era2', 'era3', 'era4', 'era5', 'era6', 'era7', 'era8'];
+// 별 부풀리기 막기: 같은 닉네임·같은 기기는 이 시간(초)이 지나야 다시 올릴 수 있다 (전시실 하나를 탈출하는 데 걸리는 가장 짧은 시간보다 짧게)
+const MIN_GAP = 120;
 
 function sheet_(name, headers) {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
@@ -72,6 +74,15 @@ function doPost(e) {
     const ns = nickSheet_();
     const nick = findRow_(ns, v => String(v[0]) === id);
     if (nick && String(nick.values[2]) !== token) return out_({ error: 'taken' });   // 다른 사람이 만든 닉네임
+    // 너무 빨리 다시 올리면 거절 (서버 시계 기준: 기기 시계는 조작할 수 있다)
+    const cache = CacheService.getScriptCache();
+    let last = 0;
+    const cs0 = clearSheet_().getDataRange().getValues();
+    for (let r = 1; r < cs0.length; r++) if (String(cs0[r][1]) === id && cs0[r][5]) last = Math.max(last, new Date(cs0[r][5]).getTime());
+    const tokLast = Number(cache.get('t:' + token) || 0);
+    const since = (now.getTime() - Math.max(last, tokLast)) / 1000;
+    if (since < MIN_GAP) return out_({ error: 'tooFast', wait: Math.ceil(MIN_GAP - since) });
+    cache.put('t:' + token, String(now.getTime()), MIN_GAP + 30);
     if (!nick) ns.appendRow([id, name, token, now]);
     const cs = clearSheet_();
     const row = findRow_(cs, v => v[0] === body.mode && String(v[1]) === id);
