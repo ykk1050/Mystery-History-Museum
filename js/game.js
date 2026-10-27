@@ -1015,7 +1015,8 @@
     }
     if (S.exitRoom && dir === 'forward') {
       S.mode = 'trans'; SFX.whoosh(); stopTalk();
-      fadeTo(1, 900).then(showEnding);
+      // 최고 난이도 미스터리 전시실은 결과 화면 전에 탈출 영상
+      fadeTo(1, 900).then(() => curMode().room == null ? playOutro(showEnding) : showEnding());
       return;
     }
     if (dir === 'back' && !S.exitRoom) {
@@ -1998,7 +1999,7 @@
 
   /* ---------- 처음 흐름: 성별 고르기 → 인트로 영상 → 타이틀 화면 → 시작 화면 ----------
      인트로를 처음 볼 때는 조작하면 "건너뛸까요?"를 묻고, 그다음부터는 아무 조작이나 하면 바로 넘어간다. */
-  const flowOn = id => ['gender', 'fear', 'intro', 'splash'].forEach(f => $(f).classList.toggle('on', f === id));
+  const flowOn = id => ['gender', 'fear', 'intro', 'outro', 'splash'].forEach(f => $(f).classList.toggle('on', f === id));
   // 순한 맛: 인트로 끝의 무서운 장면(쿵·암전·빨간 글씨·"너, 돌아갈 수 없어.")을 빼고 영상만 본다
   function setMild(on) {
     settings.mild = !!on; store.set('settings', settings);
@@ -2105,6 +2106,61 @@
     });
   }
   $('skipYes').onclick = () => introDone && introDone();
+
+  /* ---------- 최고 난이도 미스터리 전시실 탈출 영상 ----------
+     남학생 intro/escape_male.mp4, 여학생 intro/escape_female.mp4.
+     밝은 박물관이거나 '순한 맛'이면 무서운 장면(창가의 괴물) 전까지만: 남학생 7초, 여학생 6초.
+     처음 볼 때는 건너뛸 수 없고, 두 번째 탈출부터는 아무 조작이나 하면 넘어간다. */
+  function playOutro(done) {
+    const v = $('outroVideo');
+    const female = settings.gender === 'female';
+    const seen = store.get('outroSeen', false);
+    const limit = (isBright() || settings.mild) ? (female ? 6 : 7) : 0;
+    showScreen(null); $('hud').classList.remove('on'); closeBag();
+    SFX.suspend();   // 게임 배경음은 잠시 멈춤
+    flowOn('outro');
+    $('outroHint').style.display = seen ? 'block' : 'none';
+    $('outroUnmute').style.display = 'none';
+    v.style.transition = 'none'; v.style.opacity = 1;
+    v.src = 'intro/escape_' + (female ? 'female' : 'male') + '.mp4?v=1';
+    v.currentTime = 0; v.muted = !settings.sound;
+    let finished = false, cutting = false;
+    const finish = () => {
+      if (finished) return; finished = true;
+      store.set('outroSeen', true);
+      v.pause(); v.ontimeupdate = v.onended = null;
+      removeEventListener('keydown', input, true); $('outro').removeEventListener('click', input, true);
+      flowOn(null); SFX.resume();
+      done();
+    };
+    // 순한 맛: 정해진 초에서 영상을 서서히 어둡게 하고 넘어간다
+    v.ontimeupdate = () => {
+      if (limit && !cutting && v.currentTime >= limit) {
+        cutting = true; v.pause();
+        v.style.transition = 'opacity 0.6s'; v.style.opacity = 0;
+        setTimeout(finish, 650);
+      }
+    };
+    v.onended = () => setTimeout(finish, 300);
+    const input = e => {
+      e.preventDefault();
+      if (v.muted && settings.sound && $('outroUnmute').style.display !== 'none') {
+        v.muted = false; $('outroUnmute').style.display = 'none';
+        const pp = v.play();
+        if (pp && pp.catch) pp.catch(() => { v.muted = true; v.play().catch(() => {}); $('outroUnmute').style.display = 'block'; });
+        return;
+      }
+      if (v.paused && !cutting && !finished && !v.ended) { v.play().catch(() => { v.muted = true; v.play().catch(() => {}); }); return; }
+      if (seen) finish();   // 두 번째 탈출부터 건너뛰기
+    };
+    setTimeout(() => { addEventListener('keydown', input, true); $('outro').addEventListener('click', input, true); }, 400);
+    const p = v.play();
+    if (p && p.catch) p.catch(() => {
+      v.muted = true; v.play().catch(() => finish());
+      if (settings.sound) $('outroUnmute').style.display = 'block';
+    });
+    setTimeout(() => { if (!finished && v.paused && !cutting && v.currentTime === 0) finish(); }, 15000);   // 영상을 못 틀면 결과 화면으로
+  }
   $('skipNo').onclick = () => $('skipAsk').classList.remove('on');
 
   // 타이틀 화면: 무서운 BGM + 신비한 애니메이션, 아무것이나 누르면 시작 화면으로
