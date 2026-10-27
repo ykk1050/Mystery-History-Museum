@@ -38,7 +38,9 @@
     get(k, d) { try { const v = localStorage.getItem('mhm_' + k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
     set(k, v) { try { localStorage.setItem('mhm_' + k, JSON.stringify(v)); } catch (e) {} }
   };
-  const found = new Set(store.get('found_v2', []));
+  // 지금 게임에 있는 이상 현상만 센다 (내용을 바꾸어 없어진 이상 현상의 기록은 버림)
+  const found = new Set(store.get('found_v2', []).filter(id => window.ANOMALIES.some(a => a.id === id)));
+  store.set('found_v2', [...found]);
   let cleared = store.get('cleared_v2', false);
   const clearedModes = new Set(store.get('clearedModes', []));   // 탈출에 성공한 전시실(모드) id
   const keysIn = new Set(store.get('keysIn', []));               // 미스터리 전시실 입구에 끼운 열쇠 조각 (시대 번호)
