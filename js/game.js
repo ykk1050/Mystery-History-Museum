@@ -1134,7 +1134,12 @@
     $('hud').classList.remove('on');
     closeBag();
     // 아직 탈출하지 못한 전시실이 남아 있으면 마지막으로 한 번 더 놀라게 한다
-    if (!isBright() && !settings.mild && clearedModes.size < MODES.length) setTimeout(playMeetAgain, 2600);
+    const scare = !isBright() && !settings.mild && clearedModes.size < MODES.length;
+    if (scare) setTimeout(playMeetAgain, 2600);
+    // 정복자 명단에 이름 올리기 (탈출할 때마다 한 번)
+    S.clearKey = m.id + ':' + Date.now();
+    $('nickBtn').style.display = BOARD.enabled() ? '' : 'none';
+    if (BOARD.enabled()) setTimeout(() => { if (S.mode === 'ending') BOARD.openRegister(m.id, S.clearKey); }, scare ? 8200 : 1500);
   }
 
   // 갑자기 화면이 검어지고 빨간 글씨 "넌, 또 만나게 될 거야." + 쿵 소리와 낮은 목소리
@@ -1516,6 +1521,15 @@
   $('themeBtn').onclick = () => setTheme(isBright() ? 'dark' : 'bright');
   $('againBtn').onclick = () => { fadeEl.style.opacity = 1; startGame(null); };
   $('lobbyBtn').onclick = () => { fadeEl.style.opacity = 1; goLobby(S.gameMode); };
+  $('nickBtn').onclick = () => BOARD.openRegister(S.gameMode, S.clearKey);
+  // 정복자 명단 창이 떠 있는 동안은 움직이지 않는다
+  let boardPrev = 'play';
+  BOARD.init({
+    modes: MODES.map(m => ({ id: m.id, name: m.name })),
+    onOpen: () => { if (S.mode !== 'board') boardPrev = S.mode; S.mode = 'board'; keys.fwd = keys.back = keys.run = false; },
+    onClose: () => { S.mode = boardPrev; },
+    onBoard: b => { if (lobby) lobby.setBoard(b, BOARD.enabled()); }
+  });
 
   $('controlsInfo').innerHTML = isTouch
     ? '▲ 걷기 · ▼ 뒷걸음 · (로비) ◀ ▶ 옆으로 걷기 · » 뛰어서 이동하기(누른 채로 걷기) · ⟳ 90° 돌기<br>화면을 끌어서 둘러보기 · 전시물과 해설사를 눌러 자세히 보기 · 🎒 가방 · ⚙ 설정'
@@ -1551,6 +1565,7 @@
     document.body.classList.remove('tense');
     hideSubtitle(); stopTalk();
     lobbyRefresh(); applyTheme(); updateHelpHud();
+    BOARD.refresh().then(b => lobby.setBoard(b, BOARD.enabled()));
     showScreen(null);
     $('hud').classList.add('on'); $('touch').classList.add('on');
     $('lookHint').style.display = isTouch ? '' : 'none';
@@ -1585,6 +1600,7 @@
   }
   function lobbyPick(u) {
     if (u.lobby === 'board') return openRecord();
+    if (u.lobby === 'plaque') return BOARD.openList(u.mode);
     if (u.lobby === 'map') return openInspect(lobby.mapCanvas());
     if (u.lobby === 'sign') return openInspect(lobby.signCanvas(u.idx));
     if (u.lobby === 'door') { if (keysIn.size < KEY_ART.length) SFX.chain(); return openDoor(); }
@@ -2190,6 +2206,7 @@
     lobby = LOBBY.build({ THREE, tex, ART, ROOMS, X0: LX, keyCanvas: (i, kind) => ART.drawKeyPiece(KEY_ART[i], 256, kind) });
     scene.add(lobby.group);
     lobby.pickables.forEach(p => pickables.push(p));
+    lobby.setBoard(BOARD.cached(), BOARD.enabled());
     // 처음 안내 창 뒤로는 로비가 보인다
     S.place = 'lobby'; S.lx = 0; S.lz = 4; S.yaw = 0;
     docent.visible = false; docentHit.visible = false; docentGlow.intensity = 0;

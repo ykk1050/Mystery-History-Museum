@@ -368,6 +368,63 @@
   #endKey { margin: 0 0 16px; font-family: var(--serif); color: #2a2016; font-size: 18px; }
   #endKey img { width: 120px; height: 120px; display: block; margin: 0 auto 4px; filter: drop-shadow(0 0 14px rgba(232,180,60,0.8)); }
   #record { background: rgba(0,0,0,0.8); }
+
+  /* 정복자 명단 */
+  .pop-x { position: absolute; top: 12px; right: 12px; width: 42px; height: 42px; border-radius: 50%; border: 1px solid #8a7348; background: rgba(20,16,12,0.9); color: #f2e6c9; font-size: 19px; cursor: pointer; }
+  .pop-card { position: relative; }
+  .nick-card { width: min(680px, 100%); }
+  .nick-sub { font-family: var(--serif); color: #cbbd9c; margin: -8px 0 12px; font-size: 15px; }
+  .nick-h { font-family: var(--serif); color: #e2d3b0; font-size: 14px; margin: 4px 0 6px; text-align: left; }
+  .nick-h small { color: #8a7a5c; }
+  .nick-mine { display: block; width: 100%; text-align: left; margin: 4px 0; padding: 9px 12px; border-radius: 8px; cursor: pointer; font-family: var(--serif); font-size: 15px;
+    background: rgba(232,197,71,0.12); border: 1px solid #8a7348; color: #f2e6c9; }
+  .nick-slots { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 6px 0 8px; }
+  .nslot { display: flex; flex-direction: column; gap: 2px; align-items: center; padding: 7px 4px; border-radius: 8px; cursor: pointer; border: 1.5px solid #4c3e27; background: rgba(20,16,12,0.7); color: #f2e6c9; min-width: 0; }
+  .nslot small { font-size: 11px; color: #9a8458; font-family: var(--sans); }
+  .nslot b { font-family: var(--serif); font-size: 14px; line-height: 1.25; word-break: keep-all; }
+  .nslot.empty b { color: #6b5c44; }
+  .nslot.on { border-color: var(--gold); box-shadow: 0 0 12px rgba(232,197,71,0.35); }
+  .nick-preview { font-family: var(--serif); font-weight: 700; font-size: clamp(17px, 3.4vw, 22px); color: var(--gold); min-height: 30px; }
+  .nick-preview.empty { color: #6b5c44; font-weight: 500; font-size: 15px; }
+  .nick-state { font-size: 13.5px; min-height: 20px; margin: 2px 0 6px; color: #9a8b70; }
+  .nick-state.good { color: #9fd8a8; } .nick-state.bad { color: #ff9a8a; }
+  .nick-words { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; max-height: min(30vh, 220px); overflow-y: auto; padding: 8px; border-radius: 10px;
+    border: 1px solid #3a2f1f; background: rgba(0,0,0,0.25); margin-bottom: 12px; touch-action: pan-y; }
+  .nword { padding: 6px 10px; border-radius: 16px; border: 1px solid #4c3e27; background: rgba(40,30,20,0.6); color: #e2d3b0; font-family: var(--serif); font-size: 14px; cursor: pointer; }
+  .nword.sel { border-color: var(--gold); background: rgba(232,197,71,0.25); color: #fff3cc; }
+  .nword.dice { border-color: #8a7348; color: var(--gold); }
+  .nick-msg { font-family: var(--serif); font-size: 15px; margin-top: 10px; min-height: 20px; color: #cbbd9c; }
+  .nick-msg.good { color: #9fd8a8; } .nick-msg.bad { color: #ff9a8a; }
+  .nick-msg b { color: var(--gold); }
+  .nick-note { font-size: 12px; color: #7d6c4c; margin-top: 10px; line-height: 1.6; }
+  .stars { color: #f2c230; letter-spacing: 0.05em; white-space: nowrap; }
+  .conq-card { width: min(620px, 100%); }
+  .conq-search { display: flex; flex-direction: column; gap: 6px; margin-bottom: 10px; color: #bba882; font-family: var(--serif); font-size: 14px; }
+  .conq-search input[type=search] { font-size: 16px; padding: 10px 12px; border-radius: 8px; border: 1px solid #8a7348; background: rgba(0,0,0,0.35); color: #f2e6c9; font-family: var(--serif);
+    user-select: text; -webkit-user-select: text; touch-action: manipulation; }
+  .conq-list { max-height: min(48vh, 420px); overflow-y: auto; text-align: left; border-top: 1px solid #3a2f1f; touch-action: pan-y; }
+  .conq-row { display: flex; gap: 10px; align-items: center; padding: 9px 4px; border-bottom: 1px solid #2c2419; font-family: var(--serif); font-size: 15px; color: #e2d3b0; }
+  .conq-row .rk { width: 28px; text-align: right; color: #8a7a5c; font-family: var(--sans); font-size: 13px; }
+  .conq-row .cn { flex: 1; word-break: keep-all; }
+  .conq-row .cm { font-size: 12.5px; color: #9a8458; }
+  .conq-row.mine { background: rgba(232,197,71,0.12); }
+  .conq-empty { color: #9a8b70; font-family: var(--serif); text-align: center; padding: 20px 0; line-height: 1.7; }
+  .conq-foot { font-size: 12.5px; color: #8a7a5c; margin-top: 8px; }
+  body.bright .nick-sub, body.bright .nick-h { color: #4a3c28; }
+  body.bright .nslot, body.bright .nword { background: #fffaf0; color: #3a2c1a; border-color: #d0b88c; }
+  body.bright .nslot.on, body.bright .nword.sel { border-color: #b06a10; background: #f6e3b8; }
+  body.bright .nick-preview { color: #9a5d10; }
+  body.bright .nick-words { background: rgba(255,250,240,0.6); border-color: #e0d2b4; }
+  body.bright .nick-mine { background: #f6e9c8; color: #3a2c1a; border-color: #c9a46a; }
+  body.bright .nick-msg { color: #4a3c28; } body.bright .nick-msg.good { color: #2c6d3d; } body.bright .nick-msg.bad, body.bright .nick-state.bad { color: #b3261e; }
+  body.bright .nick-state.good { color: #2c6d3d; }
+  body.bright .nick-msg b { color: #9a5d10; }
+  body.bright .conq-search { color: #6d5a3a; }
+  body.bright .conq-search input[type=search] { background: #fffaf0; color: #3a2c1a; border-color: #c9a46a; }
+  body.bright .conq-row { color: #3a2c1a; border-color: #e0d2b4; }
+  body.bright .conq-row.mine { background: #f6e3b8; }
+  body.bright .pop-x { background: #fffaf0; color: #3a2c1a; border-color: #c9a46a; }
+  body.bright .stars { color: #d08a00; }
   #recordClose { position: fixed; top: max(14px, env(safe-area-inset-top)); right: 14px; width: 48px; height: 48px; border-radius: 50%; z-index: 5;
     border: 1px solid #8a7348; background: rgba(20,16,12,0.9); color: #f2e6c9; font-size: 22px; line-height: 1; cursor: pointer; }
   #recordClose:hover { background: #3a2c1a; }
@@ -530,7 +587,7 @@
     <button class="btn" id="rulesOk">확인</button>
     <div class="controls" id="controlsInfo"></div>
     <div class="unit">초등학교 5학년 사회 2학기 1단원<br>「유적과 유물로 살펴본 옛 사람들의 생활」 복습 게임 · 소리를 켜고 플레이하세요</div>
-    <div class="credit">Created by gamtudyssam using AI · 0.048</div>
+    <div class="credit">Created by gamtudyssam using AI · 0.049</div>
   </div>
 </div>
 
@@ -566,6 +623,40 @@
       <button class="btn" id="doorEnter" style="display:none">🗝 입장하기</button>
       <button class="btn ghost" id="doorClose">닫기</button>
     </div>
+  </div>
+</div>
+
+<!-- 정복자 명단에 이름 올리기 (탈출 직후) -->
+<div id="nickPop" class="pop">
+  <div class="pop-card nick-card">
+    <h2 class="pop-q">🏆 정복자 명단에 이름 올리기</h2>
+    <p class="nick-sub" id="nickSub"></p>
+    <div id="nickMine"></div>
+    <div class="nick-slots" id="nickSlots"></div>
+    <div class="nick-preview" id="nickPreview"></div>
+    <div class="nick-state" id="nickState"></div>
+    <div class="nick-words" id="nickWords"></div>
+    <div class="row">
+      <button class="btn ghost" id="nickSpin">🎰 모두 돌리기</button>
+      <button class="btn" id="nickOk" disabled>이 닉네임으로 올리기</button>
+    </div>
+    <div class="nick-msg" id="nickMsg"></div>
+    <button class="btn ghost" id="nickSkip" style="margin-top:8px">다음에 할게요</button>
+    <div class="nick-note">이름 대신 단어를 골라 만든 닉네임만 쓸 수 있어요. 내가 만든 닉네임은 이 기기에서 다시 쓸 수 있어요.</div>
+  </div>
+</div>
+
+<!-- 정복자 명단 보기 · 닉네임 찾기 -->
+<div id="conqPop" class="pop">
+  <div class="pop-card conq-card">
+    <button class="pop-x" id="conqClose" aria-label="닫기">✕</button>
+    <h2 class="pop-q" id="conqTitle">🏆 정복자 명단</h2>
+    <div class="conq-search">
+      <input id="conqSearch" type="search" placeholder="🔍 닉네임 찾기 (예: 펭귄)" autocomplete="off">
+      <label><input type="checkbox" id="conqAll"> 모든 전시실에서 찾기</label>
+    </div>
+    <div class="conq-list" id="conqList"></div>
+    <div class="conq-foot" id="conqFoot"></div>
   </div>
 </div>
 
@@ -613,17 +704,21 @@
   <div id="endKey"></div>
   <div class="row">
     <button class="btn" id="lobbyBtn">앞으로 나아가기 →</button>
+    <button class="btn ghost" id="nickBtn" style="color:#2a2016;border-color:#2a2016;display:none">🏆 정복자 명단에 올리기</button>
     <button class="btn ghost" id="againBtn" style="color:#2a2016;border-color:#2a2016">다시 들어가기</button>
   </div>
 </div>
 
 <script src="vendor/three.min.js"></script>
-<script src="js/data.js?v=0.6.9"></script>
-<script src="js/eras.js?v=0.6.9"></script>
-<script src="js/artifacts.js?v=0.6.9"></script>
-<script src="js/art.js?v=0.6.9"></script>
-<script src="js/audio.js?v=0.6.9"></script>
-<script src="js/lobby.js?v=0.6.9"></script>
-<script src="js/game.js?v=0.6.9"></script>
+<script src="js/config.js?v=0.7.0"></script>
+<script src="js/data.js?v=0.7.0"></script>
+<script src="js/nickwords.js?v=0.7.0"></script>
+<script src="js/eras.js?v=0.7.0"></script>
+<script src="js/artifacts.js?v=0.7.0"></script>
+<script src="js/art.js?v=0.7.0"></script>
+<script src="js/audio.js?v=0.7.0"></script>
+<script src="js/lobby.js?v=0.7.0"></script>
+<script src="js/board.js?v=0.7.0"></script>
+<script src="js/game.js?v=0.7.0"></script>
 </body>
 </html>

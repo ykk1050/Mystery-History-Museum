@@ -444,6 +444,62 @@
     const dust = new THREE.Points(dustG, new THREE.PointsMaterial({ map: glowT, color: 0xd8c8a0, size: 0.09, transparent: true, opacity: 0.6, depthWrite: false, blending: THREE.AdditiveBlending }));
     darkOnly.add(dust);
 
+    /* ---------- 정복자 명단판: 통로마다 문 옆 벽에, 미스터리 입구는 옆의 받침대에 ---------- */
+    const plaques = [];
+    const plaqueFrame = new THREE.MeshLambertMaterial({ color: 0x3a2a1a });
+    function addPlaque(mode, x, z, nx, nz, stand) {
+      const c = cnv(512, 660), t = tex(c), ry = ryOf(nx, nz);
+      const m = plane(1.45, 1.87, new THREE.MeshBasicMaterial({ map: t }), x + nx * 0.07, 1.75, z + nz * 0.07, ry);
+      m.userData.lobby = 'plaque'; m.userData.mode = mode; pickables.push(m);
+      const f = box(1.6, 2.02, 0.06, plaqueFrame, x + nx * 0.03, 1.75, z + nz * 0.03); f.rotation.y = ry;
+      if (stand) { const leg = box(0.12, 0.8, 0.12, plaqueFrame, x - nx * 0.05, 0.4, z - nz * 0.05); leg.rotation.y = ry; circles.push({ x, z, r: 0.5 }); }
+      plaques.push({ mode, c, t });
+    }
+    passages.forEach(p => addPlaque('era' + p.i, p.cx - p.tx * 2.35, p.cz - p.tz * 2.35, p.nx, p.nz, false));
+    addPlaque('mystery', MYS.x - MYS.nz * 2.05, MYS.z + MYS.nx * 2.05, MYS.nx, MYS.nz, true);
+    let boardData = null, boardOn = false;
+    const stars = n => n <= 5 ? '★'.repeat(n) : '★×' + n;
+    function drawPlaque(pq, bright) {
+      const x = pq.c.getContext('2d'), W = 512, H = 660;
+      x.fillStyle = bright ? '#fbf3df' : '#17110c'; x.fillRect(0, 0, W, H);
+      x.strokeStyle = bright ? '#b08848' : '#8a6c3c'; x.lineWidth = 8; x.strokeRect(8, 8, W - 16, H - 16);
+      x.textAlign = 'center'; x.textBaseline = 'alphabetic';
+      x.fillStyle = bright ? '#9a5d10' : '#e8c547'; x.font = `700 46px ${FONT}`; x.fillText('🏆 정복자 명단', W / 2, 74);
+      const rows = (boardData && boardData[pq.mode]) || [];
+      x.fillStyle = bright ? '#6d5a3a' : '#9a8458'; x.font = `500 24px ${SANS}`;
+      x.fillText(!boardOn ? '명단 준비 중' : `정복자 ${rows.length}명`, W / 2, 114);
+      x.strokeStyle = bright ? '#d6c4a0' : '#3a2f1f'; x.lineWidth = 2; x.beginPath(); x.moveTo(36, 132); x.lineTo(W - 36, 132); x.stroke();
+      if (boardOn && !rows.length) {
+        x.fillStyle = bright ? '#6d5a3a' : '#8a7a5c'; x.font = `500 28px ${FONT}`;
+        x.fillText('아직 정복자가 없어요', W / 2, 300); x.fillText('첫 번째 정복자가 되어 보세요!', W / 2, 344);
+      }
+      rows.slice(0, 7).forEach((r, k) => {
+        const y = 178 + k * 62;
+        x.textAlign = 'left'; x.fillStyle = bright ? '#9a8458' : '#8a7a5c'; x.font = `700 24px ${SANS}`; x.fillText(String(k + 1), 34, y);
+        const st = stars(r.c);
+        x.font = `700 24px ${SANS}`; const sw = x.measureText(st).width;
+        x.textAlign = 'right'; x.fillStyle = '#f2c230'; x.fillText(st, W - 30, y);
+        // 긴 닉네임은 글자를 조금 줄이고, 그래도 길면 두 줄로
+        let fs = 26; const maxW = W - 30 - sw - 16 - 70;
+        do { x.font = `500 ${fs}px ${FONT}`; fs -= 1; } while (x.measureText(r.n).width > maxW && fs > 21);
+        x.textAlign = 'left'; x.fillStyle = bright ? '#2d241a' : '#f0e2bd';
+        if (x.measureText(r.n).width <= maxW) x.fillText(r.n, 70, y);
+        else {
+          const w = r.n.split(' '); let cut = Math.ceil(w.length / 2);
+          x.font = `500 21px ${FONT}`;
+          while (cut > 1 && x.measureText(w.slice(0, cut).join(' ')).width > maxW) cut--;
+          x.fillText(w.slice(0, cut).join(' '), 70, y - 13, maxW); x.fillText(w.slice(cut).join(' '), 70, y + 13, maxW);
+        }
+      });
+      x.textAlign = 'center'; x.fillStyle = bright ? '#7a6548' : '#9a8458'; x.font = `500 22px ${SANS}`;
+      x.fillText('눌러서 전체 보기 · 닉네임 찾기', W / 2, H - 34);
+      pq.t.needsUpdate = true;
+    }
+    function setBoard(data, on) {
+      boardData = data; boardOn = !!on;
+      plaques.forEach(pq => drawPlaque(pq, bright));
+    }
+
     /* ---------- 분위기 바꾸기 / 상태 다시 그리기 ---------- */
     let bright = false, last = null;
     function setTheme(b) {
@@ -465,6 +521,7 @@
       drawMosaic(bright); mosaicT.needsUpdate = true;
       drawPortal(bright); drawEntrance(bright);
       if (last) refresh(last);
+      plaques.forEach(pq => drawPlaque(pq, bright));
     }
     function refresh(st) {
       last = st;
@@ -536,7 +593,7 @@
     }
 
     return {
-      group, pickables, setTheme, refresh, update, collide, spawn,
+      group, pickables, setTheme, refresh, update, collide, spawn, setBoard,
       signCanvas: i => signs[i].c, mapCanvas: () => mapC, holePos
     };
   }
