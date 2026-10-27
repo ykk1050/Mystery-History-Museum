@@ -1521,7 +1521,15 @@
   }
   $('themeBtn').onclick = () => setTheme(isBright() ? 'dark' : 'bright');
   $('againBtn').onclick = () => { fadeEl.style.opacity = 1; startGame(null); };
-  $('lobbyBtn').onclick = () => { fadeEl.style.opacity = 1; goLobby(S.gameMode); };
+  $('lobbyBtn').onclick = () => {
+    fadeEl.style.opacity = 1;
+    if (curMode().room != null) return goLobby(S.gameMode);
+    // 최고 난이도 미스터리 전시실 탈출: 게임 첫 타이틀 화면으로 (아무것이나 누르면 규칙 안내 → 분위기 → 로비)
+    goLobby(S.gameMode);
+    $('hud').classList.remove('on'); closeBag();
+    S.mode = 'title';
+    showSplash();
+  };
   $('nickBtn').onclick = () => BOARD.openRegister(S.gameMode, S.clearKey);
   // 정복자 명단 창이 떠 있는 동안은 움직이지 않는다
   let boardPrev = 'play';
