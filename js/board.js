@@ -20,6 +20,8 @@
   const myNicks = () => store.get('myNicks', []);          // [{ id, n }]
   const isMine = id => myNicks().some(m => m.id === id);
   let modes = [], hooks = {};
+  const isMys = id => id === 'mystery';
+  const listName = m => isMys(m.id) ? '미스터리 역사 박물관 탈출자 명단' : `「${m.name}」 정복자 명단`;
   let board = store.get('boardCache', null);               // { mode: [{ id, n, c, t }] }
 
   /* ---------- 서버 (진짜 / 가짜) ---------- */
@@ -82,7 +84,9 @@
     reg = { mode: m.id, name: m.name, pick: [null, null, null, null], step: 0, avail: null, busy: false, done: clearKey != null && clearKey === lastKey, key: clearKey };
     $('nickSkip').textContent = reg.done ? '닫기' : '다음에 할게요';
     hooks.onOpen && hooks.onOpen();
-    $('nickSub').innerHTML = `「${esc(m.name)}」을(를) 탈출했어요! 정복자 명단에 이름을 올릴까요?`;
+    $('nickTitle').textContent = isMys(m.id) ? '🏆 탈출자 명단에 이름 올리기' : '🏆 정복자 명단에 이름 올리기';
+    $('nickSub').innerHTML = isMys(m.id) ? '미스터리 역사 박물관을 탈출했어요! 탈출자 명단에 이름을 올릴까요?'
+      : `「${esc(m.name)}」을(를) 탈출했어요! 정복자 명단에 이름을 올릴까요?`;
     $('nickMsg').className = 'nick-msg'; $('nickMsg').textContent = reg.done ? '이번 탈출은 이미 정복자 명단에 올렸어요.' : '';
     renderMine(); renderSlots(); renderWords(); renderState();
     $('nickPop').classList.add('on');
@@ -174,7 +178,7 @@
       if (!isMine(id)) { const l = myNicks(); l.unshift({ id, n: r.name || N.text(N.parse(id)) }); store.set('myNicks', l.slice(0, 20)); }
       reg.done = true; lastKey = reg.key;
       msg.className = 'nick-msg good';
-      msg.innerHTML = `🏆 <b>${esc(r.name || N.text(N.parse(id)))}</b> — 「${esc(reg.name)}」 정복자 명단에 올랐어요! <span class="stars">${stars(r.count || 1)}</span>`;
+      msg.innerHTML = `🏆 <b>${esc(r.name || N.text(N.parse(id)))}</b> — ${esc(listName({ id: reg.mode, name: reg.name }))}에 올랐어요! <span class="stars">${stars(r.count || 1)}</span>`;
       $('nickSkip').textContent = '닫기';
       refresh().then(b => hooks.onBoard && hooks.onBoard(b));
     } catch (e) {
@@ -189,7 +193,7 @@
     listMode = modeId;
     hooks.onOpen && hooks.onOpen();
     const m = modes.find(x => x.id === modeId);
-    $('conqTitle').textContent = `🏆 「${m ? m.name : ''}」 정복자 명단`;
+    $('conqTitle').textContent = '🏆 ' + (m ? listName(m) : '정복자 명단');
     $('conqSearch').value = ''; $('conqAll').checked = false;
     renderList();
     $('conqPop').classList.add('on');
@@ -207,7 +211,7 @@
     if (all && q) {
       const hits = [];
       modes.forEach(m => (board[m.id] || []).forEach(r => { if (match(r)) hits.push({ m, r }); }));
-      box.innerHTML = hits.length ? hits.map(({ m, r }) => `<div class="conq-row${isMine(r.id) ? ' mine' : ''}"><span class="cn">${esc(r.n)}</span><span class="cm">${esc(m.name)}</span><span class="stars">${stars(r.c)}</span></div>`).join('')
+      box.innerHTML = hits.length ? hits.map(({ m, r }) => `<div class="conq-row${isMine(r.id) ? ' mine' : ''}"><span class="cn">${esc(r.n)}</span><span class="cm">${esc(isMys(m.id) ? '미스터리 역사 박물관 탈출' : m.name)}</span><span class="stars">${stars(r.c)}</span></div>`).join('')
         : `<p class="conq-empty">“${esc(q)}”이(가) 들어간 정복자가 없어요.</p>`;
       $('conqFoot').textContent = `모든 전시실에서 ${hits.length}명 찾음`;
       return;
@@ -215,8 +219,8 @@
     const rows = (board[listMode] || []);
     const shown = rows.filter(match);
     box.innerHTML = shown.length ? shown.map((r, i) => `<div class="conq-row${isMine(r.id) ? ' mine' : ''}"><span class="rk">${rows.indexOf(r) + 1}</span><span class="cn">${esc(r.n)}</span><span class="stars">${stars(r.c)}</span></div>`).join('')
-      : `<p class="conq-empty">${q ? `“${esc(q)}”이(가) 들어간 정복자가 없어요.` : '아직 정복자가 없어요. 첫 번째 정복자가 되어 보세요!'}</p>`;
-    $('conqFoot').textContent = `정복자 ${rows.length}명 · ★ 하나가 탈출 한 번` + (myNicks().length ? ' · 노란 줄이 내 닉네임' : '');
+      : `<p class="conq-empty">${q ? `“${esc(q)}”이(가) 들어간 ${isMys(listMode) ? '탈출자' : '정복자'}가 없어요.` : `아직 ${isMys(listMode) ? '탈출자' : '정복자'}가 없어요. 첫 번째가 되어 보세요!`}</p>`;
+    $('conqFoot').textContent = `${isMys(listMode) ? '탈출자' : '정복자'} ${rows.length}명 · ★ 하나가 탈출 한 번` + (myNicks().length ? ' · 노란 줄이 내 닉네임' : '');
   }
 
   function init(opts) {

@@ -1139,6 +1139,7 @@
     // 정복자 명단에 이름 올리기 (탈출할 때마다 한 번)
     S.clearKey = m.id + ':' + Date.now();
     $('nickBtn').style.display = BOARD.enabled() ? '' : 'none';
+    $('nickBtn').textContent = m.room == null ? '🏆 탈출자 명단에 올리기' : '🏆 정복자 명단에 올리기';
     if (BOARD.enabled()) setTimeout(() => { if (S.mode === 'ending') BOARD.openRegister(m.id, S.clearKey); }, scare ? 8200 : 1500);
   }
 

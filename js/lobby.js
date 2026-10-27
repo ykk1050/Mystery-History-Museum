@@ -224,9 +224,6 @@
     const mapMesh = plane(1.5, 1.32, new THREE.MeshBasicMaterial({ map: mapT }), 0, 1.35, 0.42, 0);
     mapMesh.rotation.order = 'YXZ'; mapMesh.rotation.x = -0.55;
     mapMesh.userData.lobby = 'map'; pickables.push(mapMesh);
-    const mapBack = plane(1.5, 1.32, mapMesh.material, 0, 1.35, -0.42, Math.PI);
-    mapBack.rotation.order = 'YXZ'; mapBack.rotation.x = -0.55;
-    mapBack.userData.lobby = 'map'; pickables.push(mapBack);
     function drawMap(st, bright) {
       const x = mapC.getContext('2d'), W = 1024, H = 900;
       x.fillStyle = bright ? '#fbf3df' : '#e6dcc5'; x.fillRect(0, 0, W, H);
@@ -444,7 +441,7 @@
     const dust = new THREE.Points(dustG, new THREE.PointsMaterial({ map: glowT, color: 0xd8c8a0, size: 0.09, transparent: true, opacity: 0.6, depthWrite: false, blending: THREE.AdditiveBlending }));
     darkOnly.add(dust);
 
-    /* ---------- 정복자 명단판: 통로마다 문 옆 벽에, 미스터리 입구는 옆의 받침대에 ---------- */
+    /* ---------- 정복자 명단판: 통로마다 문 옆 벽에 / 미스터리 탈출자 명단은 가운데 받침대의 안내도 반대편에 ---------- */
     const plaques = [];
     const plaqueFrame = new THREE.MeshLambertMaterial({ color: 0x3a2a1a });
     function addPlaque(mode, x, z, nx, nz, stand) {
@@ -456,25 +453,36 @@
       plaques.push({ mode, c, t });
     }
     passages.forEach(p => addPlaque('era' + p.i, p.cx - p.tx * 2.35, p.cz - p.tz * 2.35, p.nx, p.nz, false));
-    addPlaque('mystery', MYS.x - MYS.nz * 2.05, MYS.z + MYS.nx * 2.05, MYS.nx, MYS.nz, true);
+    {   // 안내도와 대칭: 같은 받침대의 북쪽 면에 비스듬히
+      const c = cnv(768, 676), t = tex(c);
+      const m = plane(1.5, 1.32, new THREE.MeshBasicMaterial({ map: t }), 0, 1.35, -0.42, Math.PI);
+      m.rotation.order = 'YXZ'; m.rotation.x = -0.55;
+      m.userData.lobby = 'plaque'; m.userData.mode = 'mystery'; pickables.push(m);
+      plaques.push({ mode: 'mystery', c, t });
+    }
     let boardData = null, boardOn = false;
     const stars = n => n <= 5 ? '★'.repeat(n) : '★×' + n;
     function drawPlaque(pq, bright) {
-      const x = pq.c.getContext('2d'), W = 512, H = 660;
-      x.fillStyle = bright ? '#fbf3df' : '#17110c'; x.fillRect(0, 0, W, H);
-      x.strokeStyle = bright ? '#b08848' : '#8a6c3c'; x.lineWidth = 8; x.strokeRect(8, 8, W - 16, H - 16);
+      const x = pq.c.getContext('2d'), W = pq.c.width, H = pq.c.height;
+      const mys = pq.mode === 'mystery', who = mys ? '탈출자' : '정복자';
+      x.fillStyle = bright ? '#fbf3df' : (mys ? '#1a0d0a' : '#17110c'); x.fillRect(0, 0, W, H);
+      x.strokeStyle = bright ? '#b08848' : (mys ? '#8a3a26' : '#8a6c3c'); x.lineWidth = 8; x.strokeRect(8, 8, W - 16, H - 16);
       x.textAlign = 'center'; x.textBaseline = 'alphabetic';
-      x.fillStyle = bright ? '#9a5d10' : '#e8c547'; x.font = `700 46px ${FONT}`; x.fillText('🏆 정복자 명단', W / 2, 74);
+      // 위: 전시관 이름(미스터리는 박물관 이름) / 아래: 정복자(탈출자) 명단
+      const title = mys ? '미스터리 역사 박물관' : (ROOMS[+pq.mode.slice(3)] || {}).name || '';
+      let fs = 44; do { x.font = `700 ${fs}px ${FONT}`; fs -= 2; } while (x.measureText(title).width > W - 60 && fs > 24);
+      x.fillStyle = bright ? '#3a2c1a' : '#f0e2bd'; x.fillText(title, W / 2, 66);
+      x.fillStyle = bright ? '#9a5d10' : (mys ? '#ff9a7a' : '#e8c547'); x.font = `700 32px ${FONT}`; x.fillText(`🏆 ${who} 명단`, W / 2, 110);
       const rows = (boardData && boardData[pq.mode]) || [];
-      x.fillStyle = bright ? '#6d5a3a' : '#9a8458'; x.font = `500 24px ${SANS}`;
-      x.fillText(!boardOn ? '명단 준비 중' : `정복자 ${rows.length}명`, W / 2, 114);
-      x.strokeStyle = bright ? '#d6c4a0' : '#3a2f1f'; x.lineWidth = 2; x.beginPath(); x.moveTo(36, 132); x.lineTo(W - 36, 132); x.stroke();
+      x.fillStyle = bright ? '#6d5a3a' : '#9a8458'; x.font = `500 22px ${SANS}`;
+      x.fillText(!boardOn ? '명단 준비 중' : `${who} ${rows.length}명`, W / 2, 142);
+      x.strokeStyle = bright ? '#d6c4a0' : '#3a2f1f'; x.lineWidth = 2; x.beginPath(); x.moveTo(36, 158); x.lineTo(W - 36, 158); x.stroke();
       if (boardOn && !rows.length) {
         x.fillStyle = bright ? '#6d5a3a' : '#8a7a5c'; x.font = `500 28px ${FONT}`;
-        x.fillText('아직 정복자가 없어요', W / 2, 300); x.fillText('첫 번째 정복자가 되어 보세요!', W / 2, 344);
+        x.fillText(`아직 ${who}가 없어요`, W / 2, 320); x.fillText(`첫 번째 ${who}가 되어 보세요!`, W / 2, 364);
       }
-      rows.slice(0, 7).forEach((r, k) => {
-        const y = 178 + k * 62;
+      rows.slice(0, Math.floor((H - 280) / 60) + 1).forEach((r, k) => {
+        const y = 200 + k * 60;
         x.textAlign = 'left'; x.fillStyle = bright ? '#9a8458' : '#8a7a5c'; x.font = `700 24px ${SANS}`; x.fillText(String(k + 1), 34, y);
         const st = stars(r.c);
         x.font = `700 24px ${SANS}`; const sw = x.measureText(st).width;
