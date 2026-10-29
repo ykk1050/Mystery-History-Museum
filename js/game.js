@@ -540,15 +540,15 @@
   /* ---------- 도망 전시실 ----------
      일반 전시실과 똑같이 생겼지만, 한쪽 끝에서 위험이 다가온다 → 반대쪽 문으로 도망쳐야 한다.
      성공: 다음 전시실로 (번호는 그대로) / 실패: 중간 저장된 전시실로.
-     밝은 박물관·순한 맛·깜짝 효과 끔: 불꽃·홍수 같은 재해만 / 으스스한 박물관: 어둠·유령·검은 그림자 사람도.
+     밝은 박물관·순한 맛·깜짝 효과 끔: 불꽃·홍수 같은 재해만 / 으스스한 박물관: 어둠·유령·검은 그림자도.
      속도: 처음엔 빠르게 몰려오다가(8m/s) 가까워지면 걷기(2.5)보다 조금 빠르고 뛰기(4.2)보다 느리게 쫓아온다. */
   const CHASE_RATE = 0.2;
   const CHASE_SPEED = 3.0, CHASE_SPEED_SOFT = 2.8, CHASE_RUSH = 8, CHASE_NEAR = 11;
-  const CHASE_NAMES = { fire: '불길이', flood: '물이', dark: '어둠이', ghost: '유령이', person: '검은 그림자 사람이' };
+  const CHASE_NAMES = { fire: '불길이', flood: '물이', dark: '어둠이', ghost: '유령이', person: '검은 그림자가' };
   const scaryChase = () => !isBright() && !settings.mild && settings.scares;
   let chaseFx = null;
   function chaseCanvas(w, h, draw) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); return c; }
-  /* 전시실(시대)마다 다른 유령·검은 그림자 사람: 모습 / 등장 / 이동
+  /* 전시실(시대)마다 다른 유령·검은 그림자: 모습 / 등장 / 이동
      등장 rush(끝에서 돌진) · rise(바닥에서 솟음) · blinkIn(깜빡이며 다가옴) · drop(천장에서 떨어짐) · wallOut(벽에서 나옴)
      이동 steady(꾸준히) · zigzag(갈지자) · lunge(멈칫했다 덮침) · teleport(순간이동) · statue(안 볼 때만 빠름) · crawl(낮게 기어 옴)
      이동 방식이 달라도 평균 빠르기는 비슷하게(약 3m/s) 맞춤 → 뛰면 늘 빠져나가고, 걸어도 바로 움직이면 대부분 빠져나간다 */
@@ -566,7 +566,7 @@
     samlife:  { enter: 'wallOut', move: 'zigzag',   aura: 'rgba(230,140,120,0.5)',
                 ghost: { robe: '200,185,150', face: 'mural', hair: 'none', acc: 'none' },          person: { head: 'hat', prop: 'none' } },
     unified:  { enter: 'blinkIn', move: 'statue',   aura: 'rgba(170,170,160,0.45)',
-                ghost: { robe: '140,140,130', face: 'stone', hair: 'none', acc: 'none' },          person: { head: 'stone', prop: 'sword', stone: true } },
+                ghost: { robe: '140,140,130', face: 'stone', hair: 'none', acc: 'none' },          person: { head: 'stone', prop: 'sword' } },
     goryeo1:  { enter: 'rise',    move: 'lunge',    aura: 'rgba(255,90,60,0.55)',
                 ghost: { robe: '150,140,150', face: 'hollow', hair: 'long', acc: 'lantern' },      person: { head: 'hood', prop: 'lantern' } },
     goryeo2:  { enter: 'wallOut', move: 'teleport', aura: 'rgba(230,210,140,0.5)',
@@ -619,13 +619,11 @@
         x.beginPath(); x.moveTo(195, 160); x.lineTo(240, 152); x.moveTo(272, 152); x.lineTo(317, 160); x.stroke();
         x.fillStyle = '#000'; x.beginPath(); x.ellipse(220, 185, 22, 7, 0, 0, 7); x.ellipse(292, 185, 22, 7, 0, 0, 7); x.fill();
         glowEye(220, 185, 'rgba(255,60,40,1)', 8); glowEye(292, 185, 'rgba(255,60,40,1)', 8);
-        x.fillStyle = 'rgba(150,20,20,0.9)'; x.beginPath(); x.ellipse(256, 280, 14, 22, 0, 0, 7); x.fill();
       } else {                            // 텅 빈 눈 + 벌어진 입 (돌·부적 얼굴 포함)
         x.fillStyle = 'rgba(70,80,88,0.45)'; x.beginPath(); x.ellipse(200, 250, 22, 40, 0.2, 0, 7); x.ellipse(312, 250, 22, 40, -0.2, 0, 7); x.fill();
         x.fillStyle = '#000'; x.beginPath(); x.ellipse(220, 180, 26, 36, 0.15, 0, 7); x.ellipse(292, 180, 26, 36, -0.15, 0, 7); x.fill();
         const ec = o.face === 'stone' ? 'rgba(255,190,120,1)' : 'rgba(255,255,240,1)';
         glowEye(222, 186, ec, 9); glowEye(290, 186, ec, 9);
-        x.fillStyle = '#000'; x.beginPath(); x.ellipse(256, 275, 24, 52, 0, 0, 7); x.fill();
         if (o.face === 'stone') {          // 돌 갈라진 금
           x.strokeStyle = 'rgba(60,58,52,0.9)'; x.lineWidth = 3;
           x.beginPath(); x.moveTo(250, 90); x.lineTo(238, 140); x.lineTo(262, 170); x.moveTo(320, 220); x.lineTo(300, 260); x.lineTo(316, 300); x.stroke();
@@ -670,7 +668,7 @@
       }
     });
   }
-  // 검은 그림자 사람: 머리 모양과 손에 든 것이 시대마다 다르다
+  // 검은 그림자: 머리 모양과 손에 든 것이 시대마다 다르다
   function personCanvas(o) {
     return chaseCanvas(256, 512, (x) => {
       const col = o.stone ? 'rgba(118,116,108,0.98)' : 'rgba(8,6,8,0.97)';
@@ -803,7 +801,7 @@
     chaseFx.root.scale.z = from === 'back' ? 1 : -1;     // +z 쪽(입구 쪽)에서 오면 그대로, 출구 쪽에서 오면 뒤집기
     chaseFx.root.position.set(0, 0, S.chase.z);
   }
-  // 유령·검은 그림자 사람은 지금 전시실(시대)의 모습으로
+  // 유령·검은 그림자은 지금 전시실(시대)의 모습으로
   function applyChaseLook() {
     const eraId = room().id, st = CHASE_STYLE[eraId] || CHASE_STYLE.paleo, P = chaseFx.part;
     const gm = chaseTex('ghost', eraId), pm = chaseTex('person', eraId);
@@ -832,7 +830,7 @@
       c.phase = 'run';
       setDoors(true, true); SFX.clunk(); S.shake = 0.35;
       chaseFx.root.visible = true;
-      $('chaseMsg').textContent = { fire: '불길로부터 도망쳐라!', flood: '홍수로부터 도망쳐라!', dark: '어둠으로부터 도망쳐라!', ghost: '유령으로부터 도망쳐라!', person: '검은 그림자 사람으로부터 도망쳐라!' }[c.kind];
+      $('chaseMsg').textContent = { fire: '불길로부터 도망쳐라!', flood: '홍수로부터 도망쳐라!', dark: '어둠으로부터 도망쳐라!', ghost: '유령으로부터 도망쳐라!', person: '검은 그림자로부터 도망쳐라!' }[c.kind];
       chaseMsg(true);
       SFX.chaseStart(c.kind);
     }
@@ -950,7 +948,7 @@
       const line = {
         fire: soft ? '앗, 불길에 길이 막혔어요!' : '불길에 휩싸이고 말았다…',
         flood: soft ? '앗, 물에 휩쓸렸어요!' : '물살에 휩쓸리고 말았다…',
-        dark: '어둠에 삼켜지고 말았다…', ghost: '유령에게 붙잡히고 말았다…', person: '검은 그림자 사람에게 붙잡히고 말았다…'
+        dark: '어둠에 삼켜지고 말았다…', ghost: '유령에게 붙잡히고 말았다…', person: '검은 그림자에게 붙잡히고 말았다…'
       }[c.kind];
       $('noteCard').innerHTML = `<h2 class="bad">${line}</h2>
         <p>${to ? `제 ${to} 전시실(중간 저장)부터 다시.` : '처음부터 다시.'}</p>
@@ -2733,7 +2731,7 @@
     ending: () => showEnding(),   // 탈출 화면 바로 보기 (점검용)
     lobby: () => goLobby(null),
     guidePos: () => Object.assign({}, GUIDE),   // 안내원 자리 (점검용)
-    // 전시실별 유령·검은 그림자 사람 모습을 한 장에 (점검용)
+    // 전시실별 유령·검은 그림자 모습을 한 장에 (점검용)
     chaseSheet() {
       const ids = Object.keys(CHASE_STYLE), c = document.createElement('canvas'); c.width = 9 * 220; c.height = 640;
       const x = c.getContext('2d'); x.fillStyle = '#222'; x.fillRect(0, 0, c.width, c.height);
