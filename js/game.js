@@ -607,7 +607,11 @@
     Object.values(part).forEach(g => { g.visible = false; root.add(g); });
     chaseFx = { root, part };
   }
+  const CHASE_KINDS = ['fire', 'flood', 'dark', 'ghost', 'person'];
+  const chaseTest = (() => { const v = new URLSearchParams(location.search).get('chase'); return v === 'all' || CHASE_KINDS.includes(v) ? v : null; })();
+  let chaseTestN = 0;
   function chaseEligible(restore) {
+    if (chaseTest && !restore && S.place === 'gallery' && !S.review) { S.noChase = false; return true; }   // 시험 주소: 매번 도망 전시실
     const ok = !restore && S.place === 'gallery' && !S.exitRoom && !S.firstGallery && !S.review && !S.forced && !S.noChase
       && S.streak >= 1 && S.streak > S.checkpoint && Math.random() < CHASE_RATE;
     S.noChase = false;
@@ -616,7 +620,8 @@
   function setupChase() {
     if (!chaseFx) buildChaseFx();
     const kinds = scaryChase() ? ['fire', 'flood', 'dark', 'ghost', 'person'] : ['fire', 'flood'];
-    const kind = kinds[Math.floor(Math.random() * kinds.length)];
+    let kind = kinds[Math.floor(Math.random() * kinds.length)];
+    if (chaseTest) kind = chaseTest === 'all' ? CHASE_KINDS[chaseTestN++ % CHASE_KINDS.length] : chaseTest;   // 시험 주소는 분위기와 상관없이 고른 위험
     const from = Math.random() < 0.5 ? 'front' : 'back';
     S.chase = { kind, from, phase: 'wait', t: 0, z: from === 'front' ? -L + 0.8 : -0.8, done: false, stepT: 0 };
     const rooms = modeRooms();
@@ -2445,7 +2450,7 @@
       return;
     }
     // 교사용 주소: ?room=, ?test= 는 그 전시실로 바로, ?nointro=1 은 인트로 없이 규칙 안내부터
-    if (params.has('test') || params.has('room')) {
+    if (params.has('test') || params.has('room') || params.has('chase')) {
       if (!settings.theme) settings.theme = 'dark';
       setTheme(settings.theme); startGame(null); return;
     }
