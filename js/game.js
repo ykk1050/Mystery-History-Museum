@@ -502,7 +502,7 @@
     guideHit.position.set(GUIDE.x, 1.0, GUIDE.z);
   }
   function updateGuide(dt, now) {
-    const on = S.place === 'gallery' && !S.exitRoom;
+    const on = S.place === 'gallery' && !S.exitRoom && !S.chase;
     guide.visible = guideHit.visible = on;
     if (!on) return;
     const bright = isBright();
@@ -534,6 +534,211 @@
     stopTalk(); saveProgress(); S.started = false;
     showScreen(null); S.mode = 'trans'; SFX.whoosh();
     fadeTo(1, 500).then(() => goLobby(S.gameMode));
+  }
+
+
+  /* ---------- 도망 전시실 ----------
+     일반 전시실과 똑같이 생겼지만, 한쪽 끝에서 위험이 다가온다 → 반대쪽 문으로 도망쳐야 한다.
+     성공: 다음 전시실로 (번호는 그대로) / 실패: 중간 저장된 전시실로.
+     밝은 박물관·순한 맛·깜짝 효과 끔: 불꽃·홍수 같은 재해만 / 으스스한 박물관: 어둠·유령·검은 그림자 사람도.
+     속도: 처음엔 빠르게 몰려오다가(8m/s) 가까워지면 걷기(2.5)보다 조금 빠르고 뛰기(4.2)보다 느리게 쫓아온다. */
+  const CHASE_RATE = 0.2;
+  const CHASE_SPEED = 3.0, CHASE_SPEED_SOFT = 2.8, CHASE_RUSH = 8, CHASE_NEAR = 11;
+  const CHASE_NAMES = { fire: '불길이', flood: '물이', dark: '어둠이', ghost: '유령이', person: '검은 그림자 사람이' };
+  const scaryChase = () => !isBright() && !settings.mild && settings.scares;
+  let chaseFx = null;
+  function chaseCanvas(w, h, draw) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); return c; }
+  function buildChaseFx() {
+    const root = new THREE.Group(); root.visible = false; scene.add(root);
+    const part = {};
+    const sp = (map, sx, sy, add) => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ map, transparent: true, depthWrite: false, fog: false, blending: add ? THREE.AdditiveBlending : THREE.NormalBlending })); s.scale.set(sx, sy, 1); return s; };
+    // 불꽃: 복도 폭 가득 일렁이는 불길 (뒤쪽으로 여러 겹)
+    const flame = tex(chaseCanvas(128, 256, (x, w, h) => {
+      const g = x.createRadialGradient(64, 190, 6, 64, 150, 120);
+      g.addColorStop(0, 'rgba(255,250,200,1)'); g.addColorStop(0.25, 'rgba(255,200,60,0.95)'); g.addColorStop(0.6, 'rgba(255,90,20,0.7)'); g.addColorStop(1, 'rgba(160,20,0,0)');
+      x.fillStyle = g; x.beginPath(); x.moveTo(64, 10); x.bezierCurveTo(120, 120, 124, 200, 64, 250); x.bezierCurveTo(4, 200, 8, 120, 64, 10); x.fill();
+    }));
+    part.fire = new THREE.Group(); part.fire.flames = [];
+    for (let row = 0; row < 4; row++) for (let i = 0; i < 9; i++) {
+      const s = sp(flame, 1.3, 2.4, true);
+      s.position.set(-3.1 + i * 0.78 + (row % 2) * 0.35, 1.0 + Math.random() * 0.6, row * 1.4);
+      s.userData = { base: 1.6 + Math.random() * 1.2, ph: Math.random() * 6 };
+      part.fire.add(s); part.fire.flames.push(s);
+    }
+    const glow = new THREE.Mesh(new THREE.PlaneGeometry(HW * 2, 8), new THREE.MeshBasicMaterial({ map: tex(ART.glowTex('rgba(255,120,30,0.9)')), transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false }));
+    glow.rotation.x = -Math.PI / 2; glow.position.set(0, 0.02, 1); part.fire.add(glow);
+    // 홍수: 흙탕물이 밀려오는 물벽과 하얀 물보라
+    part.flood = new THREE.Group();
+    const water = new THREE.Mesh(new THREE.BoxGeometry(HW * 2, 1, 60), new THREE.MeshBasicMaterial({ color: 0x3f6f86, transparent: true, opacity: 0.78, fog: false }));
+    water.position.set(0, 0.5, 30); part.flood.add(water); part.flood.water = water;
+    const foam = tex(chaseCanvas(128, 128, (x) => { const g = x.createRadialGradient(64, 64, 4, 64, 64, 64); g.addColorStop(0, 'rgba(255,255,255,0.95)'); g.addColorStop(1, 'rgba(200,230,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128); }));
+    part.flood.foam = [];
+    for (let i = 0; i < 12; i++) { const s = sp(foam, 1.2, 0.9, false); s.position.set(-3.2 + i * 0.58, 1.1, -0.2); s.userData = { ph: Math.random() * 6 }; part.flood.add(s); part.flood.foam.push(s); }
+    // 어둠: 모든 것을 삼키는 검은 벽 (앞쪽은 흐릿하게)
+    part.dark = new THREE.Group();
+    const black = new THREE.Mesh(new THREE.BoxGeometry(HW * 2 + 0.2, H + 0.2, 60), new THREE.MeshBasicMaterial({ color: 0x000000, fog: false }));
+    black.position.set(0, H / 2, 30.6); part.dark.add(black);
+    const edge = tex(chaseCanvas(64, 256, (x, w, h) => { const g = x.createLinearGradient(0, 0, 0, h); g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,1)'); x.fillStyle = g; x.fillRect(0, 0, w, h); }));
+    const edgeMat = new THREE.MeshBasicMaterial({ map: edge, transparent: true, depthWrite: false, fog: false, side: THREE.DoubleSide });
+    const edgePlane = new THREE.Mesh(new THREE.PlaneGeometry(H, HW * 2), edgeMat);
+    edgePlane.rotation.set(-Math.PI / 2, 0, Math.PI / 2); edgePlane.position.set(0, H / 2, 0.3); part.dark.add(edgePlane);
+    const eyes = sp(tex(chaseCanvas(128, 64, (x) => { [40, 88].forEach(cx => { const g = x.createRadialGradient(cx, 32, 1, cx, 32, 14); g.addColorStop(0, 'rgba(255,60,40,1)'); g.addColorStop(1, 'rgba(255,0,0,0)'); x.fillStyle = g; x.fillRect(cx - 14, 18, 28, 28); }); })), 0.8, 0.4, true);
+    eyes.position.set(0.6, 2.0, 0.6); part.dark.add(eyes); part.dark.eyes = eyes;
+    // 유령: 창백한 얼굴이 길게 늘어지며 날아온다
+    const ghostC = chaseCanvas(256, 512, (x) => {
+      const g = x.createLinearGradient(0, 60, 0, 512); g.addColorStop(0, 'rgba(225,235,245,0.95)'); g.addColorStop(1, 'rgba(200,215,230,0)');
+      x.fillStyle = g; x.beginPath(); x.ellipse(128, 120, 78, 96, 0, Math.PI, 0); x.lineTo(206, 380); x.quadraticCurveTo(170, 470, 128, 510); x.quadraticCurveTo(86, 470, 50, 380); x.closePath(); x.fill();
+      x.fillStyle = 'rgba(5,5,12,0.95)'; x.beginPath(); x.ellipse(98, 120, 18, 26, 0.1, 0, 7); x.ellipse(158, 120, 18, 26, -0.1, 0, 7); x.fill();
+      x.beginPath(); x.ellipse(128, 190, 20, 34, 0, 0, 7); x.fill();
+    });
+    part.ghost = new THREE.Group();
+    const gtex = tex(ghostC);
+    part.ghost.main = sp(gtex, 1.5, 2.9, false); part.ghost.main.position.set(0, 1.5, 0); part.ghost.add(part.ghost.main);
+    part.ghost.trail = [0.9, 1.8].map((d, k) => { const s = sp(gtex, 1.5, 2.9, false); s.material.opacity = 0.35 - k * 0.15; s.position.set(0, 1.5, d); part.ghost.add(s); return s; });
+    // 검은 그림자 사람: 두건을 쓴 검은 형체, 붉은 눈
+    part.person = new THREE.Group();
+    const personC = chaseCanvas(256, 512, (x) => {
+      x.fillStyle = 'rgba(8,6,8,0.97)';
+      x.beginPath(); x.moveTo(128, 30); x.quadraticCurveTo(200, 40, 196, 150); x.lineTo(226, 500); x.lineTo(30, 500); x.lineTo(60, 150); x.quadraticCurveTo(56, 40, 128, 30); x.fill();
+      [104, 152].forEach(cx => { const g = x.createRadialGradient(cx, 120, 1, cx, 120, 16); g.addColorStop(0, 'rgba(255,80,60,1)'); g.addColorStop(1, 'rgba(255,0,0,0)'); x.fillStyle = g; x.fillRect(cx - 16, 104, 32, 32); });
+    });
+    const aura = sp(tex(ART.glowTex('rgba(200,20,10,0.75)')), 3.2, 3.8, true); aura.position.set(0, 1.4, 0.2); part.person.add(aura);   // 어둠 속에서도 보이게 붉은 기운
+    part.person.main = sp(tex(personC), 1.4, 2.8, false); part.person.main.position.set(0, 1.4, 0); part.person.add(part.person.main);
+    Object.values(part).forEach(g => { g.visible = false; root.add(g); });
+    chaseFx = { root, part };
+  }
+  function chaseEligible(restore) {
+    const ok = !restore && S.place === 'gallery' && !S.exitRoom && !S.firstGallery && !S.review && !S.forced && !S.noChase
+      && S.streak >= 1 && S.streak > S.checkpoint && Math.random() < CHASE_RATE;
+    S.noChase = false;
+    return ok;
+  }
+  function setupChase() {
+    if (!chaseFx) buildChaseFx();
+    const kinds = scaryChase() ? ['fire', 'flood', 'dark', 'ghost', 'person'] : ['fire', 'flood'];
+    const kind = kinds[Math.floor(Math.random() * kinds.length)];
+    const from = Math.random() < 0.5 ? 'front' : 'back';
+    S.chase = { kind, from, phase: 'wait', t: 0, z: from === 'front' ? -L + 0.8 : -0.8, done: false, stepT: 0 };
+    const rooms = modeRooms();
+    S.roomIdx = rooms[Math.floor(Math.random() * rooms.length)];
+    S.anomaly = null;
+    setupRoom();
+    signTex.image = ART.drawSign(S.streak, room().name, false); signTex.needsUpdate = true;
+    exitGroup.visible = false; exitLight.intensity = 0; farTunnel.visible = true; farSignMesh.visible = true;
+    S.z = -L / 2; S.yaw = 0; S.pitch = 0; S.turning = 0;
+    applyTheme();
+    resetDocent();
+    S.scareAt = null; S.blackout = 0;
+    planCreeps(); S.follow = S.knockReady = S.farReady = false; S.eyesT = Infinity;
+    S.review = false;
+    resetHelp();
+    setDoors(false, false); applyDoors();
+    updateHelpHud();
+    docent.visible = false; docentHit.visible = false; docentGlow.intensity = 0;
+    hideSubtitle();
+    S.firstGallery = false;
+    Object.entries(chaseFx.part).forEach(([k, g]) => { g.visible = k === kind; });
+    chaseFx.root.visible = false;
+    chaseFx.root.scale.z = from === 'back' ? 1 : -1;     // +z 쪽(입구 쪽)에서 오면 그대로, 출구 쪽에서 오면 뒤집기
+    chaseFx.root.position.set(0, 0, S.chase.z);
+  }
+  function chaseMsg(on) {
+    $('chaseMsg').classList.toggle('on', on);
+  }
+  function endChase() {
+    if (chaseFx) chaseFx.root.visible = false;
+    if (S.chase && S.chase.kind === 'fire') { fireLight.intensity = 0; fireLight.position.set(CX, 1.0, CZ); }
+    SFX.chaseStop(); chaseMsg(false);
+    S.chase = null;
+  }
+  function updateChase(dt, now) {
+    const c = S.chase;
+    if (!c || c.done || S.mode !== 'play') return;
+    c.t += dt;
+    if (c.phase === 'wait') {
+      if (c.t < 1.2) return;
+      // 쾅! 양쪽 문이 열리고 한쪽 끝에서 위험이 나타난다
+      c.phase = 'run';
+      setDoors(true, true); SFX.clunk(); S.shake = 0.35;
+      chaseFx.root.visible = true;
+      chaseMsg(true);
+      SFX.chaseStart(c.kind);
+    }
+    const gap = Math.abs(S.z - c.z), dir = Math.sign(S.z - c.z) || 1;
+    const speed = gap > CHASE_NEAR ? CHASE_RUSH : (scaryChase() ? CHASE_SPEED : CHASE_SPEED_SOFT);
+    c.z += dir * speed * dt;
+    chaseFx.root.position.z = c.z;
+    SFX.chaseLevel(Math.max(0.15, 1 - gap / 26));
+    // 모습 움직임
+    const p = chaseFx.part[c.kind], ts = now / 1000;
+    if (c.kind === 'fire') {
+      p.flames.forEach(f => { const k = 0.8 + Math.sin(ts * 9 + f.userData.ph) * 0.15 + Math.random() * 0.1; f.scale.set(1.2 * k, f.userData.base * k, 1); });
+      fireLight.position.set(0, 1.4, c.z - dir * 0.5); fireLight.intensity = 2.4 + Math.random() * 0.6;
+    }
+    if (c.kind === 'flood') {
+      const h = 1.1 + Math.sin(ts * 3) * 0.12;
+      p.water.scale.y = h; p.water.position.y = h / 2;
+      p.foam.forEach(f => { f.position.y = h + 0.1 + Math.sin(ts * 6 + f.userData.ph) * 0.15; });
+    }
+    if (c.kind === 'dark') p.eyes.material.opacity = (Math.sin(ts * 1.7) > 0.6) ? 0 : 0.9;
+    if (c.kind === 'ghost') { p.main.position.y = 1.5 + Math.sin(ts * 3) * 0.15; p.main.material.opacity = 0.75 + Math.random() * 0.25; }
+    if (c.kind === 'person') {
+      p.main.position.x = Math.sin(ts * 4) * 0.08;
+      c.stepT -= dt; if (c.stepT <= 0) { c.stepT = 0.42; SFX.step(Math.min(0.9, 0.25 + (1 - gap / 20) * 0.6), 0.45); }
+    }
+    if (gap < 0.9) chaseFail();
+  }
+  // 위험이 오는 쪽 반대 문으로 나가면 성공
+  function chaseExit(dir) {
+    const c = S.chase;
+    if (!c || c.done) return;
+    const safe = c.from === 'front' ? 'back' : 'forward';
+    if (c.phase !== 'run' || dir !== safe) return chaseFail();
+    c.done = true;
+    S.mode = 'trans'; keys.fwd = keys.back = keys.run = false;
+    SFX.chaseStop(); chaseMsg(false); SFX.chime();
+    fadeTo(1, 600).then(() => {
+      if (S.chase !== c) return;   // 그사이 다른 화면으로 넘어갔으면 아무것도 안 함
+      endChase();
+      S.noChase = true;
+      newGallery();
+      S.mode = 'play'; fadeTo(0, 900);
+      setTimeout(() => showHint(isBright() ? '휴, 무사히 빠져나왔어요!' : '휴… 무사히 빠져나왔다.', 2600), 500);
+    });
+  }
+  function chaseFail() {
+    const c = S.chase;
+    if (!c || c.done) return;
+    c.done = true;
+    S.mode = 'trans'; keys.fwd = keys.back = keys.run = false;
+    SFX.chaseStop(); chaseMsg(false); SFX.wrong(); S.shake = 0.6;
+    const color = { fire: 'rgba(255,90,20,0.85)', flood: 'rgba(40,110,160,0.85)', dark: '#000', ghost: 'rgba(220,230,240,0.9)', person: 'rgba(120,0,0,0.85)' }[c.kind];
+    const f = $('scareFlash'); f.style.background = color; f.style.transition = 'none'; f.style.opacity = 1;
+    setTimeout(() => { f.style.transition = 'opacity 0.9s'; f.style.opacity = 0; }, 250);
+    S.mistakes++;
+    const to = S.checkpoint;
+    fadeTo(1, 800).then(() => {
+      if (S.chase !== c) return;
+      endChase();
+      S.mode = 'note';
+      const soft = !scaryChase();
+      const line = {
+        fire: soft ? '앗, 불길에 길이 막혔어요!' : '불길에 휩싸이고 말았다…',
+        flood: soft ? '앗, 물에 휩쓸렸어요!' : '물살에 휩쓸리고 말았다…',
+        dark: '어둠에 삼켜지고 말았다…', ghost: '유령에게 붙잡히고 말았다…', person: '검은 그림자 사람에게 붙잡히고 말았다…'
+      }[c.kind];
+      $('noteCard').innerHTML = `<h2 class="bad">${line}</h2>
+        <p>${to ? `제 ${to} 전시실(중간 저장)부터 다시.` : '처음부터 다시.'}</p>
+        <p style="margin-top:10px;font-size:15px;color:#6d5a3a">다음에는 ${CHASE_NAMES[c.kind]} 보이면 바로 반대쪽 문으로 달려가세요! (${isTouch ? '» 뛰어서 이동하기' : 'Shift 키를 누른 채 걷기'}로 더 빨리)</p>
+        <button class="btn" id="noteOk">계속</button>`;
+      $('noteCard').scrollTop = 0;
+      $('note').classList.add('on');
+      $('noteOk').onclick = () => {
+        $('note').classList.remove('on');
+        S.streak = to; S.noChase = true;
+        newGallery(); S.mode = 'play'; fadeTo(0, 900);
+      };
+    });
   }
 
   /* ---------- 전시실 문: 관람 3개 전에는 닫혀 있다가 덜컹 열린다 ---------- */
@@ -936,6 +1141,8 @@
 
   function newGallery(restore) {
     S.exitRoom = S.streak >= goal();
+    if (S.chase) endChase();
+    if (chaseEligible(restore)) return setupChase();
     if (!restore) {
       if (S.forced) S.forcedRoom = S.forced.room;
       S.roomIdx = pickRoom();
@@ -1006,6 +1213,7 @@
 
   function exitGallery(dir) {
     if (S.mode !== 'play') return;
+    if (S.chase) return chaseExit(dir);
     keys.fwd = keys.back = keys.run = false;
     // 정상 전시 다시 보기를 마치면 원래 가려던 다음 전시실로
     if (S.review) {
@@ -1371,7 +1579,7 @@
     Object.values(lampGlow).forEach(m => { m.visible = false; });
   }
   function updateHelpHud() {
-    const playing = S.place === 'gallery' && !S.exitRoom && !S.review;
+    const playing = S.place === 'gallery' && !S.exitRoom && !S.review && !S.chase;
     const vc = $('viewCount');
     vc.style.display = playing ? '' : 'none';
     vc.textContent = S.viewed.size >= MIN_VIEWS ? `🔍 관람 ${S.viewed.size} · 문이 열렸습니다` : `🔍 관람 ${S.viewed.size}/${MIN_VIEWS}`;
@@ -1486,6 +1694,7 @@
 
   /* ---------- 시작 ---------- */
   function startGame(resume) {
+    if (S.chase) endChase();
     S.gameMode = settings.mode;
     S.place = 'gallery'; S.entering = false;
     document.body.classList.remove('in-lobby'); keys.sl = keys.sr = false;
@@ -1563,6 +1772,7 @@
   function lobbyRefresh() { if (lobby) lobby.refresh(lobbyState()); renderBag(); }
   // 로비로: 처음이면 정문 앞, 전시실에서 돌아오면 그 통로 앞에 선다
   function goLobby(fromMode) {
+    if (S.chase) endChase();
     const m = modeOf(fromMode);
     const sp = lobby.spawn(m ? (m.room != null ? m.room : 'mystery') : null);
     S.place = 'lobby'; S.started = false; S.entering = false; S.review = false;
@@ -1832,12 +2042,12 @@
       } else if (input && !dir) {
         showHint('복도 쪽을 바라보고 걸으세요', 1200);
       }
-      const open = S.exitRoom || S.review || S.viewed.size >= MIN_VIEWS;
+      const open = S.exitRoom || S.review || S.viewed.size >= MIN_VIEWS || (S.chase && S.chase.phase === 'run');
       if (!open && (S.z > -1.1 || S.z < -L + 1.1)) {
         S.z = Math.max(-L + 1.1, Math.min(-1.1, S.z));
         // 닫힌 문을 밀면 덜그럭
         if (!S.rattleT || performance.now() - S.rattleT > 900) { S.rattleT = performance.now(); SFX.rattle(); }
-        showHint(`전시물을 ${MIN_VIEWS}개 이상 자세히 봐야 문이 열립니다 (${S.viewed.size}/${MIN_VIEWS})`, 1800);
+        if (!S.chase) showHint(`전시물을 ${MIN_VIEWS}개 이상 자세히 봐야 문이 열립니다 (${S.viewed.size}/${MIN_VIEWS})`, 1800);
       }
       if (S.z > -0.25) { S.z = -0.25; exitGallery('back'); }
       else if (S.z < -L + 0.25) { S.z = -L + 0.25; exitGallery('forward'); }
@@ -1869,6 +2079,7 @@
     lantern.position.set(0, 2.6, S.z - Math.cos(S.yaw) * 1.2);
 
     updateDoors(dt);
+    updateChase(dt, now);
     updateGuide(dt, now);
     // 해설사: 시대마다 다른 방식으로 나타난다
     if (docent.visible && S.mode !== 'ending') updateDocent(dt, now, active);
@@ -1910,6 +2121,7 @@
       if (fl === 'candle') k = 0.55 + Math.random() * 0.12;
       if (fl === 'sequence') { const head = -((ts * 6) % (L + 10)) + 2; k = Math.max(0.12, 1 - Math.abs(l.z - head) / 7); }
       if (blackoutOn()) k = 0.02;
+      if (S.chase && S.chase.kind === 'dark' && S.chase.phase === 'run' && (l.z - S.chase.z) * (S.chase.from === 'back' ? 1 : -1) > 0) k = 0.02;
       l.lampMat.color.copy(S.lampColor).multiplyScalar(k);
       l.pool.material.opacity = pool * k;
     });
@@ -2296,6 +2508,10 @@
     ending: () => showEnding(),   // 탈출 화면 바로 보기 (점검용)
     lobby: () => goLobby(null),
     guidePos: () => Object.assign({}, GUIDE),   // 안내원 자리 (점검용)
+    // 도망 전시실 바로 시험 (kind: fire|flood|dark|ghost|person, from: front|back)
+    chase(kind, from) { setupChase(); if (kind) { S.chase.kind = kind; Object.entries(chaseFx.part).forEach(([k, g]) => { g.visible = k === kind; }); }
+      if (from) { S.chase.from = from; S.chase.z = from === 'front' ? -L + 0.8 : -0.8; chaseFx.root.scale.z = from === 'back' ? 1 : -1; chaseFx.root.position.z = S.chase.z; }
+      S.mode = 'play'; return S.chase; },
     // 시대별 전시실 탈출 기록(=열쇠 조각)을 n개 준다 (점검용)
     giveKeys(n) { for (let i = 0; i < n; i++) clearedModes.add('era' + i); store.set('clearedModes', [...clearedModes]); lobbyRefresh(); }
   };

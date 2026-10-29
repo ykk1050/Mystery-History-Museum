@@ -104,6 +104,13 @@
     overflow: hidden; text-overflow: ellipsis;
   }
   #hint.on { opacity: 1; }
+  /* 도망 전시실 안내 */
+  #chaseMsg { position: absolute; top: calc(max(18px, env(safe-area-inset-top)) + 48px); left: 50%; transform: translateX(-50%); display: none; white-space: nowrap;
+    font-family: var(--serif); font-weight: 700; font-size: clamp(22px, 4.6vw, 36px); color: #ff5a3c; letter-spacing: 0.06em;
+    text-shadow: 0 0 12px rgba(255,40,20,0.8), 0 0 3px #000; animation: chaseBlink 0.7s ease-in-out infinite; }
+  #chaseMsg.on { display: block; }
+  @keyframes chaseBlink { 50% { opacity: 0.45; transform: translateX(-50%) scale(1.06); } }
+  body.bright #chaseMsg { color: #d0360f; text-shadow: 0 0 8px rgba(255,255,255,0.9); }
   #viewCount {
     position: absolute; top: max(16px, env(safe-area-inset-top)); right: 12px; font-family: var(--serif); font-size: 14px;
     color: #e8dcc0; background: rgba(0,0,0,0.55); padding: 6px 12px; border-radius: 16px;
@@ -503,6 +510,7 @@
   <button id="menuBtn" aria-label="설정">⚙</button>
   <button id="bagBtn" aria-label="가방 열기">🎒<small>가방</small></button>
   <div id="hint"></div>
+  <div id="chaseMsg">반대편으로 도망쳐라!</div>
   <div id="crosshair"></div>
   <div id="subtitle"><span class="who" id="subWho">— 해설사 —</span><span id="subText"></span></div>
   <div id="viewCount"></div>
@@ -599,7 +607,7 @@
     <button class="btn" id="rulesOk">확인</button>
     <div class="controls" id="controlsInfo"></div>
     <div class="unit">초등학교 5학년 사회 2학기 1단원<br>「유적과 유물로 살펴본 옛 사람들의 생활」 복습 게임 · 소리를 켜고 플레이하세요</div>
-    <div class="credit">Created by gamtudyssam using AI · 0.059</div>
+    <div class="credit">Created by gamtudyssam using AI · 0.060</div>
   </div>
 </div>
 
@@ -722,15 +730,15 @@
 </div>
 
 <script src="vendor/three.min.js"></script>
-<script src="js/config.js?v=0.8.0"></script>
-<script src="js/data.js?v=0.8.0"></script>
-<script src="js/nickwords.js?v=0.8.0"></script>
-<script src="js/eras.js?v=0.8.0"></script>
-<script src="js/artifacts.js?v=0.8.0"></script>
-<script src="js/art.js?v=0.8.0"></script>
-<script src="js/audio.js?v=0.8.0"></script>
-<script src="js/lobby.js?v=0.8.0"></script>
-<script src="js/board.js?v=0.8.0"></script>
-<script src="js/game.js?v=0.8.0"></script>
+<script src="js/config.js?v=0.8.1"></script>
+<script src="js/data.js?v=0.8.1"></script>
+<script src="js/nickwords.js?v=0.8.1"></script>
+<script src="js/eras.js?v=0.8.1"></script>
+<script src="js/artifacts.js?v=0.8.1"></script>
+<script src="js/art.js?v=0.8.1"></script>
+<script src="js/audio.js?v=0.8.1"></script>
+<script src="js/lobby.js?v=0.8.1"></script>
+<script src="js/board.js?v=0.8.1"></script>
+<script src="js/game.js?v=0.8.1"></script>
 </body>
 </html>

@@ -310,6 +310,43 @@
     const cg = ac.createGain(); env(cg, t + 0.25, 0.08, 0.1, 0.6);
     c.connect(cf); cf.connect(cg); cg.connect(out); c.start(t + 0.25); c.stop(t + 1.1);
   }
+  // 도망 전시실: 다가오는 위험의 소리 (가까울수록 크게)
+  let chaseNodes = null;
+  function chaseStart(kind) {
+    if (!ac || !enabled) return;
+    chaseStop();
+    const out = ac.createGain(); out.gain.value = 0; out.connect(master);
+    const nodes = [];
+    const noise = (brown, type, freq, q, vol) => {
+      const s = ac.createBufferSource(); s.buffer = noiseBuffer(2, brown); s.loop = true;
+      const f = ac.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
+      const g = ac.createGain(); g.gain.value = vol;
+      s.connect(f); f.connect(g); g.connect(out); s.start(); nodes.push(s);
+    };
+    const osc = (type, freq, vol) => {
+      const o = ac.createOscillator(); o.type = type; o.frequency.value = freq;
+      const g = ac.createGain(); g.gain.value = vol;
+      o.connect(g); g.connect(out); o.start(); nodes.push(o); return o;
+    };
+    if (kind === 'fire') { noise(true, 'lowpass', 700, 0.7, 0.9); noise(false, 'bandpass', 2600, 1.5, 0.18); }
+    if (kind === 'flood') { noise(true, 'lowpass', 520, 0.5, 1.0); noise(false, 'bandpass', 900, 0.8, 0.35); }
+    if (kind === 'dark') { osc('sine', 46, 0.55); noise(true, 'lowpass', 180, 0.5, 0.6); }
+    if (kind === 'ghost') {
+      const o = osc('sine', 520, 0.13);
+      const l = ac.createOscillator(); l.frequency.value = 0.8; const lg = ac.createGain(); lg.gain.value = 110;
+      l.connect(lg); lg.connect(o.frequency); l.start(); nodes.push(l);
+      noise(false, 'bandpass', 1300, 2, 0.22);
+    }
+    if (kind === 'person') { osc('sine', 58, 0.3); noise(true, 'lowpass', 300, 0.5, 0.3); }
+    chaseNodes = { out, nodes };
+  }
+  function chaseLevel(v) { if (chaseNodes) chaseNodes.out.gain.setTargetAtTime(Math.max(0, Math.min(1, v)) * 0.9, ac.currentTime, 0.1); }
+  function chaseStop() {
+    if (!chaseNodes) return;
+    const { out, nodes } = chaseNodes; chaseNodes = null;
+    out.gain.setTargetAtTime(0, ac.currentTime, 0.15);
+    setTimeout(() => nodes.forEach(n => { try { n.stop(); } catch (e) {} }), 700);
+  }
   // 닫힌 나무문을 밀었을 때 덜그럭
   function rattle() {
     if (!ac || !enabled) return;
@@ -501,5 +538,5 @@
   function suspend() { if (ac && ac.state === 'running') ac.suspend(); stopSpeak(); }
   function resume() { if (ac && ac.state === 'suspended') ac.resume(); }
 
-  window.SFX = { titleMusic, knock, chain, clunk, rattle, heart, scare, setTheme, setAmbience, init, step, buzz, whoosh, wrong, chime, exitBell, speak, voice, preloadVoice, stopSpeak, setEnabled, setVoice, suspend, resume };
+  window.SFX = { titleMusic, knock, chain, clunk, rattle, chaseStart, chaseLevel, chaseStop, heart, scare, setTheme, setAmbience, init, step, buzz, whoosh, wrong, chime, exitBell, speak, voice, preloadVoice, stopSpeak, setEnabled, setVoice, suspend, resume };
 })();
