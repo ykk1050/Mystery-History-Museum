@@ -585,16 +585,66 @@
     const eyes = sp(tex(chaseCanvas(128, 64, (x) => { [40, 88].forEach(cx => { const g = x.createRadialGradient(cx, 32, 1, cx, 32, 14); g.addColorStop(0, 'rgba(255,60,40,1)'); g.addColorStop(1, 'rgba(255,0,0,0)'); x.fillStyle = g; x.fillRect(cx - 14, 18, 28, 28); }); })), 0.8, 0.4, true);
     eyes.position.set(0.6, 2.0, 0.6); part.dark.add(eyes); part.dark.eyes = eyes;
     // 유령: 창백한 얼굴이 길게 늘어지며 날아온다
-    const ghostC = chaseCanvas(256, 512, (x) => {
-      const g = x.createLinearGradient(0, 60, 0, 512); g.addColorStop(0, 'rgba(225,235,245,0.95)'); g.addColorStop(1, 'rgba(200,215,230,0)');
-      x.fillStyle = g; x.beginPath(); x.ellipse(128, 120, 78, 96, 0, Math.PI, 0); x.lineTo(206, 380); x.quadraticCurveTo(170, 470, 128, 510); x.quadraticCurveTo(86, 470, 50, 380); x.closePath(); x.fill();
-      x.fillStyle = 'rgba(5,5,12,0.95)'; x.beginPath(); x.ellipse(98, 120, 18, 26, 0.1, 0, 7); x.ellipse(158, 120, 18, 26, -0.1, 0, 7); x.fill();
-      x.beginPath(); x.ellipse(128, 190, 20, 34, 0, 0, 7); x.fill();
+    // 유령: 긴 검은 머리, 텅 빈 눈 속 작은 빛, 길게 벌어진 입, 앞으로 뻗은 앙상한 팔, 찢어진 옷자락 (피·상처 표현 없음)
+    const ghostC = chaseCanvas(512, 1024, (x) => {
+      let seed = 7; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+      // 찢어진 옷자락 (아래로 갈수록 사라짐)
+      const robe = x.createLinearGradient(0, 260, 0, 1024);
+      robe.addColorStop(0, 'rgba(150,165,160,0.95)'); robe.addColorStop(0.55, 'rgba(110,125,122,0.7)'); robe.addColorStop(1, 'rgba(80,95,95,0)');
+      x.fillStyle = robe; x.beginPath(); x.moveTo(170, 300); x.quadraticCurveTo(256, 270, 342, 300);
+      x.lineTo(392, 860);
+      for (let px = 392; px > 120; px -= 22) x.lineTo(px - 11, 900 + rnd() * 110), x.lineTo(px - 22, 850 + rnd() * 40);
+      x.lineTo(120, 860); x.closePath(); x.fill();
+      // 앞으로 뻗은 앙상한 팔과 긴 손가락
+      x.lineCap = 'round';
+      [[-1, 175], [1, 337]].forEach(([sd, sx]) => {
+        x.strokeStyle = 'rgba(105,120,118,0.95)';
+        x.lineWidth = 18; x.beginPath(); x.moveTo(sx, 330); x.quadraticCurveTo(sx + sd * 95, 430, sx + sd * 125, 310); x.stroke();
+        const hx = sx + sd * 125, hy = 310;
+        // 길고 굽은 손가락 (갈고리처럼 안쪽으로 휨)
+        x.strokeStyle = 'rgba(85,98,98,0.95)'; x.lineWidth = 5;
+        for (let f = 0; f < 5; f++) {
+          const a = -Math.PI / 2 + sd * (-0.35 + f * 0.24), len = 70 + (f === 2 ? 18 : 0);
+          const tx = hx + Math.cos(a) * len, ty = hy + Math.sin(a) * len;
+          x.beginPath(); x.moveTo(hx, hy); x.quadraticCurveTo(hx + Math.cos(a) * len * 0.7 + sd * 4, hy + Math.sin(a) * len * 0.7, tx - sd * 14, ty + 12); x.stroke();
+        }
+      });
+      // 얼굴: 길쭉하고 핼쑥함
+      const face = x.createRadialGradient(256, 190, 10, 256, 200, 120);
+      face.addColorStop(0, 'rgba(215,225,228,1)'); face.addColorStop(0.7, 'rgba(170,185,190,1)'); face.addColorStop(1, 'rgba(120,135,140,1)');
+      x.fillStyle = face; x.beginPath(); x.ellipse(256, 200, 82, 120, 0, 0, Math.PI * 2); x.fill();
+      x.fillStyle = 'rgba(70,80,88,0.45)';   // 움푹 꺼진 볼
+      x.beginPath(); x.ellipse(200, 250, 22, 40, 0.2, 0, 7); x.ellipse(312, 250, 22, 40, -0.2, 0, 7); x.fill();
+      // 텅 빈 눈과 작게 빛나는 눈동자
+      x.fillStyle = 'rgba(0,0,0,1)';
+      x.beginPath(); x.ellipse(220, 180, 26, 36, 0.15, 0, 7); x.ellipse(292, 180, 26, 36, -0.15, 0, 7); x.fill();
+      [[222, 186], [290, 186]].forEach(([ex, ey]) => {
+        const g = x.createRadialGradient(ex, ey, 0, ex, ey, 9); g.addColorStop(0, 'rgba(255,255,240,1)'); g.addColorStop(1, 'rgba(200,255,230,0)');
+        x.fillStyle = g; x.fillRect(ex - 10, ey - 10, 20, 20);
+      });
+      // 길게 벌어진 입
+      x.fillStyle = 'rgba(0,0,0,1)'; x.beginPath(); x.ellipse(256, 275, 24, 52, 0, 0, 7); x.fill();
+      // 얼굴의 검푸른 핏줄 무늬 (가는 선)
+      x.strokeStyle = 'rgba(60,75,95,0.55)'; x.lineWidth = 2;
+      for (let k = 0; k < 7; k++) { x.beginPath(); let vx = 190 + rnd() * 130, vy = 220 + rnd() * 70; x.moveTo(vx, vy); for (let j = 0; j < 4; j++) { vx += (rnd() - 0.5) * 24; vy += 10 + rnd() * 10; x.lineTo(vx, vy); } x.stroke(); }
+      // 얼굴을 반쯤 가리고 어깨까지 늘어진 긴 검은 머리
+      x.strokeStyle = 'rgba(8,8,10,0.9)'; x.lineWidth = 5;
+      for (let k = 0; k < 90; k++) {
+        const sx = 160 + rnd() * 192, len = 220 + rnd() * 330;
+        x.beginPath(); x.moveTo(sx, 70 + rnd() * 20);
+        const mid = sx < 256 ? sx - 20 - rnd() * 40 : sx + 20 + rnd() * 40;
+        if (sx > 196 && sx < 316 && rnd() < 0.75) continue;    // 가운데 가르마: 얼굴이 보이게
+        const covers = sx > 200 && sx < 312 && rnd() < 0.3;    // 몇 가닥만 얼굴 위로
+        x.quadraticCurveTo(covers ? sx + (rnd() - 0.5) * 20 : mid, 200, (covers ? sx : mid) + (rnd() - 0.5) * 30, 70 + len);
+        x.stroke();
+      }
+      x.fillStyle = 'rgba(8,8,10,0.95)'; x.beginPath(); x.ellipse(256, 95, 92, 40, 0, Math.PI, 0); x.fill();
     });
     part.ghost = new THREE.Group();
     const gtex = tex(ghostC);
-    part.ghost.main = sp(gtex, 1.5, 2.9, false); part.ghost.main.position.set(0, 1.5, 0); part.ghost.add(part.ghost.main);
-    part.ghost.trail = [0.9, 1.8].map((d, k) => { const s = sp(gtex, 1.5, 2.9, false); s.material.opacity = 0.35 - k * 0.15; s.position.set(0, 1.5, d); part.ghost.add(s); return s; });
+    part.ghost.main = sp(gtex, 1.7, 3.4, false); part.ghost.main.position.set(0, 1.6, 0); part.ghost.add(part.ghost.main);
+    part.ghost.trail = [0.8, 1.6].map((d, k) => { const s = sp(gtex, 1.7, 3.4, false); s.material.opacity = 0.25 - k * 0.1; s.position.set(0, 1.6, d); part.ghost.add(s); return s; });
+    const gAura = sp(tex(ART.glowTex('rgba(150,210,200,0.5)')), 3.6, 4.4, true); gAura.position.set(0, 1.6, 0.3); part.ghost.add(gAura);
     // 검은 그림자 사람: 두건을 쓴 검은 형체, 붉은 눈
     part.person = new THREE.Group();
     const personC = chaseCanvas(256, 512, (x) => {
@@ -666,6 +716,7 @@
       c.phase = 'run';
       setDoors(true, true); SFX.clunk(); S.shake = 0.35;
       chaseFx.root.visible = true;
+      $('chaseMsg').textContent = { fire: '불길로부터 도망쳐라!', flood: '홍수로부터 도망쳐라!', dark: '어둠으로부터 도망쳐라!', ghost: '유령으로부터 도망쳐라!', person: '검은 그림자 사람으로부터 도망쳐라!' }[c.kind];
       chaseMsg(true);
       SFX.chaseStart(c.kind);
     }
@@ -686,7 +737,16 @@
       p.foam.forEach(f => { f.position.y = h + 0.1 + Math.sin(ts * 6 + f.userData.ph) * 0.15; });
     }
     if (c.kind === 'dark') p.eyes.material.opacity = (Math.sin(ts * 1.7) > 0.6) ? 0 : 0.9;
-    if (c.kind === 'ghost') { p.main.position.y = 1.5 + Math.sin(ts * 3) * 0.15; p.main.material.opacity = 0.75 + Math.random() * 0.25; }
+    if (c.kind === 'ghost') {
+      // 경련하듯 고개를 꺾고, 순간 사라졌다 나타나고, 가끔 길게 늘어난다
+      c.jit = (c.jit || 0) - dt;
+      if (c.jit <= 0) { c.jit = 0.08 + Math.random() * 0.25; c.jx = (Math.random() - 0.5) * 0.35; c.jr = (Math.random() - 0.5) * 0.5; c.blink = Math.random() < 0.18; c.stretch = Math.random() < 0.15 ? 1.25 : 1; }
+      p.main.position.set(c.jx, 1.6 + Math.sin(ts * 7) * 0.05, 0);
+      p.main.material.rotation = c.jr;
+      p.main.scale.set(1.7 / Math.sqrt(c.stretch), 3.4 * c.stretch, 1);
+      p.main.material.opacity = c.blink ? 0.08 : 0.85 + Math.random() * 0.15;
+      p.trail.forEach((t, k) => { t.position.x = -c.jx * (k + 1) * 0.6; t.material.rotation = -c.jr * 0.5; });
+    }
     if (c.kind === 'person') {
       p.main.position.x = Math.sin(ts * 4) * 0.08;
       c.stepT -= dt; if (c.stepT <= 0) { c.stepT = 0.42; SFX.step(Math.min(0.9, 0.25 + (1 - gap / 20) * 0.6), 0.45); }
