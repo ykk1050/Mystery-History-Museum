@@ -548,6 +548,171 @@
   const scaryChase = () => !isBright() && !settings.mild && settings.scares;
   let chaseFx = null;
   function chaseCanvas(w, h, draw) { const c = document.createElement('canvas'); c.width = w; c.height = h; draw(c.getContext('2d'), w, h); return c; }
+  /* 전시실(시대)마다 다른 유령·검은 그림자 사람: 모습 / 등장 / 이동
+     등장 rush(끝에서 돌진) · rise(바닥에서 솟음) · blinkIn(깜빡이며 다가옴) · drop(천장에서 떨어짐) · wallOut(벽에서 나옴)
+     이동 steady(꾸준히) · zigzag(갈지자) · lunge(멈칫했다 덮침) · teleport(순간이동) · statue(안 볼 때만 빠름) · crawl(낮게 기어 옴)
+     이동 방식이 달라도 평균 빠르기는 비슷하게(약 3m/s) 맞춤 → 뛰면 늘 빠져나가고, 걸어도 바로 움직이면 대부분 빠져나간다 */
+  const CHASE_STYLE = {
+    paleo:    { enter: 'rush',    move: 'lunge',    aura: 'rgba(200,150,90,0.5)',
+                ghost: { robe: '120,105,85', face: 'hollow', hair: 'wild', acc: 'bones' },          person: { head: 'wild', prop: 'club' } },
+    neo:      { enter: 'rise',    move: 'zigzag',   aura: 'rgba(90,170,200,0.55)',
+                ghost: { robe: '90,130,140', face: 'hollow', hair: 'wet', acc: 'drips' },           person: { head: 'hood', prop: 'spear' } },
+    bronze:   { enter: 'blinkIn', move: 'teleport', aura: 'rgba(110,200,150,0.5)',
+                ghost: { robe: '95,130,110', face: 'mask', hair: 'none', acc: 'bells' },            person: { head: 'hood', prop: 'mirror' } },
+    gojoseon: { enter: 'drop',    move: 'crawl',    aura: 'rgba(200,200,220,0.5)',
+                ghost: { robe: '170,170,175', face: 'hollow', hair: 'white', acc: 'beard' },        person: { head: 'bear', prop: 'none' } },
+    samguk:   { enter: 'rush',    move: 'steady',   aura: 'rgba(220,90,60,0.5)',
+                ghost: { robe: '110,100,105', face: 'hollow', hair: 'none', acc: 'helmet' },       person: { head: 'helmet', prop: 'spear' } },
+    samlife:  { enter: 'wallOut', move: 'zigzag',   aura: 'rgba(230,140,120,0.5)',
+                ghost: { robe: '200,185,150', face: 'mural', hair: 'none', acc: 'none' },          person: { head: 'hat', prop: 'none' } },
+    unified:  { enter: 'blinkIn', move: 'statue',   aura: 'rgba(170,170,160,0.45)',
+                ghost: { robe: '140,140,130', face: 'stone', hair: 'none', acc: 'none' },          person: { head: 'stone', prop: 'sword', stone: true } },
+    goryeo1:  { enter: 'rise',    move: 'lunge',    aura: 'rgba(255,90,60,0.55)',
+                ghost: { robe: '150,140,150', face: 'hollow', hair: 'long', acc: 'lantern' },      person: { head: 'hood', prop: 'lantern' } },
+    goryeo2:  { enter: 'wallOut', move: 'teleport', aura: 'rgba(230,210,140,0.5)',
+                ghost: { robe: '185,175,150', face: 'talisman', hair: 'long', acc: 'none' },       person: { head: 'scholar', prop: 'brush' } }
+  };
+  const chaseTexCache = {};
+  function chaseTex(kind, eraId) {
+    const k = kind + ':' + eraId;
+    if (chaseTexCache[k]) return chaseTexCache[k];
+    const st = CHASE_STYLE[eraId] || CHASE_STYLE.paleo;
+    return (chaseTexCache[k] = tex(kind === 'ghost' ? ghostCanvas(st.ghost) : personCanvas(st.person)));
+  }
+  // 유령: 찢어진 옷자락, 앞으로 뻗은 앙상한 팔, 핼쑥한 얼굴 (피·상처 표현 없음)
+  function ghostCanvas(o) {
+    return chaseCanvas(512, 1024, (x) => {
+      let seed = 7; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
+      const robe = x.createLinearGradient(0, 260, 0, 1024);
+      robe.addColorStop(0, `rgba(${o.robe},0.95)`); robe.addColorStop(0.55, `rgba(${o.robe},0.65)`); robe.addColorStop(1, `rgba(${o.robe},0)`);
+      x.fillStyle = robe; x.beginPath(); x.moveTo(170, 300); x.quadraticCurveTo(256, 270, 342, 300); x.lineTo(392, 860);
+      for (let px = 392; px > 120; px -= 22) x.lineTo(px - 11, 900 + rnd() * 110), x.lineTo(px - 22, 850 + rnd() * 40);
+      x.lineTo(120, 860); x.closePath(); x.fill();
+      // 팔과 갈고리 같은 손가락
+      x.lineCap = 'round';
+      const armCol = o.face === 'stone' ? '120,120,112' : '105,120,118';
+      [[-1, 175], [1, 337]].forEach(([sd, sx]) => {
+        x.strokeStyle = `rgba(${armCol},0.95)`; x.lineWidth = 18;
+        x.beginPath(); x.moveTo(sx, 330); x.quadraticCurveTo(sx + sd * 95, 430, sx + sd * 125, 310); x.stroke();
+        const hx = sx + sd * 125, hy = 310;
+        x.strokeStyle = 'rgba(85,98,98,0.95)'; x.lineWidth = 5;
+        for (let f = 0; f < 5; f++) {
+          const a = -Math.PI / 2 + sd * (-0.35 + f * 0.24), len = 70 + (f === 2 ? 18 : 0);
+          x.beginPath(); x.moveTo(hx, hy); x.quadraticCurveTo(hx + Math.cos(a) * len * 0.7 + sd * 4, hy + Math.sin(a) * len * 0.7, hx + Math.cos(a) * len - sd * 14, hy + Math.sin(a) * len + 12); x.stroke();
+        }
+      });
+      // 얼굴
+      const faceCol = o.face === 'stone' ? ['175,172,160', '140,138,128', '105,103,95'] : o.face === 'mural' ? ['240,225,190', '220,200,165', '190,170,135'] : ['215,225,228', '170,185,190', '120,135,140'];
+      const fg = x.createRadialGradient(256, 190, 10, 256, 200, 120);
+      fg.addColorStop(0, `rgb(${faceCol[0]})`); fg.addColorStop(0.7, `rgb(${faceCol[1]})`); fg.addColorStop(1, `rgb(${faceCol[2]})`);
+      x.fillStyle = fg; x.beginPath(); x.ellipse(256, 200, 82, 120, 0, 0, Math.PI * 2); x.fill();
+      const glowEye = (ex, ey, col, r) => { const g = x.createRadialGradient(ex, ey, 0, ex, ey, r); g.addColorStop(0, col); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.fillRect(ex - r, ey - r, r * 2, r * 2); };
+      if (o.face === 'mask') {            // 청동 가면: 푸른 녹, 소용돌이 무늬, 가는 눈구멍
+        x.fillStyle = 'rgb(70,120,95)'; x.beginPath(); x.ellipse(256, 205, 86, 118, 0, 0, 7); x.fill();
+        x.strokeStyle = 'rgba(30,60,45,0.9)'; x.lineWidth = 4;
+        for (let r = 20; r < 80; r += 14) { x.beginPath(); x.arc(256, 205, r, 0, 7); x.stroke(); }
+        x.fillStyle = '#000'; x.fillRect(196, 172, 46, 10); x.fillRect(270, 172, 46, 10); x.fillRect(236, 262, 40, 8);
+        glowEye(219, 177, 'rgba(160,255,200,1)', 14); glowEye(293, 177, 'rgba(160,255,200,1)', 14);
+      } else if (o.face === 'mural') {    // 벽화 속 인물: 붉은 볼, 그린 눈썹, 가는 눈
+        x.fillStyle = 'rgba(220,60,50,0.7)'; x.beginPath(); x.arc(205, 240, 18, 0, 7); x.arc(307, 240, 18, 0, 7); x.fill();
+        x.strokeStyle = '#111'; x.lineWidth = 6;
+        x.beginPath(); x.moveTo(195, 160); x.lineTo(240, 152); x.moveTo(272, 152); x.lineTo(317, 160); x.stroke();
+        x.fillStyle = '#000'; x.beginPath(); x.ellipse(220, 185, 22, 7, 0, 0, 7); x.ellipse(292, 185, 22, 7, 0, 0, 7); x.fill();
+        glowEye(220, 185, 'rgba(255,60,40,1)', 8); glowEye(292, 185, 'rgba(255,60,40,1)', 8);
+        x.fillStyle = 'rgba(150,20,20,0.9)'; x.beginPath(); x.ellipse(256, 280, 14, 22, 0, 0, 7); x.fill();
+      } else {                            // 텅 빈 눈 + 벌어진 입 (돌·부적 얼굴 포함)
+        x.fillStyle = 'rgba(70,80,88,0.45)'; x.beginPath(); x.ellipse(200, 250, 22, 40, 0.2, 0, 7); x.ellipse(312, 250, 22, 40, -0.2, 0, 7); x.fill();
+        x.fillStyle = '#000'; x.beginPath(); x.ellipse(220, 180, 26, 36, 0.15, 0, 7); x.ellipse(292, 180, 26, 36, -0.15, 0, 7); x.fill();
+        const ec = o.face === 'stone' ? 'rgba(255,190,120,1)' : 'rgba(255,255,240,1)';
+        glowEye(222, 186, ec, 9); glowEye(290, 186, ec, 9);
+        x.fillStyle = '#000'; x.beginPath(); x.ellipse(256, 275, 24, 52, 0, 0, 7); x.fill();
+        if (o.face === 'stone') {          // 돌 갈라진 금
+          x.strokeStyle = 'rgba(60,58,52,0.9)'; x.lineWidth = 3;
+          x.beginPath(); x.moveTo(250, 90); x.lineTo(238, 140); x.lineTo(262, 170); x.moveTo(320, 220); x.lineTo(300, 260); x.lineTo(316, 300); x.stroke();
+        }
+      }
+      // 머리카락
+      const hairCol = o.hair === 'white' ? 'rgba(225,225,230,0.92)' : o.hair === 'wet' ? 'rgba(10,25,30,0.92)' : 'rgba(8,8,10,0.9)';
+      if (o.hair !== 'none') {
+        x.strokeStyle = hairCol; x.lineWidth = o.hair === 'wet' ? 7 : 5;
+        for (let k = 0; k < 90; k++) {
+          const sx = 160 + rnd() * 192, len = (o.hair === 'wild' ? 120 : 220) + rnd() * (o.hair === 'wild' ? 160 : 330);
+          if (sx > 196 && sx < 316 && rnd() < 0.75) continue;   // 가운데 가르마
+          x.beginPath(); x.moveTo(sx, 70 + rnd() * 20);
+          if (o.hair === 'wild') { const a = (sx - 256) / 100; x.quadraticCurveTo(sx + a * 80, 60, sx + a * 160 + (rnd() - 0.5) * 60, 40 + len * 0.6); }
+          else { const mid = sx < 256 ? sx - 20 - rnd() * 40 : sx + 20 + rnd() * 40; x.quadraticCurveTo(mid, 200, mid + (rnd() - 0.5) * 30, 70 + len); }
+          x.stroke();
+        }
+        x.fillStyle = hairCol; x.beginPath(); x.ellipse(256, 95, 92, 40, 0, Math.PI, 0); x.fill();
+      }
+      // 장신구
+      if (o.acc === 'bones') { x.fillStyle = 'rgba(235,230,210,0.95)'; for (let k = 0; k < 9; k++) { const a = Math.PI * (0.15 + k * 0.0875); x.beginPath(); x.ellipse(256 + Math.cos(a) * 90, 300 + Math.sin(a) * 50, 9, 16, a, 0, 7); x.fill(); } }
+      if (o.acc === 'drips') { x.fillStyle = 'rgba(120,200,230,0.8)'; for (let k = 0; k < 18; k++) { const dx = 170 + rnd() * 170, dy = 330 + rnd() * 400; x.beginPath(); x.ellipse(dx, dy, 4, 11, 0, 0, 7); x.fill(); } }
+      if (o.acc === 'bells') { for (let k = 0; k < 5; k++) { const bx = 190 + k * 33, by = 470; x.fillStyle = 'rgb(140,110,50)'; x.beginPath(); x.arc(bx, by, 14, Math.PI, 0); x.lineTo(bx + 16, by + 14); x.lineTo(bx - 16, by + 14); x.fill(); } }
+      if (o.acc === 'beard') { x.fillStyle = 'rgba(230,230,235,0.92)'; x.beginPath(); x.moveTo(205, 300); x.quadraticCurveTo(256, 330, 307, 300); x.lineTo(275, 520); x.lineTo(256, 560); x.lineTo(237, 520); x.closePath(); x.fill(); }
+      if (o.acc === 'helmet') {
+        x.fillStyle = 'rgb(55,55,62)'; x.beginPath(); x.ellipse(256, 110, 100, 72, 0, Math.PI, 0); x.fill(); x.fillRect(150, 105, 212, 22);
+        x.fillStyle = 'rgb(150,40,30)'; x.beginPath(); x.moveTo(256, 40); x.quadraticCurveTo(300, -10, 330, 10); x.quadraticCurveTo(290, 20, 262, 60); x.fill();
+        x.fillStyle = 'rgb(45,45,52)'; x.fillRect(140, 120, 34, 120); x.fillRect(338, 120, 34, 120);
+      }
+      if (o.acc === 'lantern') {
+        const lx = 400, ly = 360, g = x.createRadialGradient(lx, ly, 4, lx, ly, 80); g.addColorStop(0, 'rgba(255,120,80,0.95)'); g.addColorStop(1, 'rgba(255,40,20,0)');
+        x.fillStyle = g; x.fillRect(lx - 80, ly - 80, 160, 160);
+        x.fillStyle = 'rgb(200,50,40)'; x.beginPath(); x.ellipse(lx, ly, 26, 34, 0, 0, 7); x.fill();
+        x.strokeStyle = 'rgb(60,40,30)'; x.lineWidth = 3; x.beginPath(); x.moveTo(lx, ly - 34); x.lineTo(lx, ly - 70); x.stroke();
+      }
+      if (o.face === 'talisman') {        // 얼굴을 덮은 노란 부적
+        x.fillStyle = 'rgb(232,205,90)'; x.fillRect(222, 120, 68, 210);
+        x.strokeStyle = 'rgb(190,30,30)'; x.lineWidth = 5;
+        x.beginPath(); x.moveTo(236, 140); x.lineTo(276, 140); x.moveTo(256, 140); x.lineTo(256, 310); x.moveTo(236, 180); x.lineTo(276, 210); x.moveTo(276, 180); x.lineTo(236, 210);
+        x.moveTo(240, 250); x.quadraticCurveTo(256, 230, 272, 250); x.quadraticCurveTo(256, 270, 240, 290); x.stroke();
+        glowEye(206, 186, 'rgba(255,255,240,1)', 8); glowEye(306, 186, 'rgba(255,255,240,1)', 8);   // 부적 옆으로 빛나는 눈
+      }
+    });
+  }
+  // 검은 그림자 사람: 머리 모양과 손에 든 것이 시대마다 다르다
+  function personCanvas(o) {
+    return chaseCanvas(256, 512, (x) => {
+      const col = o.stone ? 'rgba(118,116,108,0.98)' : 'rgba(8,6,8,0.97)';
+      x.fillStyle = col;
+      const body = () => { x.beginPath(); x.moveTo(70, 150); x.lineTo(40, 500); x.lineTo(216, 500); x.lineTo(186, 150); x.closePath(); x.fill(); };
+      const head = (cx, cy, rx, ry) => { x.beginPath(); x.ellipse(cx, cy, rx, ry, 0, 0, 7); x.fill(); };
+      if (o.head === 'hood') { x.beginPath(); x.moveTo(128, 30); x.quadraticCurveTo(200, 40, 196, 150); x.lineTo(226, 500); x.lineTo(30, 500); x.lineTo(60, 150); x.quadraticCurveTo(56, 40, 128, 30); x.fill(); }
+      else if (o.head === 'wild') {   // 덩치 큰 몸, 헝클어진 머리
+        x.beginPath(); x.moveTo(30, 170); x.quadraticCurveTo(128, 120, 226, 170); x.lineTo(236, 500); x.lineTo(20, 500); x.closePath(); x.fill();
+        head(128, 110, 46, 50);
+        x.strokeStyle = col; x.lineWidth = 7; for (let k = 0; k < 14; k++) { const a = Math.PI * (1.05 + k * 0.065); x.beginPath(); x.moveTo(128 + Math.cos(a) * 40, 110 + Math.sin(a) * 44); x.lineTo(128 + Math.cos(a) * 78, 110 + Math.sin(a) * 80); x.stroke(); }
+      } else if (o.head === 'bear') { // 곰 머리 그림자
+        body(); head(128, 100, 52, 48); head(88, 58, 18, 18); head(168, 58, 18, 18); head(128, 128, 24, 18);
+      } else if (o.head === 'helmet') {   // 투구와 깃털, 넓은 어깨
+        x.beginPath(); x.moveTo(20, 170); x.lineTo(236, 170); x.lineTo(206, 500); x.lineTo(50, 500); x.closePath(); x.fill();
+        head(128, 115, 44, 46); x.beginPath(); x.ellipse(128, 95, 54, 40, 0, Math.PI, 0); x.fill();
+        x.fillStyle = 'rgba(150,30,25,0.95)'; x.beginPath(); x.moveTo(128, 55); x.quadraticCurveTo(170, 0, 205, 15); x.quadraticCurveTo(165, 30, 136, 70); x.fill(); x.fillStyle = col;
+      } else if (o.head === 'hat') {  // 챙 넓은 모자
+        body(); head(128, 120, 40, 44); x.fillRect(48, 82, 160, 12); x.beginPath(); x.ellipse(128, 80, 36, 30, 0, Math.PI, 0); x.fill();
+      } else if (o.head === 'scholar') { // 고려 관리의 복두 (양옆으로 뻗은 날개)
+        body(); head(128, 120, 40, 44); x.fillRect(92, 66, 72, 40); x.fillRect(20, 84, 216, 8);
+      } else if (o.head === 'stone') {   // 돌 무인상: 큰 머리, 턱수염, 가슴 앞 칼
+        x.beginPath(); x.moveTo(50, 170); x.lineTo(206, 170); x.lineTo(216, 500); x.lineTo(40, 500); x.closePath(); x.fill();
+        head(128, 110, 54, 60);
+        x.strokeStyle = 'rgba(70,68,62,0.95)'; x.lineWidth = 3;
+        x.beginPath(); x.moveTo(90, 150); x.quadraticCurveTo(128, 200, 166, 150); x.moveTo(60, 260); x.lineTo(196, 260); x.moveTo(60, 360); x.lineTo(196, 360); x.stroke();
+        x.beginPath(); x.moveTo(92, 92); x.lineTo(118, 98); x.moveTo(138, 98); x.lineTo(164, 92); x.stroke();
+      }
+      // 손에 든 것
+      x.lineCap = 'round';
+      if (o.prop === 'club') { x.strokeStyle = col; x.lineWidth = 16; x.beginPath(); x.moveTo(216, 330); x.lineTo(246, 150); x.stroke(); x.lineWidth = 28; x.beginPath(); x.moveTo(242, 180); x.lineTo(250, 140); x.stroke(); }
+      if (o.prop === 'spear') { x.strokeStyle = col; x.lineWidth = 6; x.beginPath(); x.moveTo(220, 500); x.lineTo(232, 20); x.stroke(); x.fillStyle = 'rgba(160,160,170,0.95)'; x.beginPath(); x.moveTo(232, 0); x.lineTo(242, 40); x.lineTo(222, 40); x.fill(); }
+      if (o.prop === 'mirror') { const g = x.createRadialGradient(210, 300, 2, 210, 300, 40); g.addColorStop(0, 'rgba(180,255,210,1)'); g.addColorStop(1, 'rgba(60,160,110,0)'); x.fillStyle = g; x.fillRect(170, 260, 80, 80); x.fillStyle = 'rgb(70,120,95)'; x.beginPath(); x.arc(210, 300, 18, 0, 7); x.fill(); }
+      if (o.prop === 'lantern') { const g = x.createRadialGradient(214, 320, 2, 214, 320, 46); g.addColorStop(0, 'rgba(255,120,80,1)'); g.addColorStop(1, 'rgba(255,40,20,0)'); x.fillStyle = g; x.fillRect(168, 274, 92, 92); x.fillStyle = 'rgb(200,50,40)'; x.beginPath(); x.ellipse(214, 320, 14, 18, 0, 0, 7); x.fill(); }
+      if (o.prop === 'brush') { x.strokeStyle = col; x.lineWidth = 6; x.beginPath(); x.moveTo(206, 330); x.lineTo(240, 200); x.stroke(); x.fillStyle = col; x.beginPath(); x.ellipse(242, 190, 7, 16, 0.25, 0, 7); x.fill(); }
+      if (o.prop === 'sword') { x.strokeStyle = 'rgba(80,78,70,0.95)'; x.lineWidth = 10; x.beginPath(); x.moveTo(128, 200); x.lineTo(128, 470); x.stroke(); x.lineWidth = 6; x.beginPath(); x.moveTo(100, 210); x.lineTo(156, 210); x.stroke(); }
+      // 빛나는 눈
+      const eyeY = o.head === 'bear' ? 96 : o.head === 'stone' ? 108 : o.head === 'wild' ? 108 : o.head === 'hood' ? 120 : 116;
+      const ec = o.stone ? 'rgba(255,170,90,1)' : 'rgba(255,80,60,1)';
+      [-24, 24].forEach(dx => { const g = x.createRadialGradient(128 + dx, eyeY, 1, 128 + dx, eyeY, 16); g.addColorStop(0, ec); g.addColorStop(1, 'rgba(255,0,0,0)'); x.fillStyle = g; x.fillRect(128 + dx - 16, eyeY - 16, 32, 32); });
+    });
+  }
   function buildChaseFx() {
     const root = new THREE.Group(); root.visible = false; scene.add(root);
     const part = {};
@@ -585,75 +750,14 @@
     const eyes = sp(tex(chaseCanvas(128, 64, (x) => { [40, 88].forEach(cx => { const g = x.createRadialGradient(cx, 32, 1, cx, 32, 14); g.addColorStop(0, 'rgba(255,60,40,1)'); g.addColorStop(1, 'rgba(255,0,0,0)'); x.fillStyle = g; x.fillRect(cx - 14, 18, 28, 28); }); })), 0.8, 0.4, true);
     eyes.position.set(0.6, 2.0, 0.6); part.dark.add(eyes); part.dark.eyes = eyes;
     // 유령: 창백한 얼굴이 길게 늘어지며 날아온다
-    // 유령: 긴 검은 머리, 텅 빈 눈 속 작은 빛, 길게 벌어진 입, 앞으로 뻗은 앙상한 팔, 찢어진 옷자락 (피·상처 표현 없음)
-    const ghostC = chaseCanvas(512, 1024, (x) => {
-      let seed = 7; const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647; };
-      // 찢어진 옷자락 (아래로 갈수록 사라짐)
-      const robe = x.createLinearGradient(0, 260, 0, 1024);
-      robe.addColorStop(0, 'rgba(150,165,160,0.95)'); robe.addColorStop(0.55, 'rgba(110,125,122,0.7)'); robe.addColorStop(1, 'rgba(80,95,95,0)');
-      x.fillStyle = robe; x.beginPath(); x.moveTo(170, 300); x.quadraticCurveTo(256, 270, 342, 300);
-      x.lineTo(392, 860);
-      for (let px = 392; px > 120; px -= 22) x.lineTo(px - 11, 900 + rnd() * 110), x.lineTo(px - 22, 850 + rnd() * 40);
-      x.lineTo(120, 860); x.closePath(); x.fill();
-      // 앞으로 뻗은 앙상한 팔과 긴 손가락
-      x.lineCap = 'round';
-      [[-1, 175], [1, 337]].forEach(([sd, sx]) => {
-        x.strokeStyle = 'rgba(105,120,118,0.95)';
-        x.lineWidth = 18; x.beginPath(); x.moveTo(sx, 330); x.quadraticCurveTo(sx + sd * 95, 430, sx + sd * 125, 310); x.stroke();
-        const hx = sx + sd * 125, hy = 310;
-        // 길고 굽은 손가락 (갈고리처럼 안쪽으로 휨)
-        x.strokeStyle = 'rgba(85,98,98,0.95)'; x.lineWidth = 5;
-        for (let f = 0; f < 5; f++) {
-          const a = -Math.PI / 2 + sd * (-0.35 + f * 0.24), len = 70 + (f === 2 ? 18 : 0);
-          const tx = hx + Math.cos(a) * len, ty = hy + Math.sin(a) * len;
-          x.beginPath(); x.moveTo(hx, hy); x.quadraticCurveTo(hx + Math.cos(a) * len * 0.7 + sd * 4, hy + Math.sin(a) * len * 0.7, tx - sd * 14, ty + 12); x.stroke();
-        }
-      });
-      // 얼굴: 길쭉하고 핼쑥함
-      const face = x.createRadialGradient(256, 190, 10, 256, 200, 120);
-      face.addColorStop(0, 'rgba(215,225,228,1)'); face.addColorStop(0.7, 'rgba(170,185,190,1)'); face.addColorStop(1, 'rgba(120,135,140,1)');
-      x.fillStyle = face; x.beginPath(); x.ellipse(256, 200, 82, 120, 0, 0, Math.PI * 2); x.fill();
-      x.fillStyle = 'rgba(70,80,88,0.45)';   // 움푹 꺼진 볼
-      x.beginPath(); x.ellipse(200, 250, 22, 40, 0.2, 0, 7); x.ellipse(312, 250, 22, 40, -0.2, 0, 7); x.fill();
-      // 텅 빈 눈과 작게 빛나는 눈동자
-      x.fillStyle = 'rgba(0,0,0,1)';
-      x.beginPath(); x.ellipse(220, 180, 26, 36, 0.15, 0, 7); x.ellipse(292, 180, 26, 36, -0.15, 0, 7); x.fill();
-      [[222, 186], [290, 186]].forEach(([ex, ey]) => {
-        const g = x.createRadialGradient(ex, ey, 0, ex, ey, 9); g.addColorStop(0, 'rgba(255,255,240,1)'); g.addColorStop(1, 'rgba(200,255,230,0)');
-        x.fillStyle = g; x.fillRect(ex - 10, ey - 10, 20, 20);
-      });
-      // 길게 벌어진 입
-      x.fillStyle = 'rgba(0,0,0,1)'; x.beginPath(); x.ellipse(256, 275, 24, 52, 0, 0, 7); x.fill();
-      // 얼굴의 검푸른 핏줄 무늬 (가는 선)
-      x.strokeStyle = 'rgba(60,75,95,0.55)'; x.lineWidth = 2;
-      for (let k = 0; k < 7; k++) { x.beginPath(); let vx = 190 + rnd() * 130, vy = 220 + rnd() * 70; x.moveTo(vx, vy); for (let j = 0; j < 4; j++) { vx += (rnd() - 0.5) * 24; vy += 10 + rnd() * 10; x.lineTo(vx, vy); } x.stroke(); }
-      // 얼굴을 반쯤 가리고 어깨까지 늘어진 긴 검은 머리
-      x.strokeStyle = 'rgba(8,8,10,0.9)'; x.lineWidth = 5;
-      for (let k = 0; k < 90; k++) {
-        const sx = 160 + rnd() * 192, len = 220 + rnd() * 330;
-        x.beginPath(); x.moveTo(sx, 70 + rnd() * 20);
-        const mid = sx < 256 ? sx - 20 - rnd() * 40 : sx + 20 + rnd() * 40;
-        if (sx > 196 && sx < 316 && rnd() < 0.75) continue;    // 가운데 가르마: 얼굴이 보이게
-        const covers = sx > 200 && sx < 312 && rnd() < 0.3;    // 몇 가닥만 얼굴 위로
-        x.quadraticCurveTo(covers ? sx + (rnd() - 0.5) * 20 : mid, 200, (covers ? sx : mid) + (rnd() - 0.5) * 30, 70 + len);
-        x.stroke();
-      }
-      x.fillStyle = 'rgba(8,8,10,0.95)'; x.beginPath(); x.ellipse(256, 95, 92, 40, 0, Math.PI, 0); x.fill();
-    });
     part.ghost = new THREE.Group();
-    const gtex = tex(ghostC);
+    const gtex = chaseTex('ghost', 'paleo');
     part.ghost.main = sp(gtex, 1.7, 3.4, false); part.ghost.main.position.set(0, 1.6, 0); part.ghost.add(part.ghost.main);
     part.ghost.trail = [0.8, 1.6].map((d, k) => { const s = sp(gtex, 1.7, 3.4, false); s.material.opacity = 0.25 - k * 0.1; s.position.set(0, 1.6, d); part.ghost.add(s); return s; });
-    const gAura = sp(tex(ART.glowTex('rgba(150,210,200,0.5)')), 3.6, 4.4, true); gAura.position.set(0, 1.6, 0.3); part.ghost.add(gAura);
-    // 검은 그림자 사람: 두건을 쓴 검은 형체, 붉은 눈
+    part.ghost.aura = sp(tex(ART.glowTex('rgba(255,255,255,0.55)')), 3.6, 4.4, true); part.ghost.aura.position.set(0, 1.6, 0.3); part.ghost.add(part.ghost.aura);
     part.person = new THREE.Group();
-    const personC = chaseCanvas(256, 512, (x) => {
-      x.fillStyle = 'rgba(8,6,8,0.97)';
-      x.beginPath(); x.moveTo(128, 30); x.quadraticCurveTo(200, 40, 196, 150); x.lineTo(226, 500); x.lineTo(30, 500); x.lineTo(60, 150); x.quadraticCurveTo(56, 40, 128, 30); x.fill();
-      [104, 152].forEach(cx => { const g = x.createRadialGradient(cx, 120, 1, cx, 120, 16); g.addColorStop(0, 'rgba(255,80,60,1)'); g.addColorStop(1, 'rgba(255,0,0,0)'); x.fillStyle = g; x.fillRect(cx - 16, 104, 32, 32); });
-    });
-    const aura = sp(tex(ART.glowTex('rgba(200,20,10,0.75)')), 3.2, 3.8, true); aura.position.set(0, 1.4, 0.2); part.person.add(aura);   // 어둠 속에서도 보이게 붉은 기운
-    part.person.main = sp(tex(personC), 1.4, 2.8, false); part.person.main.position.set(0, 1.4, 0); part.person.add(part.person.main);
+    part.person.aura = sp(tex(ART.glowTex('rgba(255,255,255,0.75)')), 3.2, 3.8, true); part.person.aura.position.set(0, 1.4, 0.2); part.person.add(part.person.aura);   // 어둠 속에서도 보이게
+    part.person.main = sp(chaseTex('person', 'paleo'), 1.4, 2.8, false); part.person.main.position.set(0, 1.4, 0); part.person.add(part.person.main);
     Object.values(part).forEach(g => { g.visible = false; root.add(g); });
     chaseFx = { root, part };
   }
@@ -693,9 +797,20 @@
     hideSubtitle();
     S.firstGallery = false;
     Object.entries(chaseFx.part).forEach(([k, g]) => { g.visible = k === kind; });
+    applyChaseLook();
     chaseFx.root.visible = false;
     chaseFx.root.scale.z = from === 'back' ? 1 : -1;     // +z 쪽(입구 쪽)에서 오면 그대로, 출구 쪽에서 오면 뒤집기
     chaseFx.root.position.set(0, 0, S.chase.z);
+  }
+  // 유령·검은 그림자 사람은 지금 전시실(시대)의 모습으로
+  function applyChaseLook() {
+    const eraId = room().id, st = CHASE_STYLE[eraId] || CHASE_STYLE.paleo, P = chaseFx.part;
+    const gm = chaseTex('ghost', eraId), pm = chaseTex('person', eraId);
+    [P.ghost.main].concat(P.ghost.trail).forEach(s => { s.material.map = gm; s.material.needsUpdate = true; });
+    P.person.main.material.map = pm; P.person.main.material.needsUpdate = true;
+    P.ghost.aura.material.color.set(new THREE.Color().setStyle(st.aura.replace(/rgba\(([^)]+),[^,]+\)/, 'rgb($1)')));
+    P.person.aura.material.color.set(st.ghost && st.person.stone ? 0x8a8070 : 0xc81408);
+    P.ghost.position.set(0, 0, 0); P.person.position.set(0, 0, 0);
   }
   function chaseMsg(on) {
     $('chaseMsg').classList.toggle('on', on);
@@ -720,10 +835,54 @@
       chaseMsg(true);
       SFX.chaseStart(c.kind);
     }
-    const gap = Math.abs(S.z - c.z), dir = Math.sign(S.z - c.z) || 1;
-    const speed = gap > CHASE_NEAR ? CHASE_RUSH : (scaryChase() ? CHASE_SPEED : CHASE_SPEED_SOFT);
-    c.z += dir * speed * dt;
-    chaseFx.root.position.z = c.z;
+    let gap = Math.abs(S.z - c.z);
+    const dir = Math.sign(S.z - c.z) || 1;
+    const styled = c.kind === 'ghost' || c.kind === 'person';
+    const st = styled ? (CHASE_STYLE[room().id] || CHASE_STYLE.paleo) : null;
+    const grp = chaseFx.part[c.kind];
+    if (styled && !c.entered) {
+      // 등장: 처음 한 번
+      if (!c.enter) {
+        c.enter = { kind: st.enter, t: 0 };
+        const side = c.from === 'back' ? 1 : -1;   // 위험이 있는 쪽 (+z: 입구 쪽)
+        if (st.enter === 'drop' || st.enter === 'rise' || st.enter === 'wallOut') c.z = S.z + side * 12;
+        if (st.enter === 'drop') SFX.scare('boom');
+      }
+      const e = c.enter; e.t += dt;
+      let done = false, yo = 0, xo = 0;
+      if (e.kind === 'rush') { const sp = gap > CHASE_NEAR ? CHASE_RUSH : 0; c.z += dir * sp * dt; done = gap <= CHASE_NEAR; }
+      if (e.kind === 'blinkIn') { e.b = (e.b || 0) - dt; if (e.b <= 0) { e.b = 0.24; c.z += dir * Math.min(3, Math.max(0, gap - CHASE_NEAR)); } grp.visible = e.b > 0.08; done = gap <= CHASE_NEAR + 0.01; }
+      if (e.kind === 'drop') { const k = Math.min(1, e.t / 0.5); yo = (1 - k * k) * 5; done = k >= 1; if (done) S.shake = 0.3; }
+      if (e.kind === 'rise') { const k = Math.min(1, e.t / 0.9); yo = -3.2 * (1 - k); done = k >= 1; }
+      if (e.kind === 'wallOut') { const k = Math.min(1, e.t / 0.8); xo = (c.wallSide || (c.wallSide = Math.random() < 0.5 ? -1 : 1)) * 3.4 * (1 - k); done = k >= 1; }
+      grp.position.set(xo, yo, 0);
+      if (done) { c.entered = true; grp.visible = true; c.mt = 0; }
+      chaseFx.root.position.z = c.z;
+      gap = Math.abs(S.z - c.z);
+    } else {
+      let speed = gap > CHASE_NEAR ? CHASE_RUSH : (scaryChase() ? CHASE_SPEED : CHASE_SPEED_SOFT);
+      if (styled) {
+        c.mt += dt;
+        let xo = 0, yo = 0;
+        if (st.move === 'steady') speed = 3.1;
+        if (st.move === 'zigzag') { speed = 3.0; xo = Math.sin(c.mt * 2.4) * 1.6; }
+        if (st.move === 'lunge') { speed = (c.mt % 1.6) < 0.6 ? 0.4 : 4.4; }
+        if (st.move === 'crawl') { speed = 3.0 + Math.sin(c.mt * 3) * 0.9; yo = -0.75; xo = Math.sin(c.mt * 9) * 0.12; }
+        if (st.move === 'teleport') {
+          speed = 0; c.tp = (c.tp == null ? 0.85 : c.tp) - dt;
+          if (c.tp <= 0) { c.tp = 0.85; c.z += dir * Math.min(2.6, gap); grp.visible = false; setTimeout(() => { if (chaseFx && S.chase === c) grp.visible = true; }, 90); }
+        }
+        if (st.move === 'statue') {   // 바라보면 거의 멈추고, 등을 보이면 빨라진다
+          const dz = c.z - camera.position.z, fwdZ = -Math.cos(S.yaw);
+          const seen = Math.sign(dz) === Math.sign(fwdZ) && Math.abs(fwdZ) > 0.5;
+          speed = seen ? 1.0 : 3.2;
+        }
+        grp.position.set(xo, yo, 0);
+      }
+      c.z += dir * speed * dt;
+      chaseFx.root.position.z = c.z;
+      gap = Math.abs(S.z - c.z);
+    }
     SFX.chaseLevel(Math.max(0.15, 1 - gap / 26));
     // 모습 움직임
     const p = chaseFx.part[c.kind], ts = now / 1000;
@@ -751,7 +910,7 @@
       p.main.position.x = Math.sin(ts * 4) * 0.08;
       c.stepT -= dt; if (c.stepT <= 0) { c.stepT = 0.42; SFX.step(Math.min(0.9, 0.25 + (1 - gap / 20) * 0.6), 0.45); }
     }
-    if (gap < 0.9) chaseFail();
+    if (gap < 0.9 && (!styled || c.entered)) chaseFail();
   }
   // 위험이 오는 쪽 반대 문으로 나가면 성공
   function chaseExit(dir) {
@@ -2573,6 +2732,17 @@
     ending: () => showEnding(),   // 탈출 화면 바로 보기 (점검용)
     lobby: () => goLobby(null),
     guidePos: () => Object.assign({}, GUIDE),   // 안내원 자리 (점검용)
+    // 전시실별 유령·검은 그림자 사람 모습을 한 장에 (점검용)
+    chaseSheet() {
+      const ids = Object.keys(CHASE_STYLE), c = document.createElement('canvas'); c.width = 9 * 220; c.height = 640;
+      const x = c.getContext('2d'); x.fillStyle = '#222'; x.fillRect(0, 0, c.width, c.height);
+      ids.forEach((id, i) => {
+        x.drawImage(chaseTex('ghost', id).image, i * 220 + 10, 10, 200, 400);
+        x.drawImage(chaseTex('person', id).image, i * 220 + 60, 420, 100, 200);
+        x.fillStyle = '#fff'; x.font = '16px sans-serif'; x.fillText(id, i * 220 + 12, 630);
+      });
+      c.style.cssText = 'position:fixed;inset:0;width:100%;height:auto;z-index:999;background:#222'; document.body.appendChild(c); return c;
+    },
     // 도망 전시실 바로 시험 (kind: fire|flood|dark|ghost|person, from: front|back)
     chase(kind, from) { setupChase(); if (kind) { S.chase.kind = kind; Object.entries(chaseFx.part).forEach(([k, g]) => { g.visible = k === kind; }); }
       if (from) { S.chase.from = from; S.chase.z = from === 'front' ? -L + 0.8 : -0.8; chaseFx.root.scale.z = from === 'back' ? 1 : -1; chaseFx.root.position.z = S.chase.z; }
