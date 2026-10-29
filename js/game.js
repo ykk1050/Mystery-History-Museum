@@ -763,7 +763,7 @@
   }
   const CHASE_KINDS = ['fire', 'flood', 'dark', 'ghost', 'person'];
   const chaseTest = (() => { const v = new URLSearchParams(location.search).get('chase'); return v === 'all' || CHASE_KINDS.includes(v) ? v : null; })();
-  let chaseTestN = 0;
+  let chaseTestN = 0, chaseTestEra = 0;
   function chaseEligible(restore) {
     if (chaseTest && !restore && S.place === 'gallery' && !S.review) { S.noChase = false; return true; }   // 시험 주소: 매번 도망 전시실
     const ok = !restore && S.place === 'gallery' && !S.exitRoom && !S.firstGallery && !S.review && !S.forced && !S.noChase
@@ -780,6 +780,7 @@
     S.chase = { kind, from, phase: 'wait', t: 0, z: from === 'front' ? -L + 0.8 : -0.8, done: false, stepT: 0 };
     const rooms = modeRooms();
     S.roomIdx = rooms[Math.floor(Math.random() * rooms.length)];
+    if (chaseTest) S.roomIdx = chaseTestEra++ % ROOMS.length;   // 시험 주소: 9개 시대가 차례로 (시대마다 모습·등장·이동이 다름)
     S.anomaly = null;
     setupRoom();
     signTex.image = ART.drawSign(S.streak, room().name, false); signTex.needsUpdate = true;
