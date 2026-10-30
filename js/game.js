@@ -1956,7 +1956,25 @@
     if (!isBright()) return setTheme('bright');
     askScary(() => { setTheme('dark'); closeMenu(); setTimeout(scaryTip, 400); });
   };
+  // 명단에 이름을 올리지 않고 앞으로 나아가려 하면 한 번 확인 (설명 확인 체크를 해야 버튼이 동작)
+  function askSkipRegister(onSkip) {
+    S.mode = 'board';
+    $('skipRegChk').checked = false; $('skipRegMsg').textContent = '';
+    $('skipRegPop').classList.add('on');
+    const close = () => { $('skipRegPop').classList.remove('on'); S.mode = 'ending'; };
+    const needCheck = () => {
+      if ($('skipRegChk').checked) return true;
+      const m = $('skipRegMsg'); m.textContent = '설명을 읽고 체크하세요.';
+      m.classList.remove('shake'); void m.offsetWidth; m.classList.add('shake');
+      return false;
+    };
+    $('skipRegChk').onchange = () => { if ($('skipRegChk').checked) $('skipRegMsg').textContent = ''; };
+    $('skipRegYes').onclick = () => { if (!needCheck()) return; close(); onSkip(); };
+    $('skipRegNo').onclick = () => { if (!needCheck()) return; close(); BOARD.openRegister(S.gameMode, S.clearKey); };
+  }
   $('lobbyBtn').onclick = () => {
+    if (BOARD.enabled() && !BOARD.registered(S.clearKey) && !S.skipRegOk) return askSkipRegister(() => { S.skipRegOk = true; $('lobbyBtn').onclick(); });
+    S.skipRegOk = false;
     fadeEl.style.opacity = 1;
     if (curMode().room != null) {
       // 시대별 전시실 탈출: 앞으로 나아갔는데… 다시 로비

@@ -382,6 +382,8 @@
   #record { background: rgba(0,0,0,0.8); }
   .scary-chk { display: inline-flex; gap: 8px; align-items: center; font-family: var(--serif); font-size: 15px; color: #cbbd9c; cursor: pointer; }
   .scary-chk input { width: 20px; height: 20px; }
+  .col-btns { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+  .col-btns .btn { width: 100%; font-size: 17px; }
   .tip-msg { min-height: 22px; margin-top: 8px; font-family: var(--serif); font-size: 15px; color: #ff9a8a; }
   .tip-msg.shake { animation: holeBad 0.4s; }
   body.bright .tip-msg { color: #b3261e; }
@@ -613,7 +615,7 @@
     <button class="btn" id="rulesOk">확인</button>
     <div class="controls" id="controlsInfo"></div>
     <div class="unit">초등학교 5학년 사회 2학기 1단원<br>「유적과 유물로 살펴본 옛 사람들의 생활」 복습 게임 · 소리를 켜고 플레이하세요</div>
-    <div class="credit">Created by gamtudyssam using AI · 0.070</div>
+    <div class="credit">Created by gamtudyssam using AI · 0.071</div>
   </div>
 </div>
 
@@ -710,6 +712,20 @@
   </div>
 </div>
 
+<!-- 명단에 이름을 올리지 않고 넘어가려 할 때 -->
+<div id="skipRegPop" class="pop" style="z-index:56">
+  <div class="pop-card" style="width:min(500px,100%)">
+    <h2 class="pop-q">이름을 올리지 않고 넘어갈까요?</h2>
+    <p class="door-msg" style="font-size:16px">한번 넘어가면 다시 처음부터 클리어해야<br>이름을 올릴 수 있습니다.</p>
+    <label class="scary-chk"><input type="checkbox" id="skipRegChk"> 설명을 확인했습니다.</label>
+    <div class="tip-msg" id="skipRegMsg"></div>
+    <div class="col-btns">
+      <button class="btn" id="skipRegYes">네, 명단에 등록하지 않습니다.</button>
+      <button class="btn ghost" id="skipRegNo">아니오, 명단에 등록하고 앞으로 나아갈래요.</button>
+    </div>
+  </div>
+</div>
+
 <div id="loading">전시실을 준비하는 중…</div>
 
 <div id="inspect">
@@ -759,15 +775,15 @@
 </div>
 
 <script src="vendor/three.min.js"></script>
-<script src="js/config.js?v=0.9.1"></script>
-<script src="js/data.js?v=0.9.1"></script>
-<script src="js/nickwords.js?v=0.9.1"></script>
-<script src="js/eras.js?v=0.9.1"></script>
-<script src="js/artifacts.js?v=0.9.1"></script>
-<script src="js/art.js?v=0.9.1"></script>
-<script src="js/audio.js?v=0.9.1"></script>
-<script src="js/lobby.js?v=0.9.1"></script>
-<script src="js/board.js?v=0.9.1"></script>
-<script src="js/game.js?v=0.9.1"></script>
+<script src="js/config.js?v=0.9.2"></script>
+<script src="js/data.js?v=0.9.2"></script>
+<script src="js/nickwords.js?v=0.9.2"></script>
+<script src="js/eras.js?v=0.9.2"></script>
+<script src="js/artifacts.js?v=0.9.2"></script>
+<script src="js/art.js?v=0.9.2"></script>
+<script src="js/audio.js?v=0.9.2"></script>
+<script src="js/lobby.js?v=0.9.2"></script>
+<script src="js/board.js?v=0.9.2"></script>
+<script src="js/game.js?v=0.9.2"></script>
 </body>
 </html>

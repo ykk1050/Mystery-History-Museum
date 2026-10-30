@@ -234,5 +234,6 @@
     $('conqPop').addEventListener('keydown', e => e.stopPropagation());
   }
 
-  window.BOARD = { init, refresh, openRegister, openList, enabled, cached: () => board, stars, isMine, mine: myNicks };
+  window.BOARD = { init, refresh, openRegister, openList, enabled, cached: () => board, stars, isMine, mine: myNicks,
+    registered: key => key != null && key === lastKey };   // 이번 탈출로 이미 이름을 올렸는지
 })();
