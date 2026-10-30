@@ -84,7 +84,7 @@
     reg = { mode: m.id, name: m.name, pick: [null, null, null, null], step: 0, avail: null, busy: false, done: clearKey != null && clearKey === lastKey, key: clearKey };
     $('nickSkip').textContent = reg.done ? '닫기' : '다음에 할게요';
     hooks.onOpen && hooks.onOpen();
-    $('nickTitle').textContent = isMys(m.id) ? '🏆 탈출자 명단에 이름 올리기' : '🏆 정복자 명단에 이름 올리기';
+    $('nickTitle').textContent = isMys(m.id) ? '탈출자 명단에 이름 올리기' : '정복자 명단에 이름 올리기';
     $('nickSub').innerHTML = isMys(m.id) ? '미스터리 역사 박물관을 탈출했어요! 탈출자 명단에 이름을 올릴까요?'
       : `「${esc(m.name)}」을(를) 탈출했어요! 정복자 명단에 이름을 올릴까요?`;
     $('nickMsg').className = 'nick-msg'; $('nickMsg').textContent = reg.done ? '이번 탈출은 이미 정복자 명단에 올렸어요.' : '';
@@ -178,7 +178,7 @@
       if (!isMine(id)) { const l = myNicks(); l.unshift({ id, n: r.name || N.text(N.parse(id)) }); store.set('myNicks', l.slice(0, 20)); }
       reg.done = true; lastKey = reg.key;
       msg.className = 'nick-msg good';
-      msg.innerHTML = `🏆 <b>${esc(r.name || N.text(N.parse(id)))}</b> — ${esc(listName({ id: reg.mode, name: reg.name }))}에 올랐어요! <span class="stars">${stars(r.count || 1)}</span>`;
+      msg.innerHTML = `<b>${esc(r.name || N.text(N.parse(id)))}</b> — ${esc(listName({ id: reg.mode, name: reg.name }))}에 올랐어요! <span class="stars">${stars(r.count || 1)}</span>`;
       $('nickSkip').textContent = '닫기';
       refresh().then(b => hooks.onBoard && hooks.onBoard(b));
     } catch (e) {
