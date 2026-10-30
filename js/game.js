@@ -1952,7 +1952,10 @@
     document.querySelectorAll('.theme-card').forEach(b => b.classList.toggle('sel', b.dataset.theme === settings.theme));
     renderBag();
   }
-  $('themeBtn').onclick = () => setTheme(isBright() ? 'dark' : 'bright');
+  $('themeBtn').onclick = () => {
+    if (!isBright()) return setTheme('bright');
+    askScary(() => { setTheme('dark'); closeMenu(); setTimeout(scaryTip, 400); });
+  };
   $('againBtn').onclick = () => { fadeEl.style.opacity = 1; startGame(null); };
   $('lobbyBtn').onclick = () => {
     fadeEl.style.opacity = 1;
@@ -2208,14 +2211,33 @@
     document.querySelectorAll('.theme-card').forEach(b => b.classList.toggle('sel', b.dataset.theme === settings.theme));
     $('themePop').classList.add('on');
   };
+  // 으스스한 박물관을 고르면 "정말 들어갈까요?" — '다시 띄우지 않기'를 체크하고 '네'를 누른 경우만 다음부터 묻지 않는다
+  function askScary(yes, no) {
+    if (store.get('scaryOk', false)) return yes();
+    $('scaryNoAsk').checked = false;
+    $('scaryPop').classList.add('on');
+    $('scaryYes').onclick = () => { if ($('scaryNoAsk').checked) store.set('scaryOk', true); $('scaryPop').classList.remove('on'); yes(); };
+    $('scaryNo').onclick = () => { $('scaryPop').classList.remove('on'); if (no) no(); };
+  }
+  // 으스스한 박물관에 처음 들어가면: 설정에서 밝은 박물관으로 바꿀 수 있다는 안내 (확인 체크 후 닫기)
+  function scaryTip() {
+    if (isBright() || store.get('scaryTipSeen', false) || S.place !== 'lobby' && S.place !== 'gallery') return;
+    const prev = S.mode; S.mode = 'tip'; keys.fwd = keys.back = keys.run = false;
+    $('scaryTipChk').checked = false; $('scaryTipOk').disabled = true;
+    $('scaryTip').classList.add('on');
+    $('scaryTipChk').onchange = () => { $('scaryTipOk').disabled = !$('scaryTipChk').checked; };
+    $('scaryTipOk').onclick = () => { store.set('scaryTipSeen', true); $('scaryTip').classList.remove('on'); S.mode = prev === 'tip' ? 'play' : prev; };
+  }
   document.querySelectorAll('#themePop .theme-card').forEach(b => {
     b.onclick = () => {
+      if (b.dataset.theme === 'dark' && !b.dataset.ok) return askScary(() => { b.dataset.ok = '1'; b.onclick(); delete b.dataset.ok; });
       setTheme(b.dataset.theme);
       $('themePop').classList.remove('on');
       SFX.init();
       fadeTo(1, 500).then(() => {
         goLobby(null);
         setTimeout(() => showHint('통로로 걸어 들어가면 그 시대의 전시실로 이동해요', 5000), 1200);
+        setTimeout(scaryTip, 1300);
       });
     };
   });

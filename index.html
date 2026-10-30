@@ -380,6 +380,9 @@
   #endKey { margin: 0 0 16px; font-family: var(--serif); color: #2a2016; font-size: 18px; }
   #endKey img { width: 120px; height: 120px; display: block; margin: 0 auto 4px; filter: drop-shadow(0 0 14px rgba(232,180,60,0.8)); }
   #record { background: rgba(0,0,0,0.8); }
+  .scary-chk { display: inline-flex; gap: 8px; align-items: center; font-family: var(--serif); font-size: 15px; color: #cbbd9c; cursor: pointer; }
+  .scary-chk input { width: 20px; height: 20px; }
+  body.bright .scary-chk { color: #4a3c28; }
 
   /* 정복자 명단 */
   .pop-x { position: absolute; top: 12px; right: 12px; width: 42px; height: 42px; border-radius: 50%; border: 1px solid #8a7348; background: rgba(20,16,12,0.9); color: #f2e6c9; font-size: 19px; cursor: pointer; }
@@ -607,7 +610,7 @@
     <button class="btn" id="rulesOk">확인</button>
     <div class="controls" id="controlsInfo"></div>
     <div class="unit">초등학교 5학년 사회 2학기 1단원<br>「유적과 유물로 살펴본 옛 사람들의 생활」 복습 게임 · 소리를 켜고 플레이하세요</div>
-    <div class="credit">Created by gamtudyssam using AI · 0.065</div>
+    <div class="credit">Created by gamtudyssam using AI · 0.066</div>
   </div>
 </div>
 
@@ -680,6 +683,29 @@
   </div>
 </div>
 
+<!-- 으스스한 박물관을 고를 때 한 번 더 확인 -->
+<div id="scaryPop" class="pop" style="z-index:55">
+  <div class="pop-card" style="width:min(460px,100%)">
+    <h2 class="pop-q">🌙 으스스한 박물관</h2>
+    <p class="door-msg" style="font-size:17px">어둡고 무서운 장면이 나올 수 있어요.<br><b>정말 들어갈까요?</b></p>
+    <label class="scary-chk"><input type="checkbox" id="scaryNoAsk"> 이 창을 다시 띄우지 않기</label>
+    <div class="row" style="margin-top:12px">
+      <button class="btn" id="scaryYes">네</button>
+      <button class="btn ghost" id="scaryNo">아니오</button>
+    </div>
+  </div>
+</div>
+
+<!-- 으스스한 박물관에 처음 들어갔을 때 안내 -->
+<div id="scaryTip" class="pop" style="z-index:55">
+  <div class="pop-card" style="width:min(460px,100%)">
+    <h2 class="pop-q">🌙 알려 드려요</h2>
+    <p class="door-msg" style="font-size:17px">무서우면 왼쪽 위 <b>⚙ 설정</b>에서<br><b>밝은 박물관</b>으로 언제든지 바꿀 수 있어요.</p>
+    <label class="scary-chk"><input type="checkbox" id="scaryTipChk"> 설명을 확인했어요</label>
+    <div class="row" style="margin-top:12px"><button class="btn" id="scaryTipOk" disabled>확인</button></div>
+  </div>
+</div>
+
 <div id="loading">전시실을 준비하는 중…</div>
 
 <div id="inspect">
@@ -730,15 +756,15 @@
 </div>
 
 <script src="vendor/three.min.js"></script>
-<script src="js/config.js?v=0.8.6"></script>
-<script src="js/data.js?v=0.8.6"></script>
-<script src="js/nickwords.js?v=0.8.6"></script>
-<script src="js/eras.js?v=0.8.6"></script>
-<script src="js/artifacts.js?v=0.8.6"></script>
-<script src="js/art.js?v=0.8.6"></script>
-<script src="js/audio.js?v=0.8.6"></script>
-<script src="js/lobby.js?v=0.8.6"></script>
-<script src="js/board.js?v=0.8.6"></script>
-<script src="js/game.js?v=0.8.6"></script>
+<script src="js/config.js?v=0.8.7"></script>
+<script src="js/data.js?v=0.8.7"></script>
+<script src="js/nickwords.js?v=0.8.7"></script>
+<script src="js/eras.js?v=0.8.7"></script>
+<script src="js/artifacts.js?v=0.8.7"></script>
+<script src="js/art.js?v=0.8.7"></script>
+<script src="js/audio.js?v=0.8.7"></script>
+<script src="js/lobby.js?v=0.8.7"></script>
+<script src="js/board.js?v=0.8.7"></script>
+<script src="js/game.js?v=0.8.7"></script>
 </body>
 </html>
