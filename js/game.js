@@ -1956,10 +1956,14 @@
     if (!isBright()) return setTheme('bright');
     askScary(() => { setTheme('dark'); closeMenu(); setTimeout(scaryTip, 400); });
   };
-  $('againBtn').onclick = () => { fadeEl.style.opacity = 1; startGame(null); };
   $('lobbyBtn').onclick = () => {
     fadeEl.style.opacity = 1;
-    if (curMode().room != null) return goLobby(S.gameMode);
+    if (curMode().room != null) {
+      // 시대별 전시실 탈출: 앞으로 나아갔는데… 다시 로비
+      goLobby(S.gameMode);
+      setTimeout(() => showHint('어쩐지 탈출하지 못하고 로비로 다시 되돌아왔다…', 5000), 900);
+      return;
+    }
     // 최고 난이도 미스터리 전시실 탈출: 게임 첫 타이틀 화면으로 (아무것이나 누르면 규칙 안내 → 분위기 → 로비)
     goLobby(S.gameMode);
     $('hud').classList.remove('on'); closeBag();
