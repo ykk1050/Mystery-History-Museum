@@ -382,6 +382,9 @@
   #record { background: rgba(0,0,0,0.8); }
   .scary-chk { display: inline-flex; gap: 8px; align-items: center; font-family: var(--serif); font-size: 15px; color: #cbbd9c; cursor: pointer; }
   .scary-chk input { width: 20px; height: 20px; }
+  .tip-msg { min-height: 22px; margin-top: 8px; font-family: var(--serif); font-size: 15px; color: #ff9a8a; }
+  .tip-msg.shake { animation: holeBad 0.4s; }
+  body.bright .tip-msg { color: #b3261e; }
   body.bright .scary-chk { color: #4a3c28; }
 
   /* 정복자 명단 */
@@ -610,7 +613,7 @@
     <button class="btn" id="rulesOk">확인</button>
     <div class="controls" id="controlsInfo"></div>
     <div class="unit">초등학교 5학년 사회 2학기 1단원<br>「유적과 유물로 살펴본 옛 사람들의 생활」 복습 게임 · 소리를 켜고 플레이하세요</div>
-    <div class="credit">Created by gamtudyssam using AI · 0.066</div>
+    <div class="credit">Created by gamtudyssam using AI · 0.067</div>
   </div>
 </div>
 
@@ -702,7 +705,8 @@
     <h2 class="pop-q">🌙 알려 드려요</h2>
     <p class="door-msg" style="font-size:17px">무서우면 왼쪽 위 <b>⚙ 설정</b>에서<br><b>밝은 박물관</b>으로 언제든지 바꿀 수 있어요.</p>
     <label class="scary-chk"><input type="checkbox" id="scaryTipChk"> 설명을 확인했어요</label>
-    <div class="row" style="margin-top:12px"><button class="btn" id="scaryTipOk" disabled>확인</button></div>
+    <div class="tip-msg" id="scaryTipMsg"></div>
+    <div class="row" style="margin-top:8px"><button class="btn" id="scaryTipOk">확인</button></div>
   </div>
 </div>
 
@@ -756,15 +760,15 @@
 </div>
 
 <script src="vendor/three.min.js"></script>
-<script src="js/config.js?v=0.8.7"></script>
-<script src="js/data.js?v=0.8.7"></script>
-<script src="js/nickwords.js?v=0.8.7"></script>
-<script src="js/eras.js?v=0.8.7"></script>
-<script src="js/artifacts.js?v=0.8.7"></script>
-<script src="js/art.js?v=0.8.7"></script>
-<script src="js/audio.js?v=0.8.7"></script>
-<script src="js/lobby.js?v=0.8.7"></script>
-<script src="js/board.js?v=0.8.7"></script>
-<script src="js/game.js?v=0.8.7"></script>
+<script src="js/config.js?v=0.8.8"></script>
+<script src="js/data.js?v=0.8.8"></script>
+<script src="js/nickwords.js?v=0.8.8"></script>
+<script src="js/eras.js?v=0.8.8"></script>
+<script src="js/artifacts.js?v=0.8.8"></script>
+<script src="js/art.js?v=0.8.8"></script>
+<script src="js/audio.js?v=0.8.8"></script>
+<script src="js/lobby.js?v=0.8.8"></script>
+<script src="js/board.js?v=0.8.8"></script>
+<script src="js/game.js?v=0.8.8"></script>
 </body>
 </html>

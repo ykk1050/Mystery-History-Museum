@@ -2223,10 +2223,18 @@
   function scaryTip() {
     if (isBright() || store.get('scaryTipSeen', false) || S.place !== 'lobby' && S.place !== 'gallery') return;
     const prev = S.mode; S.mode = 'tip'; keys.fwd = keys.back = keys.run = false;
-    $('scaryTipChk').checked = false; $('scaryTipOk').disabled = true;
+    $('scaryTipChk').checked = false; $('scaryTipMsg').textContent = '';
     $('scaryTip').classList.add('on');
-    $('scaryTipChk').onchange = () => { $('scaryTipOk').disabled = !$('scaryTipChk').checked; };
-    $('scaryTipOk').onclick = () => { store.set('scaryTipSeen', true); $('scaryTip').classList.remove('on'); S.mode = prev === 'tip' ? 'play' : prev; };
+    $('scaryTipChk').onchange = () => { if ($('scaryTipChk').checked) $('scaryTipMsg').textContent = ''; };
+    $('scaryTipOk').onclick = () => {
+      // 체크하지 않고 누르면 왜 안 넘어가는지 알려 준다
+      if (!$('scaryTipChk').checked) {
+        const m = $('scaryTipMsg'); m.textContent = '설명을 읽고 체크하세요.';
+        m.classList.remove('shake'); void m.offsetWidth; m.classList.add('shake');
+        return;
+      }
+      store.set('scaryTipSeen', true); $('scaryTip').classList.remove('on'); S.mode = prev === 'tip' ? 'play' : prev;
+    };
   }
   document.querySelectorAll('#themePop .theme-card').forEach(b => {
     b.onclick = () => {
