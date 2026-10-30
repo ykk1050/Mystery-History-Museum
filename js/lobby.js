@@ -472,14 +472,14 @@
       const title = mys ? '미스터리 역사 박물관' : (ROOMS[+pq.mode.slice(3)] || {}).name || '';
       let fs = 44; do { x.font = `700 ${fs}px ${FONT}`; fs -= 2; } while (x.measureText(title).width > W - 60 && fs > 24);
       x.fillStyle = bright ? '#3a2c1a' : '#f0e2bd'; x.fillText(title, W / 2, 66);
-      x.fillStyle = bright ? '#9a5d10' : (mys ? '#ff9a7a' : '#e8c547'); x.font = `700 32px ${FONT}`; x.fillText(`🏆 ${who} 명단`, W / 2, 110);
+      x.fillStyle = bright ? '#9a5d10' : (mys ? '#ff9a7a' : '#e8c547'); x.font = `700 32px ${FONT}`; x.fillText(`${who} 명단`, W / 2, 110);
       const rows = (boardData && boardData[pq.mode]) || [];
       x.fillStyle = bright ? '#6d5a3a' : '#9a8458'; x.font = `500 22px ${SANS}`;
       x.fillText(!boardOn ? '명단 준비 중' : `${who} ${rows.length}명`, W / 2, 142);
       x.strokeStyle = bright ? '#d6c4a0' : '#3a2f1f'; x.lineWidth = 2; x.beginPath(); x.moveTo(36, 158); x.lineTo(W - 36, 158); x.stroke();
       if (boardOn && !rows.length) {
         x.fillStyle = bright ? '#6d5a3a' : '#8a7a5c'; x.font = `500 28px ${FONT}`;
-        x.fillText(`아직 ${who}가 없어요`, W / 2, 320); x.fillText(`첫 번째 ${who}가 되어 보세요!`, W / 2, 364);
+        x.fillText(`아직 ${who}가 없습니다`, W / 2, 340);
       }
       rows.slice(0, Math.floor((H - 280) / 60) + 1).forEach((r, k) => {
         const y = 200 + k * 60;

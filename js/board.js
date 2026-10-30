@@ -193,7 +193,7 @@
     listMode = modeId;
     hooks.onOpen && hooks.onOpen();
     const m = modes.find(x => x.id === modeId);
-    $('conqTitle').textContent = '🏆 ' + (m ? listName(m) : '정복자 명단');
+    $('conqTitle').textContent = m ? listName(m) : '정복자 명단';
     $('conqSearch').value = ''; $('conqAll').checked = false;
     renderList();
     $('conqPop').classList.add('on');
@@ -219,7 +219,7 @@
     const rows = (board[listMode] || []);
     const shown = rows.filter(match);
     box.innerHTML = shown.length ? shown.map((r, i) => `<div class="conq-row${isMine(r.id) ? ' mine' : ''}"><span class="rk">${rows.indexOf(r) + 1}</span><span class="cn">${esc(r.n)}</span><span class="stars">${stars(r.c)}</span></div>`).join('')
-      : `<p class="conq-empty">${q ? `“${esc(q)}”이(가) 들어간 ${isMys(listMode) ? '탈출자' : '정복자'}가 없어요.` : `아직 ${isMys(listMode) ? '탈출자' : '정복자'}가 없어요. 첫 번째가 되어 보세요!`}</p>`;
+      : `<p class="conq-empty">${q ? `“${esc(q)}”이(가) 들어간 ${isMys(listMode) ? '탈출자' : '정복자'}가 없어요.` : `아직 ${isMys(listMode) ? '탈출자' : '정복자'}가 없습니다.`}</p>`;
     $('conqFoot').textContent = `${isMys(listMode) ? '탈출자' : '정복자'} ${rows.length}명 · ★ 하나가 탈출 한 번` + (myNicks().length ? ' · 노란 줄이 내 닉네임' : '');
   }
 
