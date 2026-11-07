@@ -1863,7 +1863,7 @@
     if (t.url) SFX.voice(t.url, t.text, done); else if (t.who) SFX.speak(t.text, done); else SFX.voice(t.doc, t.text, done);
     setTimeout(done, 15000);   // 혹시 끝 알림이 오지 않아도 다음으로
   }
-  function stopTalk() { talkQ.length = 0; talkCur = null; SFX.stopSpeak(); }
+  function stopTalk() { talkQ.length = 0; talkCur = null; clearTimeout(subTimer); hideSubtitle(); SFX.stopSpeak(); }
 
   /* ---------- 도움: 관람 수, 힌트 등불, 해설사의 귀띔, 정상 전시 다시 보기 ---------- */
   function exhibitName(ex, key) { return key === 'docent' ? '해설사의 말' : key === 'street' ? '거리의 인형·소품' : ex.title; }
