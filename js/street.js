@@ -124,9 +124,10 @@
       const conf = STREETS[id], g = new THREE.Group(); g.visible = false;
       const flat = (w, h, mat, x, y, z, ry) => { const m = new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat); m.position.set(x, y, z); m.rotation.y = ry; g.add(m); return m; };
       const cube = (w, h, d, mat, x, y, z) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat); m.position.set(x, y, z); g.add(m); return m; };
+      const facades = [];
       [[conf.left, -1], [conf.right, 1]].forEach(([list, side]) => list.forEach((kind, i) => {
         const z = -4 - i * 8;
-        flat(8, H, face(kind), side * (HW - 0.01), H / 2, z, -side * Math.PI / 2);
+        facades.push({ m: flat(8, H, face(kind), side * (HW - 0.01), H / 2, z, -side * Math.PI / 2), kind });
         // 처마가 길 쪽으로 조금 튀어나온다
         if (kind !== 'fort' && kind !== 'brick' && kind !== 'stucco') cube(0.55, 0.1, 8, new THREE.MeshLambertMaterial({ color: kind === 'choga' || kind === 'shop' ? 0x8a6c3e : 0x34393f }), side * (HW - 0.28), 3.62, z);
       }));
@@ -158,7 +159,7 @@
       });
       const extra = new THREE.Sprite(new THREE.SpriteMaterial({ map: doll(conf.dolls[0], 'stare'), transparent: true, depthWrite: false }));
       extra.scale.set(0.95, 1.9, 1); extra.position.set(1.15, 1.0, -22.5); extra.visible = false; g.add(extra);
-      return { g, conf, dolls, extra, jars, flag, lanternMat };
+      return { g, conf, dolls, extra, jars, flag, lanternMat, facades };
     }
     const built = {};
     let cur = null;
@@ -195,6 +196,7 @@
     let fx = null;
     const fxGroup = new THREE.Group();
     shadows.forEach(m => fxGroup.add(m)); fxGroup.add(signMesh); lineup.forEach(s => fxGroup.add(s));
+    setTimeout(() => crowd.forEach(s => fxGroup.add(s)));
     const rand = n => Math.floor(Math.random() * n);
     function startShadow(m, z0, side, dir, speed) {
       m.position.set(side * (HW - 0.03), 1.75, z0); m.rotation.y = -side * Math.PI / 2;
@@ -205,11 +207,15 @@
       drawSignText(SIGNS[rand(SIGNS.length)]);
       signMesh.position.set(side * (HW - 0.1), 2.3, z); signMesh.rotation.y = -side * Math.PI / 2; signMesh.visible = true;
     }
-    function clearFx() { shadows.forEach(m => { m.visible = false; }); signMesh.visible = false; lineup.forEach(s => { s.visible = false; }); }
+    // 끝나지 않는 거리: 지나온 거리의 인형들이 한 명씩 따라와 서 있다
+    const ALL_DOLLS = Object.keys(STREETS).map(k => STREETS[k].dolls[2]).concat(Object.keys(STREETS).map(k => STREETS[k].dolls[5]));
+    const crowd = ALL_DOLLS.map(() => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false })); s.scale.set(0.95, 1.9, 1); s.visible = false; return s; });
+    function clearFx() { shadows.forEach(m => { m.visible = false; }); signMesh.visible = false; lineup.forEach(s => { s.visible = false; }); crowd.forEach(s => { s.visible = false; }); }
     return {
       get: id => built[id] || (built[id] = make(id)),
       // 거리 보이기: street 는 달라진 소품·인형 이름 (없으면 평소 모습)
-      show(id, group, bright, change) {
+      // mix: 다른 거리의 건물 두 채가 끼어든다 (끝나지 않는 거리 뒷부분)
+      show(id, group, bright, change, mix) {
         if (cur) cur.g.visible = false;
         cur = null; fx = null; clearFx();
         if (!id) return;
@@ -217,6 +223,7 @@
         const s = this.get(id);
         if (!s.g.parent) group.add(s.g);
         s.g.visible = true; cur = s;
+        s.facades.forEach((f, i) => { f.m.material = face(mix && (i === 2 || i === 9) ? STREETS[mix][i < 6 ? 'left' : 'right'][i % 6] : f.kind); });
         const base = bright ? 'soft' : 'closed';
         s.dolls.forEach(d => { d.s.material.map = doll(d.kind, base); d.s.material.needsUpdate = true; d.s.position.x = d.x; d.s.position.z = d.z; d.s.material.color.setHex(bright ? 0xffffff : 0xb8ae9e); d.s.material.rotation = 0; d.s.material.opacity = 1; });
         s.base = base;
@@ -227,6 +234,17 @@
         s.lanternMat.color.setHex(change === 'lantern' ? 0xff4a3a : (bright ? 0xfff0c8 : 0xffd28a));
         if (change === 'stare') { const d = s.dolls[1]; d.s.material.map = doll(d.kind, 'stare'); d.s.material.needsUpdate = true; }
         if (change === 'near') { const d = s.dolls[4]; d.s.position.x = 1.0; }
+      },
+      // n명의 인형이 길가에 서 있다. aside: 양옆 벽으로 비켜서서 길을 열어 준다 / eyes: 눈 모양
+      setCrowd(n, eyes, aside, bright) {
+        crowd.forEach((s, k) => {
+          s.visible = k < n;
+          if (!s.visible) return;
+          const side = k % 2 ? 1 : -1, row = k >> 1;
+          s.material.map = doll(ALL_DOLLS[k], eyes); s.material.needsUpdate = true;
+          s.material.color.setHex(bright ? 0xffffff : 0xb8ae9e); s.material.rotation = 0;
+          s.position.set(side * (aside ? 2.35 : 1.45), 1.0, aside ? -8 - row * 4.6 - (k % 2) * 1.2 : -7 - row * 4.9 - (k % 2) * 2.4);
+        });
       },
       // 이번 전시실에 일어날 일을 무작위로 정한다 (1층의 은근한 공포와 같은 방식)
       plan(on, mild) {

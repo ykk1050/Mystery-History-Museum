@@ -130,7 +130,8 @@
         x.fillStyle = '#1f2d2a'; x.fillText(`${p.i + 1} ${SHORT[p.i]}`, la, lb);
       });
       const [d0, d1] = P(DOWN.x, D2 - 1.4), [u0, u1] = P(UP.x, D2 - 1.4), [b0, b1] = P(0, D2 - 1.4), [c0, c1] = P(0, 0);
-      x.fillText('▼ 1층 계단', d0, d1); x.fillText('🚧 3층 (공사 중)', u0, u1); x.fillText('📜 기록장', b0, b1); x.fillText('★ 지금 보는 안내도', c0, c1);
+      const [k0, k1] = P(0, -D2 + 3.2); x.fillText(st.open ? '📖 기록관 책상 · 열린 문' : '📖 기록관 책상', k0, k1 + 26);
+      x.fillText('▼ 1층 계단', d0, d1); x.fillText(st.upOpen ? '▲ 3층 (준비 중)' : '🚧 3층 (공사 중)', u0, u1); x.fillText('📜 기록장', b0, b1); x.fillText('★ 지금 보는 안내도', c0, c1);
       x.font = `500 24px ${SANS}`; x.fillStyle = '#44544f'; x.fillText('통로로 걸어 들어가면 재현 거리 전시관으로 이동합니다.', W / 2, H - 50);
       mapT.needsUpdate = true;
     }
@@ -177,6 +178,51 @@
     const upSign = plane(2.4, 0.94, stairSign('🚧 공사 중', '3층 전시실은 준비 중입니다', '#f2c230'), UP.x, 4.0, D2 - 0.06, Math.PI);
     upSign.userData.lobby = 'up'; pickables.push(upSign);
     const rects = [{ x0: UP.x - UP.w / 2 - 0.1, x1: UP.x + UP.w / 2 + 0.1, z0: D2 - 2.75, z1: D2, kind: 'up' }];
+    const stripes = pickables.filter(p => p.userData.lobby === 'up' && p !== upSign);
+    const upLight = plane(UP.w - 0.4, 2.6, new THREE.MeshBasicMaterial({ color: 0xfff0c8, transparent: true, opacity: 0.0, depthWrite: false }), UP.x, 4.4, D2 - 0.05, Math.PI);
+    const upOpenMat = stairSign('▲ 3층', '계단 위에서 빛이 새어 나온다', '#ffe2a0'), upClosedMat = upSign.material;
+
+    /* 북쪽 벽 가운데: 기록관 책상과 기록책, 그 뒤 벽에 숨은 문 (기록 8쪽을 모두 끼우면 열린다) */
+    const DESK = { x: 0, z: -D2 + 3.2 };
+    const deskMat = new THREE.MeshLambertMaterial({ color: 0x4a3120 });
+    box(2.4, 0.9, 1.1, deskMat, DESK.x, 0.45, DESK.z);
+    const bookC = cnv(512, 340), bookT = tex(bookC);
+    const book = plane(1.5, 1.0, new THREE.MeshBasicMaterial({ map: bookT }), DESK.x, 0.98, DESK.z + 0.05, 0);
+    book.rotation.order = 'YXZ'; book.rotation.x = -1.2; book.userData.lobby = 'door'; pickables.push(book);
+    const deskHit = box(2.5, 1.0, 1.2, new THREE.MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, colorWrite: false }), DESK.x, 0.5, DESK.z);
+    deskHit.userData.lobby = 'door'; pickables.push(deskHit);
+    circles.push({ x: DESK.x - 0.7, z: DESK.z, r: 0.75 }, { x: DESK.x + 0.7, z: DESK.z, r: 0.75 });
+    const secretC = cnv(512, 640), secretT = tex(secretC);
+    const secret = plane(2.4, 3.0, new THREE.MeshBasicMaterial({ map: secretT, transparent: true }), 0, 1.5, -D2 + 0.04, 0);
+    secret.userData.lobby = 'door'; pickables.push(secret);
+    function drawBook(st, bright) {
+      const x = bookC.getContext('2d');
+      x.fillStyle = '#5a3a22'; x.fillRect(0, 0, 512, 340);
+      x.fillStyle = bright ? '#f3e9cf' : '#d9cba6'; x.fillRect(16, 14, 236, 312); x.fillRect(260, 14, 236, 312);
+      x.fillStyle = '#3a2614'; x.fillRect(250, 10, 12, 320);
+      for (let i = 0; i < 8; i++) {
+        const px = 34 + (i % 4) * 116 + (i > 3 ? 0 : 0) + (i % 4 > 1 ? 18 : 0), py = i < 4 ? 40 : 186;
+        x.fillStyle = st.pages.has(i) ? '#b08848' : 'rgba(90,70,40,0.18)';
+        x.fillRect(px, py, 82, 112);
+        x.strokeStyle = '#6a5232'; x.lineWidth = 2; x.setLineDash(st.pages.has(i) ? [] : [6, 5]); x.strokeRect(px, py, 82, 112); x.setLineDash([]);
+      }
+      bookT.needsUpdate = true;
+    }
+    function drawSecret(st, bright) {
+      const x = secretC.getContext('2d'); x.clearRect(0, 0, 512, 640);
+      if (st.open) {
+        const g = x.createRadialGradient(256, 380, 10, 256, 380, 340); g.addColorStop(0, '#6a5a2a'); g.addColorStop(0.4, '#1c1608'); g.addColorStop(1, '#000');
+        x.fillStyle = g; x.fillRect(0, 0, 512, 640);
+        x.fillStyle = '#f0d890'; x.textAlign = 'center'; x.font = `700 46px ${FONT}`; x.fillText('끝나지 않는 거리', 256, 90);
+      } else {
+        x.strokeStyle = bright ? 'rgba(80,100,90,0.45)' : 'rgba(150,170,160,0.35)'; x.lineWidth = 5; x.setLineDash([16, 12]);
+        x.strokeRect(20, 20, 472, 600); x.setLineDash([]);
+        x.fillStyle = bright ? 'rgba(60,80,70,0.55)' : 'rgba(170,190,180,0.5)'; x.textAlign = 'center'; x.font = `700 40px ${FONT}`;
+        x.fillText('지워진 기록을', 256, 290); x.fillText('되찾아라', 256, 344);
+        x.font = `700 34px ${SANS}`; x.fillText(`${st.pages.size} / 8`, 256, 420);
+      }
+      secretT.needsUpdate = true;
+    }
 
     /* 분위기 / 상태 */
     let bright = false, last = null;
@@ -194,7 +240,11 @@
     function refresh(st) {
       last = st;
       ROOMS.forEach((r, i) => drawSign(i, { done: st.done[i], saved: st.saved[i] }, bright));
-      drawMap(st, bright); drawBoard(st, bright);
+      drawMap(st, bright); drawBoard(st, bright); drawBook(st, bright); drawSecret(st, bright);
+      // 끝나지 않는 거리를 탈출하면 3층 계단의 가림막이 쓰러지고 빛이 새어 나온다 (3층은 아직 열리지 않음)
+      stripes.forEach(p => { p.visible = !st.upOpen; });
+      upSign.material = st.upOpen ? upOpenMat : upClosedMat;
+      upLight.material.opacity = st.upOpen ? (bright ? 0.35 : 0.55) : 0;
     }
 
     function collide(x, z) {
@@ -209,6 +259,7 @@
       x = Math.max(-W2 + R, Math.min(W2 - R, x));
       z = Math.max(-D2 + R, Math.min(D2 - R, z));
       if (z >= D2 - R - 0.02 && Math.abs(x - DOWN.x) < DOWN.w / 2) enter = 'down';
+      if (z <= -D2 + R + 0.05 && Math.abs(x) < 1.0) { if (last && last.open) enter = 'mystery'; else touch = 'secret'; }
       circles.forEach(c => { const dx = x - c.x, dz = z - c.z, d = Math.hypot(dx, dz), m = c.r + R; if (d < m && d > 1e-4) { x = c.x + dx / d * m; z = c.z + dz / d * m; } });
       rects.forEach(r => {
         const x0 = r.x0 - R, x1 = r.x1 + R, z0 = r.z0 - R, z1 = r.z1 + R;
@@ -224,6 +275,7 @@
         const p = passages[which];
         return { x: p.cx + p.nx * 2.2, z: p.cz + p.nz * 2.2, yaw: Math.atan2(-p.nx, -p.nz) };
       }
+      if (which === 'mystery') return { x: 0, z: -D2 + 1.6, yaw: Math.PI };
       return { x: DOWN.x, z: D2 - 2.2, yaw: 0 };
     }
     return { group, pickables, setTheme, refresh, update() {}, collide, spawn, setBoard() {}, signCanvas: i => signs[i].c, mapCanvas: () => mapC };
