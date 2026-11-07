@@ -14,6 +14,8 @@
 
   function build(env) {
     const { THREE, tex, ART, ROOMS, X0 } = env;
+    const F = env.floor || 2, F2 = F === 2;           // 3층은 같은 구조에 책상·숨은 문·위층 계단만 없다
+    const SHORT_ = env.short || SHORT;
     const FONT = ART.FONT, SANS = ART.SANS;
     const group = new THREE.Group(); group.position.set(X0, 0, 0);
     const pickables = [];
@@ -93,7 +95,7 @@
       x.fillStyle = bright ? '#f4f7f1' : '#0e1412'; x.fillRect(0, 0, W, H);
       x.strokeStyle = bright ? '#3f7a6c' : '#3f6a60'; x.lineWidth = 10; x.strokeRect(8, 8, W - 16, H - 16);
       x.textAlign = 'center'; x.textBaseline = 'alphabetic';
-      x.fillStyle = bright ? '#3f7a6c' : '#8fb8ac'; x.font = `700 30px ${SANS}`; x.fillText(`2층 전시관 ${i + 1} · 재현 거리`, W / 2, 74);
+      x.fillStyle = bright ? '#3f7a6c' : '#8fb8ac'; x.font = `700 30px ${SANS}`; x.fillText(F2 ? `2층 전시관 ${i + 1} · 재현 거리` : `${F}층 전시관 ${i + 1}`, W / 2, 74);
       x.fillStyle = bright ? '#1f2d2a' : '#e8efe6';
       let fs = 62; do { x.font = `700 ${fs}px ${FONT}`; fs -= 2; } while (x.measureText(roomName(ROOMS[i])).width > W - 90 && fs > 30);
       x.fillText(roomName(ROOMS[i]), W / 2, 164);
@@ -118,7 +120,7 @@
       const x = mapC.getContext('2d'), W = 1024, H = 900;
       x.fillStyle = bright ? '#f4f7f1' : '#dfe4da'; x.fillRect(0, 0, W, H);
       x.strokeStyle = '#3f6a60'; x.lineWidth = 8; x.strokeRect(10, 10, W - 20, H - 20);
-      x.fillStyle = '#1f2d2a'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.font = `700 46px ${FONT}`; x.fillText('2층 로비 안내도', W / 2, 70);
+      x.fillStyle = '#1f2d2a'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.font = `700 46px ${FONT}`; x.fillText(`${F}층 로비 안내도`, W / 2, 70);
       const ox = 140, oy = 130, sx = 744 / (W2 * 2), sz = 640 / (D2 * 2), P = (a, b) => [ox + (a + W2) * sx, oy + (b + D2) * sz];
       x.fillStyle = '#eef2ea'; x.strokeStyle = '#1f2d2a'; x.lineWidth = 6; x.fillRect(ox, oy, 744, 640); x.strokeRect(ox, oy, 744, 640);
       x.font = `700 21px ${SANS}`;
@@ -127,12 +129,12 @@
         x.fillStyle = st.done[p.i] ? '#2c6d3d' : '#3f6a60';
         x.fillRect(a - 18 - Math.abs(p.nz) * 18, b - 18 - Math.abs(p.nx) * 18, 36 + Math.abs(p.nz) * 36, 36 + Math.abs(p.nx) * 36);
         const [la, lb] = P(p.cx + p.nx * 2.8, p.cz + p.nz * 2.2);
-        x.fillStyle = '#1f2d2a'; x.fillText(`${p.i + 1} ${SHORT[p.i]}`, la, lb);
+        x.fillStyle = '#1f2d2a'; x.fillText(`${p.i + 1} ${SHORT_[p.i]}`, la, lb);
       });
       const [d0, d1] = P(DOWN.x, D2 - 1.4), [u0, u1] = P(UP.x, D2 - 1.4), [b0, b1] = P(0, D2 - 1.4), [c0, c1] = P(0, 0);
-      const [k0, k1] = P(0, -D2 + 3.2); x.fillText(st.open ? '📖 기록관 책상 · 열린 문' : '📖 기록관 책상', k0, k1 + 26);
-      x.fillText('▼ 1층 계단', d0, d1); x.fillText(st.upOpen ? '▲ 3층 (준비 중)' : '🚧 3층 (공사 중)', u0, u1); x.fillText('📜 기록장', b0, b1); x.fillText('★ 지금 보는 안내도', c0, c1);
-      x.font = `500 24px ${SANS}`; x.fillStyle = '#44544f'; x.fillText('통로로 걸어 들어가면 재현 거리 전시관으로 이동합니다.', W / 2, H - 50);
+      const [k0, k1] = P(0, -D2 + 3.2); if (F2) x.fillText(st.open ? '📖 기록관 책상 · 열린 문' : '📖 기록관 책상', k0, k1 + 26);
+      x.fillText(`▼ ${F - 1}층 계단`, d0, d1); if (F2) x.fillText(st.upOpen ? '▲ 3층 (준비 중)' : '🚧 3층 (공사 중)', u0, u1); x.fillText('📜 기록장', b0, b1); x.fillText('★ 지금 보는 안내도', c0, c1);
+      x.font = `500 24px ${SANS}`; x.fillStyle = '#44544f'; x.fillText(F2 ? '통로로 걸어 들어가면 재현 거리 전시관으로 이동합니다.' : '통로로 걸어 들어가면 그 전시관으로 이동합니다.', W / 2, H - 50);
       mapT.needsUpdate = true;
     }
 
@@ -145,11 +147,11 @@
       const x = boardC.getContext('2d'), W = 1024, H = 560;
       x.fillStyle = bright ? '#8fae9f' : '#22312c'; x.fillRect(0, 0, W, H);
       x.fillStyle = bright ? '#f7fbf4' : '#dfe4da'; x.fillRect(250, 24, 524, 80);
-      x.fillStyle = '#1f2d2a'; x.textAlign = 'center'; x.textBaseline = 'alphabetic'; x.font = `700 44px ${FONT}`; x.fillText('2층 이상 현상 기록장', 512, 82);
+      x.fillStyle = '#1f2d2a'; x.textAlign = 'center'; x.textBaseline = 'alphabetic'; x.font = `700 44px ${FONT}`; x.fillText(`${F}층 이상 현상 기록장`, 512, 82);
       ROOMS.forEach((r, i) => {
         const px = 34 + (i % 4) * 243, py = 128 + Math.floor(i / 4) * 170;
         x.fillStyle = bright ? '#fbfdf9' : '#cfd6cc'; x.fillRect(px, py, 225, 150);
-        x.fillStyle = '#1f2d2a'; x.font = `700 25px ${FONT}`; x.fillText(SHORT[i], px + 112, py + 50);
+        x.fillStyle = '#1f2d2a'; x.font = `700 25px ${FONT}`; x.fillText(SHORT_[i], px + 112, py + 50);
         const [got, all] = st.rooms[i];
         x.font = `700 30px ${SANS}`; x.fillStyle = got === all ? '#2c6d3d' : '#3f6a60'; x.fillText(`${got} / ${all}`, px + 112, py + 104);
       });
@@ -166,9 +168,10 @@
     plane(DOWN.w, 3.2, new THREE.MeshBasicMaterial({ color: 0x050403 }), DOWN.x, 1.6, D2 - 0.03, Math.PI);
     const stepMat = new THREE.MeshLambertMaterial({ color: 0x7d7465 });
     for (let i = 0; i < 4; i++) box(DOWN.w, 0.08, 0.32, stepMat, DOWN.x, 0.6 - i * 0.18, D2 - 0.05);
-    const downSign = plane(2.4, 0.94, stairSign('▼ 1층', '내려가는 계단', '#8fb8ac'), DOWN.x, 4.0, D2 - 0.06, Math.PI);
+    const downSign = plane(2.4, 0.94, stairSign(`▼ ${F - 1}층`, '내려가는 계단', '#8fb8ac'), DOWN.x, 4.0, D2 - 0.06, Math.PI);
     downSign.userData.lobby = 'down'; pickables.push(downSign);
     // 3층 계단: 공사 중 (올라갈 수 없음)
+    const nBefore = group.children.length, pBefore = pickables.length, cBefore = circles.length;
     const stripeC = cnv(256, 64), sx = stripeC.getContext('2d');
     sx.fillStyle = '#f2c230'; sx.fillRect(0, 0, 256, 64); sx.fillStyle = '#1a1a1a';
     for (let k = -64; k < 256; k += 48) { sx.beginPath(); sx.moveTo(k, 64); sx.lineTo(k + 24, 64); sx.lineTo(k + 88, 0); sx.lineTo(k + 64, 0); sx.fill(); }
@@ -224,6 +227,11 @@
       secretT.needsUpdate = true;
     }
 
+    if (!F2) {   // 3층: 위층 계단과 기록관 책상·숨은 문을 치운다
+      group.children.slice(nBefore).forEach(m => { m.visible = false; });
+      pickables.splice(pBefore); circles.splice(cBefore); rects.length = 0;
+    }
+
     /* 분위기 / 상태 */
     let bright = false, last = null;
     function setTheme(b) {
@@ -240,7 +248,9 @@
     function refresh(st) {
       last = st;
       ROOMS.forEach((r, i) => drawSign(i, { done: st.done[i], saved: st.saved[i] }, bright));
-      drawMap(st, bright); drawBoard(st, bright); drawBook(st, bright); drawSecret(st, bright);
+      drawMap(st, bright); drawBoard(st, bright);
+      if (!F2) return;
+      drawBook(st, bright); drawSecret(st, bright);
       // 끝나지 않는 거리를 탈출하면 3층 계단의 가림막이 쓰러지고 빛이 새어 나온다 (3층은 아직 열리지 않음)
       stripes.forEach(p => { p.visible = !st.upOpen; });
       upSign.material = st.upOpen ? upOpenMat : upClosedMat;
@@ -259,7 +269,7 @@
       x = Math.max(-W2 + R, Math.min(W2 - R, x));
       z = Math.max(-D2 + R, Math.min(D2 - R, z));
       if (z >= D2 - R - 0.02 && Math.abs(x - DOWN.x) < DOWN.w / 2) enter = 'down';
-      if (z <= -D2 + R + 0.05 && Math.abs(x) < 1.0) { if (last && last.open) enter = 'mystery'; else touch = 'secret'; }
+      if (F2 && z <= -D2 + R + 0.05 && Math.abs(x) < 1.0) { if (last && last.open) enter = 'mystery'; else touch = 'secret'; }
       circles.forEach(c => { const dx = x - c.x, dz = z - c.z, d = Math.hypot(dx, dz), m = c.r + R; if (d < m && d > 1e-4) { x = c.x + dx / d * m; z = c.z + dz / d * m; } });
       rects.forEach(r => {
         const x0 = r.x0 - R, x1 = r.x1 + R, z0 = r.z0 - R, z1 = r.z1 + R;
