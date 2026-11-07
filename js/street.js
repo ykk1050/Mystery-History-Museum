@@ -162,18 +162,64 @@
     }
     const built = {};
     let cur = null;
+
+    /* ---------- 2층 전용 공포 (으스스한 박물관, 깜짝 효과 설정을 따름) ----------
+       1층의 소리·암전·유령과 달리, 보지 않는 사이에 거리가 달라진다.
+       - 따라오는 인형: 지나온 인형이 내가 보지 않을 때만 따라온다 (받침대는 빈 채로 남는다)
+       - 고개 갸웃: 지나친 인형들의 고개가 기울어진다
+       - 창호지 그림자: 벽 너머로 사람 그림자가 지나간다
+       - 등 뒤의 글씨: 지나온 벽에 없던 글씨가 나타나고, 보고 나면 사라진다
+       순한 맛에서는 인형이 움직이는 연출을 빼고 그림자와 글씨만 쓴다. */
+    const shadowTex = (() => {
+      const c = cnv(256, 512), x = c.getContext('2d');
+      x.filter = 'blur(6px)'; x.fillStyle = 'rgba(0,0,0,0.9)';
+      x.beginPath(); x.ellipse(128, 90, 46, 56, 0, 0, 7); x.fill();
+      x.beginPath(); x.moveTo(62, 150); x.quadraticCurveTo(128, 124, 194, 150); x.lineTo(214, 512); x.lineTo(42, 512); x.fill();
+      return tex(c);
+    })();
+    const shadows = [0, 1, 2, 3].map(() => {
+      const m = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 2.2), new THREE.MeshBasicMaterial({ map: shadowTex, transparent: true, opacity: 0, depthWrite: false, fog: false }));
+      m.visible = false; m.renderOrder = 2; return m;
+    });
+    const signC = cnv(512, 300), signT = tex(signC);
+    const signMesh = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 1.17), new THREE.MeshBasicMaterial({ map: signT, transparent: true, depthWrite: false }));
+    signMesh.visible = false; signMesh.renderOrder = 2;
+    const SIGNS = [['돌아보지 마'], ['보고 있어'], ['아직', '여기 있어'], ['나갈 수', '있을까'], ['거기 서']];
+    function drawSignText(lines) {
+      const x = signC.getContext('2d'); x.clearRect(0, 0, 512, 300);
+      x.fillStyle = 'rgba(120,16,12,0.92)'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.font = '700 72px "Noto Serif KR", serif';
+      lines.forEach((l, i) => x.fillText(l, 256, 150 + (i - (lines.length - 1) / 2) * 92));
+      signT.needsUpdate = true;
+    }
+    const lineup = [0, 1, 2, 3, 4].map(() => { const s = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false })); s.scale.set(0.95, 1.9, 1); s.visible = false; return s; });
+    let fx = null;
+    const fxGroup = new THREE.Group();
+    shadows.forEach(m => fxGroup.add(m)); fxGroup.add(signMesh); lineup.forEach(s => fxGroup.add(s));
+    const rand = n => Math.floor(Math.random() * n);
+    function startShadow(m, z0, side, dir, speed) {
+      m.position.set(side * (HW - 0.03), 1.75, z0); m.rotation.y = -side * Math.PI / 2;
+      m.visible = true; m.material.opacity = 0;
+      m.userData = { t: 0, total: 5 / speed, dir, speed };
+    }
+    function placeSign(z, side) {
+      drawSignText(SIGNS[rand(SIGNS.length)]);
+      signMesh.position.set(side * (HW - 0.1), 2.3, z); signMesh.rotation.y = -side * Math.PI / 2; signMesh.visible = true;
+    }
+    function clearFx() { shadows.forEach(m => { m.visible = false; }); signMesh.visible = false; lineup.forEach(s => { s.visible = false; }); }
     return {
       get: id => built[id] || (built[id] = make(id)),
       // 거리 보이기: street 는 달라진 소품·인형 이름 (없으면 평소 모습)
       show(id, group, bright, change) {
         if (cur) cur.g.visible = false;
-        cur = null;
+        cur = null; fx = null; clearFx();
         if (!id) return;
+        if (!fxGroup.parent) group.add(fxGroup);
         const s = this.get(id);
         if (!s.g.parent) group.add(s.g);
         s.g.visible = true; cur = s;
         const base = bright ? 'soft' : 'closed';
-        s.dolls.forEach(d => { d.s.material.map = doll(d.kind, base); d.s.material.needsUpdate = true; d.s.position.x = d.x; d.s.position.z = d.z; d.s.material.color.setHex(bright ? 0xffffff : 0xb8ae9e); });
+        s.dolls.forEach(d => { d.s.material.map = doll(d.kind, base); d.s.material.needsUpdate = true; d.s.position.x = d.x; d.s.position.z = d.z; d.s.material.color.setHex(bright ? 0xffffff : 0xb8ae9e); d.s.material.rotation = 0; d.s.material.opacity = 1; });
+        s.base = base;
         s.extra.visible = change === 'extra';
         s.extra.material.color.setHex(0xb8ae9e);
         s.jars.forEach((j, i) => { j.visible = i < 4 || change === 'jars'; });
@@ -182,10 +228,81 @@
         if (change === 'stare') { const d = s.dolls[1]; d.s.material.map = doll(d.kind, 'stare'); d.s.material.needsUpdate = true; }
         if (change === 'near') { const d = s.dolls[4]; d.s.position.x = 1.0; }
       },
-      // 깜짝 효과: 모든 인형이 눈을 뜬다
-      stareAll() {
+      // 이번 전시실에 일어날 일을 무작위로 정한다 (1층의 은근한 공포와 같은 방식)
+      plan(on, mild) {
+        fx = null; if (!cur || !on) return;
+        fx = {
+          mild,
+          follow: !mild && Math.random() < 0.35 ? { d: cur.dolls[[3, 0, 4][rand(3)]], step: 0, on: false } : null,
+          tilt: !mild && Math.random() < 0.45,
+          shadow: Math.random() < 0.4 ? { z: -10 - Math.random() * 28, done: false } : null,
+          sign: Math.random() < 0.4 ? { at: -14 - Math.random() * 18, st: 'wait', t: 0 } : null,
+          empty: 0, line: 0, front: 0, stareT: 0
+        };
+      },
+      // 깜짝 효과 (순한 맛에서는 인형이 움직이는 것 대신 그림자)
+      fire(kind, pz) {
         if (!cur) return;
-        cur.dolls.forEach(d => { d.s.material.map = doll(d.kind, 'stare'); d.s.material.needsUpdate = true; });
+        if (!fx) fx = { mild: false, empty: 0, line: 0, front: 0, stareT: 0 };
+        if (fx.mild && kind !== 'sign') kind = 'shadows';
+        if (kind === 'stare') {
+          cur.dolls.forEach(d => { d.s.material.map = doll(d.kind, 'stare'); d.s.material.needsUpdate = true; });
+          fx.stareT = 2.8;
+        }
+        if (kind === 'shadows') shadows.forEach((m, i) => startShadow(m, pz - 1 - i * 2.2, i % 2 ? 1 : -1, i % 2 ? 1 : -1, 3 + i * 0.4));
+        if (kind === 'empty') fx.empty = 3.2;
+        if (kind === 'step') cur.dolls.forEach(d => { d.s.position.x = d.x - Math.sign(d.x) * 0.9; });
+        if (kind === 'sign') { placeSign(pz - 5, rand(2) ? 1 : -1); fx.front = 2.6; }
+        if (kind === 'lineup') {
+          fx.line = 2.0;
+          lineup.forEach((s, i) => { const d = cur.dolls[i % cur.dolls.length]; s.material.map = doll(d.kind, 'stare'); s.material.needsUpdate = true; s.material.color.setHex(0xb8ae9e); s.position.set(-1.7 + i * 0.85, 1.0, Math.max(-46.5, pz - 9)); s.visible = true; });
+        }
+      },
+      // seen(x, z): 그 자리가 지금 내 화면 안에 있는지
+      update(dt, pz, seen, active) {
+        if (!cur || !fx) return;
+        if (fx.follow && active) {
+          const f = fx.follow, s = f.d.s, away = s.position.z - pz;
+          if (away > 2.4 && !seen(s.position.x, s.position.z)) {
+            if (!f.on) { f.on = true; s.material.map = doll(f.d.kind, 'stare'); s.material.needsUpdate = true; }
+            s.position.z = Math.max(pz + 2.2, s.position.z - 2.6 * dt);
+            s.position.x += (Math.sign(f.d.x) * 1.0 - s.position.x) * Math.min(1, dt * 1.2);
+            f.step += dt;
+            if (f.step > 0.8) { f.step = 0; if (window.SFX) SFX.step(0.1, 0.55); }
+          }
+        }
+        if (fx.tilt) cur.dolls.forEach(d => {
+          if (pz < d.z - 0.3 && pz > d.z - 6) d.s.material.rotation += ((d.x < 0 ? 0.3 : -0.3) - d.s.material.rotation) * Math.min(1, dt * 1.6);
+        });
+        if (fx.shadow && !fx.shadow.done && active && Math.abs(pz - fx.shadow.z) < 6) {
+          fx.shadow.done = true; startShadow(shadows[0], fx.shadow.z, rand(2) ? 1 : -1, rand(2) ? 1 : -1, 2.6);
+        }
+        shadows.forEach(m => {
+          if (!m.visible) return;
+          const u = m.userData; u.t += dt; m.position.z += u.dir * u.speed * dt;
+          m.material.opacity = Math.sin(Math.min(1, u.t / u.total) * Math.PI) * 0.62;
+          if (u.t >= u.total) m.visible = false;
+        });
+        const g = fx.sign;
+        if (g) {
+          g.t += dt;
+          if (g.st === 'wait') { if (pz < g.at && active) { g.st = 'placed'; g.t = 0; placeSign(pz + 5.5, rand(2) ? 1 : -1); } }
+          else if (g.st === 'placed') {
+            if (seen(signMesh.position.x, signMesh.position.z)) { g.st = 'seen'; g.t = 0; }
+            else if (g.t > 16) { signMesh.visible = false; fx.sign = null; }
+          } else if (g.t > 1.6) { signMesh.visible = false; fx.sign = null; }
+        }
+        if (fx.front > 0) { fx.front -= dt; if (fx.front <= 0) signMesh.visible = false; }
+        if (fx.stareT > 0) {
+          fx.stareT -= dt;
+          if (fx.stareT <= 0) cur.dolls.forEach(d => { d.s.material.map = doll(d.kind, cur.base); d.s.material.needsUpdate = true; });
+        }
+        if (fx.empty > 0) {
+          fx.empty -= dt;
+          const k = fx.empty > 2.8 ? (fx.empty - 2.8) / 0.4 : fx.empty < 0.4 ? 1 - fx.empty / 0.4 : 0;
+          cur.dolls.forEach(d => { d.s.material.opacity = k; });
+        }
+        if (fx.line > 0) { fx.line -= dt; if (fx.line <= 0) lineup.forEach(s => { s.visible = false; }); }
       },
       ground(id, bright) {
         const k = (STREETS[id].rails ? 'r' : 'n') + (bright ? 'b' : 'd');

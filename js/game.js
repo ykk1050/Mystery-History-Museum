@@ -636,6 +636,11 @@
     const k = kind + ':' + eraId;
     if (chaseTexCache[k]) return chaseTexCache[k];
     const st = CHASE_STYLE[eraId] || CHASE_STYLE.street2;
+    if (!CHASE_STYLE[eraId]) {   // 2층 재현 거리: 눈을 뜬 인형이 쫓아온다
+      const c = document.createElement('canvas'); c.width = 256; c.height = 512;
+      PEOPLE.draw(c.getContext('2d'), 128, 500, 480, STREET.STREETS[(ROOMS.find(r => r.id === eraId) || {}).street || 'hanyang'].dolls[0], 'stare');
+      return (chaseTexCache[k] = tex(c));
+    }
     return (chaseTexCache[k] = tex(kind === 'ghost' ? ghostCanvas(st.ghost) : personCanvas(st.person)));
   }
   // 유령: 찢어진 옷자락, 앞으로 뻗은 앙상한 팔, 핼쑥한 얼굴 (피·상처 표현 없음)
@@ -831,7 +836,7 @@
   }
   function setupChase() {
     if (!chaseFx) buildChaseFx();
-    const kinds = scaryChase() ? ['fire', 'flood', 'dark', 'ghost', 'person'] : ['fire', 'flood'];
+    const kinds = !scaryChase() ? ['fire', 'flood'] : curMode().floor === 2 ? ['fire', 'flood', 'person'] : ['fire', 'flood', 'dark', 'ghost', 'person'];
     let kind = kinds[Math.floor(Math.random() * kinds.length)];
     if (chaseTest) kind = chaseTest === 'all' ? CHASE_KINDS[chaseTestN++ % CHASE_KINDS.length] : chaseTest;   // 시험 주소는 분위기와 상관없이 고른 위험
     const from = Math.random() < 0.5 ? 'front' : 'back';
@@ -891,6 +896,7 @@
       setDoors(true, true); SFX.clunk(); S.shake = 0.35;
       chaseFx.root.visible = true;
       $('chaseMsg').textContent = { fire: '불길로부터 도망쳐라!', flood: '홍수로부터 도망쳐라!', dark: '어둠으로부터 도망쳐라!', ghost: '유령으로부터 도망쳐라!', person: '검은 그림자로부터 도망쳐라!' }[c.kind];
+      if (c.kind === 'person' && room().street) $('chaseMsg').textContent = '인형으로부터 도망쳐라!';
       chaseMsg(true);
       SFX.chaseStart(c.kind);
     }
@@ -1012,7 +1018,7 @@
       }[c.kind];
       $('noteCard').innerHTML = `<h2 class="bad">${line}</h2>
         <p>${to ? `제 ${to} 전시실(중간 저장)부터 다시.` : '처음부터 다시.'}</p>
-        <p style="margin-top:10px;font-size:15px;color:#6d5a3a">다음에는 ${CHASE_NAMES[c.kind]} 보이면 바로 반대쪽 문으로 달려가세요! (${isTouch ? '» 뛰어서 이동하기' : 'Shift 키를 누른 채 걷기'}로 더 빨리)</p>
+        <p style="margin-top:10px;font-size:15px;color:#6d5a3a">다음에는 ${c.kind === 'person' && room().street ? '인형이' : CHASE_NAMES[c.kind]} 보이면 바로 반대쪽 문으로 달려가세요! (${isTouch ? '» 뛰어서 이동하기' : 'Shift 키를 누른 채 걷기'}로 더 빨리)</p>
         <button class="btn" id="noteOk">계속</button>`;
       $('noteCard').scrollTop = 0;
       $('note').classList.add('on');
@@ -1192,18 +1198,13 @@
     const e = era(); if (!e || !e.scare) return;
     const sc = e.scare;
     SFX.scare(sc.sound);
-    S.shake = 0.55;
+    S.shake = sc.street ? 0.2 : 0.55;
     if (sc.blackout) S.blackout = sc.blackout + (sc.blackoutDelay || 0), S.blackoutDelay = sc.blackoutDelay || 0;
     if (sc.boost) S.boost = sc.boost;
     if (sc.flash) { const f = $('scareFlash'); f.style.background = sc.flash; f.style.transition = 'none'; f.style.opacity = 1; setTimeout(() => { f.style.transition = 'opacity 0.9s'; f.style.opacity = 0; }, 80); }
     if (sc.footRing) for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; S.docX = Math.cos(a) * 0.9; const z = S.docZ; S.docZ = S.z + Math.sin(a) * 0.9; dropFootprint(); S.docZ = z; S.docX = docMove() === 'wallSlide' ? 2.95 : 1.35; }
     if (sc.docentBehind) { S.docZ = Math.min(-0.6, S.z + sc.docentBehind); S.docX = 0.6; }
-    // 재현 거리의 인형들이 잠깐 눈을 뜬다 (순한 맛에서는 인형을 움직이지 않는다)
-    if (sc.dolls && S.streetId && !settings.mild) {
-      const gallery = S.streak;
-      streets.stareAll();
-      setTimeout(() => { if (S.streak === gallery && S.place === 'gallery') applyStreet(); }, sc.dolls * 1000);
-    }
+    if (sc.street) streets.fire(sc.street, S.z);   // 2층 재현 거리 전용 연출
     if (sc.ghost) {
       if (!ghost) {
         ghost = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false, fog: false }));
@@ -1215,7 +1216,8 @@
       ghost.userData = { t: sc.ghost.sec, total: sc.ghost.sec, dash: sc.ghost.dash, dir: Math.random() < 0.5 ? 1 : -1 };
       ghost.material.opacity = 0.95; ghost.visible = true;
     }
-    if (sc.hint) setTimeout(() => showHint(sc.hint, 2600), 350);
+    const hint = sc.street && settings.mild && sc.street !== 'sign' ? '창호지 너머로 그림자가 지나갔다.' : sc.hint;
+    if (hint) setTimeout(() => showHint(hint, 2600), 350);
   }
   function updateScare(dt) {
     if (S.scareAt != null && S.mode === 'play' && S.z < S.scareAt) { S.scareAt = null; runScare(); }
@@ -1240,7 +1242,9 @@
     return sp;
   }
   function planCreeps() {
-    const on = !!era() && !era().calm && settings.scares && !S.review;
+    // 재현 거리는 1층과 다른 공포를 쓴다 (js/street.js)
+    if (streets) streets.plan(!!era() && !era().calm && settings.scares && !S.review && !!S.streetId && !S.chase, !!settings.mild);
+    const on = !!era() && !S.streetId && settings.scares && !S.review;
     S.follow = on && Math.random() < 0.35;
     S.knockReady = on && Math.random() < 0.45;
     S.farReady = on && Math.random() < 0.35;
@@ -1328,8 +1332,9 @@
     f.rotation.z = S.docDir > 0 ? Math.PI : 0;
     f.visible = true;
   }
-  function docentSeen() {   // 해설사가 지금 내 화면 안에 보이는지
-    const dx = S.docX - camera.position.x, dz = S.docZ - camera.position.z;
+  function docentSeen() { return seenAt(S.docX, S.docZ); }   // 해설사가 지금 내 화면 안에 보이는지
+  function seenAt(x, z) {
+    const dx = x - camera.position.x, dz = z - camera.position.z;
     const fwd = new THREE.Vector3(); camera.getWorldDirection(fwd);
     const ang = Math.acos(Math.max(-1, Math.min(1, (fwd.x * dx + fwd.z * dz) / (Math.hypot(dx, dz) * Math.hypot(fwd.x, fwd.z) || 1))));
     const half = Math.atan(Math.tan(camera.fov * Math.PI / 360) * camera.aspect);
@@ -2466,6 +2471,7 @@
     // 깜짝 효과, 시대별 장식·떠다니는 것 (깜짝 효과 중에는 더 세게)
     updateScare(dt);
     updateCreeps(dt, now);
+    if (S.streetId) streets.update(dt, S.z, seenAt, active);
     const boost = S.boost > 0 ? 4 : 1;
     if (eraDecor) eraDecor.update(dt * boost, now / 1000, S.z, S.boost > 0);
     if (eraParts) eraParts.update(dt * boost, now / 1000, S.z);
@@ -2885,6 +2891,9 @@
 
   window.MHM = {
     state: S,
+    streetFx: kind => streets.fire(kind, S.z),   // 2층 공포 연출 바로 보기 (점검용)
+    streetPlan: mild => streets.plan(true, !!mild),
+    streetDolls: () => streets.get(S.streetId).dolls.map(d => [d.x, d.z, d.s.position.x, d.s.position.z, d.s.material.opacity, d.s.material.rotation]),
     show(id) { S.anomaly = ALL_ANOMALIES.concat(window.STREET_ANOMALIES).find(a => a.id === id) || null; setupRoom(); },
     goRoom(n) { S.forcedRoom = n; newGallery(); S.anomaly = null; setupRoom(); },
     tick(n) { for (let i = 0; i < (n || 1); i++) frame(last + 16.7); },   // 화면이 가려져도 몇 프레임 진행 (점검용)

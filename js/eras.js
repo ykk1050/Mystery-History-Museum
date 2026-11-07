@@ -39,30 +39,30 @@
     goryeo2: { voice: 'male', fog: 0x0a0805, density: 0.06, ambient: [0x6a5a40, 0.4], lantern: [0xffe0a0, 1.0], lamp: 0xffe8b0,
       flicker: 'normal', sound: 'paper', particles: 'paper', decor: 'shelves', docent: { look: 'monk', move: 'blink' },
       scare: { sound: 'rustle', boost: 3, ghost: { where: 'front', dist: 1.9, sec: 0.6 }, hint: '촤르륵! 종잇장이 휘몰아쳤다.' } },
-    /* 2층 재현 거리: dolls 는 인형들이 잠깐 눈을 뜨는 연출(순한 맛에서는 빠짐), calm 은 조명과 소리만 쓰는 전시관 */
+    /* 2층 재현 거리: 공포 연출은 1층과 다른 종류 (js/street.js). scare.street 는 그 전시관의 깜짝 효과, calm 은 조명과 소리만 쓰는 전시관 */
     jo_found: { voice: 'male', fog: 0x0a0806, density: 0.052, ambient: [0x6a5a48, 0.42], lantern: [0xffd9a0, 1.1], lamp: 0xffdca8,
       flicker: 'normal', sound: 'wind', particles: 'dust', decor: null, docent: { look: 'official', move: 'walk' },
-      scare: { sound: 'gust', blackout: 1.4, dolls: 2.6, hint: '불이 꺼졌다 켜지자… 인형들이 눈을 뜨고 있었다.' } },
+      scare: { sound: 'gust', street: 'stare', hint: '바람이 스치자… 인형들이 모두 눈을 떴다.' } },
     jo_order: { voice: 'male', fog: 0x0a0a06, density: 0.056, ambient: [0x5f6048, 0.42], lantern: [0xe8e0b0, 1.05], lamp: 0xe8e0b8,
       flicker: 'candle', sound: 'echo', particles: null, decor: null, docent: { look: 'official', move: 'fromBehind' },
-      scare: { sound: 'whoosh', ghost: { where: 'front', dist: 3, sec: 1.6, side: 2.9 }, hint: '담장 옆에서 누군가 이쪽을 내다보았다.' } },
+      scare: { sound: 'whoosh', street: 'shadows', hint: '창호지마다 사람 그림자가 지나갔다.' } },
     jo_sejong: { voice: 'male', fog: 0x060a12, density: 0.05, ambient: [0x48586e, 0.44], lantern: [0xbcd0f0, 1.05], lamp: 0xc8d8f0,
       flicker: 'slow', sound: 'bell', particles: null, decor: null, docent: { look: 'official', move: 'blink' },
-      scare: { sound: 'clang', flash: 'rgba(200,220,255,0.3)', boost: 2, hint: '데에엥— 아무도 없는데 종이 혼자 울렸다.' } },
+      scare: { sound: 'clang', street: 'empty', hint: '종소리가 울리자… 거리의 인형이 모두 사라졌다.' } },
     jo_war: { voice: 'male', calm: true, fog: 0x060a0e, density: 0.05, ambient: [0x4a5864, 0.44], lantern: [0xc8d4e0, 1.05], lamp: 0xd0dce8,
       flicker: 'normal', sound: 'wind', particles: null, decor: null, docent: { look: 'general', move: 'walk' }, scare: null },
     jo_econ: { fog: 0x0c0804, density: 0.054, ambient: [0x6e5836, 0.42], lantern: [0xffc888, 1.1], lamp: 0xffcc90,
       flicker: 'torch', sound: 'echo', particles: 'dust', decor: null, docent: { look: 'mural', move: 'stopgo' },
-      scare: { sound: 'rustle', boost: 2, ghost: { where: 'side', dist: 1.5, sec: 0.45, dash: true }, hint: '천막 뒤로 무언가 휙 지나갔다.' } },
+      scare: { sound: 'rustle', street: 'step', hint: '장터의 인형들이 길 쪽으로 한 걸음씩 나와 있다.' } },
     jo_late: { voice: 'male', fog: 0x0a060e, density: 0.058, ambient: [0x5c4e6a, 0.42], lantern: [0xd8c8f0, 1.0], lamp: 0xdcd0f0,
       flicker: 'slow', sound: 'breath', particles: 'mist', decor: null, docent: { look: 'official', move: 'fadeIn' },
-      scare: { sound: 'grind', docentBehind: 2.3, hint: '드르륵… 등 뒤에서 무언가 끌리는 소리가 났다.' } },
+      scare: { sound: 'grind', street: 'sign', hint: '벽에 없던 글씨가 나타났다.' } },
     jo_folk: { fog: 0x0e0704, density: 0.052, ambient: [0x74503a, 0.42], lantern: [0xffb880, 1.1], lamp: 0xffbc88,
       flicker: 'torch', sound: 'drum', particles: null, decor: null, docent: { look: 'mural', move: 'wallSlide' },
-      scare: { sound: 'drum', boost: 3, dolls: 2.2, hint: '둥! 인형들이 일제히 눈을 떴다.' } },
+      scare: { sound: 'drum', street: 'lineup', hint: '둥! 길 끝에 인형들이 줄지어 서 있다.' } },
     open_age: { voice: 'male', fog: 0x080808, density: 0.05, ambient: [0x5a5a60, 0.44], lantern: [0xfff0c8, 1.05], lamp: 0xfff0c8,
       flicker: 'sequence', sound: 'chime', particles: null, decor: null, docent: { look: 'official', move: 'statue' },
-      scare: { sound: 'boom', flash: 'rgba(255,240,190,0.3)', boost: 1.6, blackout: 1.0, blackoutDelay: 1.6, hint: '쿵! 전등이 한꺼번에 켜졌다가… 모두 꺼졌다.' } }
+      scare: { sound: 'boom', street: 'stare', hint: '쿵! 인형들이 일제히 눈을 떴다.' } }
   };
 
   function canvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c; }
