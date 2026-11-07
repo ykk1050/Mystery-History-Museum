@@ -10,7 +10,8 @@
     '구석기 시대': '#7a5c3c', '신석기 시대': '#55703d', '청동기 시대': '#2f7a72',
     '고조선': '#8a4b22', '삼국 시대': '#7d2f2f', '가야': '#5a4a7f',
     '신라': '#9a7a1f', '고려': '#2c5d7d', '백제': '#6a3d5c', '고구려': '#3d4f7a',
-    '통일신라': '#a0522d', '발해': '#3d6a5a', '조선': '#4f4f4f', '중국 역사책': '#6b5a45'
+    '통일신라': '#a0522d', '발해': '#3d6a5a', '조선': '#4f4f4f', '중국 역사책': '#6b5a45',
+    '조선 후기': '#5a5a3c', '개항 이후': '#34506a', '조선 전기': '#4f4f4f', '명나라': '#7a4a2a'
   };
 
   // 사용자가 넣은 이미지 (ASSETS.md) — assets/manifest.json에 적힌 것만 불러온다
@@ -454,6 +455,8 @@
       ctx.drawImage(im, 40, 40, W - 80, 520);
     } else if (ex.art === 'dangun') {
       drawDangun(ctx, v);
+    } else if (ex.art === 'newspaper') {
+      ARTS.newspaper(ctx, W / 2, 300, 480, v, ex);
     } else {
       // 귀족 (원래 크게) / 시종 (원래 작게)
       const big = 400, small = 180;
@@ -875,7 +878,7 @@
   /* 화면에 쓰는 모든 글자 (웹폰트 미리 불러오기용) */
   function allText() {
     let s = '관람안내이상한전시를놓치지마세요발견하면즉시되돌아가세요없다면앞으로나아가세요제8전시실을지나출구로나가세요0123456789GALLERYEXIT↑←→이전다음수장고관계자외출입금지복제품인천광역시강화군부근리시대가흐르는순서대로살펴봅시다선사문자로쓴기록이없는';
-    s += JSON.stringify(window.ROOMS);
+    s += JSON.stringify(window.ROOMS) + JSON.stringify(window.ROOMS2);
     return Array.from(new Set(s)).join('');
   }
 

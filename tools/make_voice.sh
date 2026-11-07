@@ -9,9 +9,9 @@ cd "$(dirname "$0")/.."
 TMP="$(mktemp -d)"
 
 node -e "
-global.window = {}; require('./js/data.js');
+global.window = {}; require('./js/data.js'); require('./js/data2.js');
 const out = [];
-window.ROOMS.forEach(r => {
+window.ROOMS.concat(window.ROOMS2).forEach(r => {
   out.push({ id: r.id, text: r.exhibits.docent.speech });
   r.anomalies.forEach(a => { if (a.patch.speech) out.push({ id: a.id, text: a.patch.speech }); });
 });

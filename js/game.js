@@ -5,7 +5,9 @@
    ========================================================= */
 (function () {
   const $ = id => document.getElementById(id);
-  const ROOMS = window.ROOMS;
+  const ROOMS1 = window.ROOMS, ROOMS2 = window.ROOMS2;   // 1층 9개, 2층 8개 (S.roomIdx 는 둘을 이은 번호)
+  const ROOMS = ROOMS1.concat(ROOMS2);
+  const ALL_ANOMALIES = window.ANOMALIES.concat(window.ANOMALIES2);
 
   /* ---------- 기본 치수 ---------- */
   const L = 48;          // 전시실 길이
@@ -15,15 +17,18 @@
   // 모드: 최고 난이도 미스터리 전시실(모든 시대 무작위, 제0~16) / 시대별 전시실(그 시대만, 제0~8)
   //   checks: 중간 저장되는 전시실 번호
   const MODES = [{ id: 'mystery', name: '최고 난이도 미스터리 전시실', goal: 17, checks: [4, 8, 12] }]
-    .concat(ROOMS.map((r, i) => ({ id: 'era' + i, name: r.name, goal: 9, checks: [4, 6], room: i })));
+    .concat(ROOMS1.map((r, i) => ({ id: 'era' + i, name: r.name, goal: 9, checks: [4, 6], room: i })))
+    .concat(ROOMS2.map((r, i) => ({ id: 'f2era' + i, name: r.name, goal: 9, checks: [4, 6], room: 9 + i, floor: 2, idx: i })));   // 2층 재현 거리 전시관
   // 시대별 전시실을 탈출하면 얻는 유물 모양 열쇠 조각 (9개를 모두 끼우면 미스터리 전시실이 열린다)
   const KEY_ART = ['handaxe', 'comb', 'mirror', 'dagger', 'crown', 'horsepot', 'censer', 'lantern', 'celadon'];
   const KEY_NAMES = ['주먹도끼', '빗살무늬 토기', '청동 거울', '비파형 동검', '금동관', '말 탄 무사 모양 토기', '발해 삼채 향로', '연등회 등불', '고려청자'];
-  const LX = 300;        // 로비는 전시실과 멀리 떨어진 곳에 짓는다
+  const LX = 300, LX2 = 600;   // 로비는 전시실과 멀리 떨어진 곳에 짓는다 (1층, 2층)
+  const lobbyX = () => S.floor === 2 ? LX2 : LX;
+  const STREET_RATE = 0.25;    // 이상 현상이 있을 때 그것이 거리의 소품·인형일 확률
   const modeOf = id => MODES.find(m => m.id === id) || null;
   const curMode = () => modeOf(S.gameMode) || MODES[0];
   const goal = () => curMode().goal;              // 이 수만큼 연속으로 지나면 출구
-  const modeRooms = () => curMode().room != null ? [curMode().room] : ROOMS.map((r, i) => i);
+  const modeRooms = () => curMode().room != null ? [curMode().room] : ROOMS1.map((r, i) => i);
   const MAX_SAME = 3;    // 같은 주제가 연속으로 나올 수 있는 최대 횟수
   const MIN_VIEWS = 3;   // 전시물을 이만큼 자세히 봐야 문이 열린다
   const LAMP_AFTER = 2;  // 같은 주제에서 연속으로 이만큼 틀리면 힌트 등불
@@ -39,7 +44,8 @@
     set(k, v) { try { localStorage.setItem('mhm_' + k, JSON.stringify(v)); } catch (e) {} }
   };
   // 지금 게임에 있는 이상 현상만 센다 (내용을 바꾸어 없어진 이상 현상의 기록은 버림)
-  const found = new Set(store.get('found_v2', []).filter(id => window.ANOMALIES.some(a => a.id === id)));
+  const found = new Set(store.get('found_v2', []).filter(id => ALL_ANOMALIES.some(a => a.id === id)));
+  const foundIn = list => list.filter(a => found.has(a.id)).length;
   store.set('found_v2', [...found]);
   let cleared = store.get('cleared_v2', false);
   const clearedModes = new Set(store.get('clearedModes', []));   // 탈출에 성공한 전시실(모드) id
@@ -112,7 +118,9 @@
   let floorMat, ceilMat, endMat, tunnelMat, tunnelBackMat, texSet;
   const lampGlow = {};
   let storeDoor = null;
-  let lobby = null;          // 로비 (js/lobby.js)
+  let lobby = null, lobby1 = null, lobby2 = null;   // 지금 층의 로비, 1층(js/lobby.js), 2층(js/lobby2.js)
+  let streets = null;        // 2층 재현 거리 (js/street.js)
+  const museumParts = [];    // 재현 거리에서는 숨기는 진열장·문
   let doorLeaves = [], doorLeafMat = null;
   let guide = null, guideHit = null, guideTex = null;
   // 안내원이 나타날 수 있는 자리 (전시물·모형을 가리지 않는 벽 쪽). 전시실마다 무작위
@@ -250,13 +258,16 @@
       label.rotation.x = -0.5;
     }
 
+    ['L0', 'L1', 'L2', 'L3', 'L4', 'M', 'R0', 'R1', 'R2', 'R3', 'R4'].forEach(k => slots[k].group.children.forEach(o => { if (!o.userData.slot) museumParts.push(o); }));
+
     // 문 (분위기용)
     const doorMat = new THREE.MeshLambertMaterial({ color: 0x3a3631 });
     [[-22.5, '수장고'], [-4, '관계자 외 출입금지']].forEach(([z, label]) => {
       const door = addBox(0.08, 2.4, 1.2, doorMat, HW - 0.04, 1.2, z);
       if (label === '수장고') storeDoor = door;
-      addPlane(0.9, 0.28, new THREE.MeshBasicMaterial({ map: tex(ART.drawDoorPlate(label)) }), HW - 0.09, 2.0, z, -Math.PI / 2);
-      addBox(0.1, 0.06, 0.18, new THREE.MeshLambertMaterial({ color: 0x8a8070 }), HW - 0.12, 1.1, z + 0.4);
+      museumParts.push(door,
+        addPlane(0.9, 0.28, new THREE.MeshBasicMaterial({ map: tex(ART.drawDoorPlate(label)) }), HW - 0.09, 2.0, z, -Math.PI / 2),
+        addBox(0.1, 0.06, 0.18, new THREE.MeshLambertMaterial({ color: 0x8a8070 }), HW - 0.12, 1.1, z + 0.4));
     });
 
     // 입구: 관람 안내판 + 전시실 번호 표지판
@@ -362,6 +373,52 @@
     return stoneMatCache[color];
   }
   const MODELS = {
+    // 2층: 경복궁 근정전 (가운데 어도가 양옆 길보다 조금 높다)
+    hall(g, ex) {
+      const stone = stoneMat(0xc8c2b4), wood2 = new THREE.MeshLambertMaterial({ color: 0x8c3a2a }), tile = new THREE.MeshLambertMaterial({ color: 0x34393f });
+      addBox(2.7, 0.25, 2.1, stone, 0, 0.125, -0.5, g);
+      addBox(2.1, 1.0, 1.4, wood2, 0, 0.75, -0.5, g);
+      const roof = new THREE.Mesh(new THREE.ConeGeometry(1.95, 0.75, 4), tile);
+      roof.rotation.y = Math.PI / 4; roof.scale.z = 0.72; roof.position.set(0, 1.62, -0.5); g.add(roof);
+      const low = ex.visual && ex.visual.lowRoad;
+      addBox(0.42, low ? 0.03 : 0.16, 1.3, stone, 0, low ? 0.015 : 0.08, 1.0, g);
+      [-0.55, 0.55].forEach(x => addBox(0.55, 0.08, 1.3, new THREE.MeshLambertMaterial({ color: 0x8d8675 }), x, 0.04, 1.0, g));
+    },
+    raingauge(g) {
+      addBox(0.9, 0.5, 0.9, stoneMat(0xb8b2a4), 0, 0.25, 0, g);
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.95, 18), new THREE.MeshLambertMaterial({ color: 0x4f6a70 }));
+      m.position.y = 0.98; g.add(m);
+      [0.7, 1.0, 1.3].forEach(y => { const r = new THREE.Mesh(new THREE.TorusGeometry(0.205, 0.015, 6, 20), new THREE.MeshLambertMaterial({ color: 0x8aa0a4 })); r.rotation.x = Math.PI / 2; r.position.y = y; g.add(r); });
+    },
+    turtleship(g) {
+      const wood2 = new THREE.MeshLambertMaterial({ color: 0x5a3a22 }), shell = new THREE.MeshLambertMaterial({ color: 0x3a4a44 });
+      addBox(1.3, 0.45, 3.0, wood2, 0, 0.45, 0, g);
+      const dome = new THREE.Mesh(new THREE.SphereGeometry(1, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), shell);
+      dome.scale.set(0.62, 0.6, 1.45); dome.position.y = 0.67; g.add(dome);
+      for (let i = 0; i < 16; i++) { const c = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.14, 5), new THREE.MeshLambertMaterial({ color: 0xc8c8c0 })); const a = i * 2.4, r = 0.2 + (i % 4) * 0.12; c.position.set(Math.cos(a) * r, 1.28 - r * r * 0.5, Math.sin(a) * r * 2.1); g.add(c); }
+      const head = new THREE.Mesh(new THREE.SphereGeometry(0.26, 10, 8), new THREE.MeshLambertMaterial({ color: 0x8a2a20 })); head.position.set(0, 0.85, 1.62); g.add(head);
+      [-1, 1].forEach(s => [-0.8, 0, 0.8].forEach(z => { const o = addBox(0.5, 0.04, 0.07, wood2, s * 0.88, 0.32, z, g); o.rotation.z = s * 0.4; }));
+    },
+    stall(g) {
+      const wood2 = new THREE.MeshLambertMaterial({ color: 0x5a4128 }), cloth = new THREE.MeshLambertMaterial({ color: 0xb9a57c, side: THREE.DoubleSide });
+      [[-1, -0.9], [1, -0.9], [-1, 0.9], [1, 0.9]].forEach(([x, z]) => addBox(0.08, 2.1, 0.08, wood2, x, 1.05, z, g));
+      const top = addBox(2.5, 0.05, 2.3, cloth, 0, 2.15, 0, g); top.rotation.x = 0.08;
+      addBox(1.9, 0.08, 1.2, wood2, 0, 0.8, 0, g);
+      [[0xc0473a, -0.6], [0xd8b04a, -0.2], [0x5a8a54, 0.2], [0x8a6a40, 0.6]].forEach(([col, x]) => { const m = new THREE.Mesh(new THREE.SphereGeometry(0.17, 10, 8), new THREE.MeshLambertMaterial({ color: col })); m.scale.y = 0.7; m.position.set(x, 0.96, 0); g.add(m); });
+    },
+    tram(g, ex) {
+      const carried = ex.visual && ex.visual.carried, y = carried ? 1.75 : 0.32;
+      [-0.42, 0.42].forEach(x => addBox(0.06, 0.04, 3.4, new THREE.MeshLambertMaterial({ color: 0x333333 }), x, 0.03, 0, g));
+      const body = addBox(1.25, 1.1, 3.0, new THREE.MeshLambertMaterial({ color: 0x8a5a30 }), 0, y + 0.55, 0, g);
+      addBox(1.3, 0.38, 2.7, new THREE.MeshBasicMaterial({ color: 0x28323a }), 0, y + 0.72, 0, g);
+      addBox(1.4, 0.08, 3.2, new THREE.MeshLambertMaterial({ color: 0x3a2a1a }), 0, y + 1.14, 0, g);
+      body.userData.tram = true;
+      if (carried) {
+        const c = document.createElement('canvas'); c.width = 128; c.height = 256; PEOPLE.draw(c.getContext('2d'), 64, 250, 240, 'farmer', 'open');
+        const mat = new THREE.SpriteMaterial({ map: tex(c), transparent: true, depthWrite: false });
+        [[-0.7, -1], [0.7, -1], [-0.7, 1], [0.7, 1]].forEach(([x, z]) => { const s = new THREE.Sprite(mat); s.scale.set(0.85, 1.7, 1); s.position.set(x, 0.85, z); g.add(s); });
+      }
+    },
     dolmen(g) {
       const stone = stoneMat(0xffffff);
       addBox(2.5, 0.2, 2.2, new THREE.MeshLambertMaterial({ color: 0x1d1a16 }), 0, 0.1, 0, g);
@@ -570,13 +627,15 @@
     goryeo1:  { enter: 'rise',    move: 'lunge',    aura: 'rgba(255,90,60,0.55)',
                 ghost: { robe: '150,140,150', face: 'hollow', hair: 'long', acc: 'lantern' },      person: { head: 'hood', prop: 'lantern' } },
     goryeo2:  { enter: 'wallOut', move: 'teleport', aura: 'rgba(230,210,140,0.5)',
-                ghost: { robe: '185,175,150', face: 'talisman', hair: 'long', acc: 'none' },       person: { head: 'scholar', prop: 'brush' } }
+                ghost: { robe: '185,175,150', face: 'talisman', hair: 'long', acc: 'none' },       person: { head: 'scholar', prop: 'brush' } },
+    street2:  { enter: 'blinkIn', move: 'statue',   aura: 'rgba(170,190,180,0.5)',                 // 2층 재현 거리: 인형처럼 멈칫거리며 다가온다
+                ghost: { robe: '190,186,170', face: 'hollow', hair: 'long', acc: 'none' },          person: { head: 'scholar', prop: 'none' } }
   };
   const chaseTexCache = {};
   function chaseTex(kind, eraId) {
     const k = kind + ':' + eraId;
     if (chaseTexCache[k]) return chaseTexCache[k];
-    const st = CHASE_STYLE[eraId] || CHASE_STYLE.paleo;
+    const st = CHASE_STYLE[eraId] || CHASE_STYLE.street2;
     return (chaseTexCache[k] = tex(kind === 'ghost' ? ghostCanvas(st.ghost) : personCanvas(st.person)));
   }
   // 유령: 찢어진 옷자락, 앞으로 뻗은 앙상한 팔, 핼쑥한 얼굴 (피·상처 표현 없음)
@@ -765,6 +824,7 @@
   function chaseEligible(restore) {
     if (chaseTest && !restore && S.place === 'gallery' && !S.review) { S.noChase = false; return true; }   // 시험 주소: 매번 도망 전시실
     const ok = !restore && S.place === 'gallery' && !S.exitRoom && !S.firstGallery && !S.review && !S.forced && !S.noChase
+      && !(curMode().room != null && ROOMS[curMode().room].noChase)
       && S.streak >= 1 && S.streak > S.checkpoint && Math.random() < CHASE_RATE;
     S.noChase = false;
     return ok;
@@ -778,7 +838,7 @@
     S.chase = { kind, from, phase: 'wait', t: 0, z: from === 'front' ? -L + 0.8 : -0.8, done: false, stepT: 0 };
     const rooms = modeRooms();
     S.roomIdx = rooms[Math.floor(Math.random() * rooms.length)];
-    if (chaseTest) S.roomIdx = chaseTestEra++ % ROOMS.length;   // 시험 주소: 9개 시대가 차례로 (시대마다 모습·등장·이동이 다름)
+    if (chaseTest) S.roomIdx = (curMode().floor ? 9 + chaseTestEra++ % ROOMS2.length : chaseTestEra++ % ROOMS1.length);   // 시험 주소: 9개 시대가 차례로 (시대마다 모습·등장·이동이 다름)
     S.anomaly = null;
     setupRoom();
     signTex.image = ART.drawSign(S.streak, room().name, false); signTex.needsUpdate = true;
@@ -803,7 +863,7 @@
   }
   // 유령·검은 그림자은 지금 전시실(시대)의 모습으로
   function applyChaseLook() {
-    const eraId = room().id, st = CHASE_STYLE[eraId] || CHASE_STYLE.paleo, P = chaseFx.part;
+    const eraId = room().id, st = CHASE_STYLE[eraId] || CHASE_STYLE.street2, P = chaseFx.part;
     const gm = chaseTex('ghost', eraId), pm = chaseTex('person', eraId);
     [P.ghost.main].concat(P.ghost.trail).forEach(s => { s.material.map = gm; s.material.needsUpdate = true; });
     P.person.main.material.map = pm; P.person.main.material.needsUpdate = true;
@@ -837,7 +897,7 @@
     let gap = Math.abs(S.z - c.z);
     const dir = Math.sign(S.z - c.z) || 1;
     const styled = c.kind === 'ghost' || c.kind === 'person';
-    const st = styled ? (CHASE_STYLE[room().id] || CHASE_STYLE.paleo) : null;
+    const st = styled ? (CHASE_STYLE[room().id] || CHASE_STYLE.street2) : null;
     const grp = chaseFx.part[c.kind];
     if (styled && !c.entered) {
       // 등장: 처음 한 번
@@ -988,6 +1048,7 @@
   const S = {
     mode: 'title',          // title | play | inspect | note | menu | trans | ending | door | record
     place: 'lobby',         // lobby(로비) | gallery(전시실)
+    floor: 1,               // 지금 있는 층
     lx: 0, lz: 10.6,        // 로비 안 위치
     streak: 0,              // = 지금 전시실 번호
     roomIdx: 0,             // 지금 전시실의 주제 (ROOMS 번호)
@@ -1019,14 +1080,15 @@
     if (S.forcedRoom != null) { const r = S.forcedRoom; S.forcedRoom = null; return r; }
     if (curMode().room != null) return curMode().room;   // 시대별 모드: 그 시대만
     const h = S.history, n = h.length;
-    let pool = ROOMS.map((r, i) => i);
+    let pool = ROOMS1.map((r, i) => i);
     if (n >= MAX_SAME && h.slice(n - MAX_SAME).every(x => x === h[n - 1])) pool = pool.filter(i => i !== h[n - 1]);
     return pool[Math.floor(Math.random() * pool.length)];
   }
 
   function current(key) {
     const base = room().exhibits[key];
-    return applyPatch(base, S.anomaly && S.anomaly.target === key ? S.anomaly.patch : null);
+    const a = S.anomaly;
+    return applyPatch(base, !a ? null : a.target === key ? a.patch : (a.patch.also && a.patch.also[key]) || null);
   }
 
   // 전시실마다 벽 색을 조금씩 다르게 (밝은 박물관은 파스텔 톤)
@@ -1046,7 +1108,7 @@
   function applyTheme() {
     const bright = isBright();
     const lob = S.place === 'lobby';
-    const t = lob ? Object.assign({}, theme(), LOBBY_THEME[bright ? 'bright' : 'dark']) : theme();
+    const t = lob ? Object.assign({}, theme(), LOBBY_THEME[bright ? 'bright' : 'dark'], S.floor === 2 ? { ambient: bright ? [0xffffff, 1.15] : [0xa8b4a8, 1.05], fogDensity: bright ? 0.004 : 0.016 } : null) : theme();
     if (!texSet) return;
     const e = era();
     scene.background.setHex(e ? e.fog : t.bg);
@@ -1057,9 +1119,10 @@
     S.lanternBase = e ? e.lantern[1] : t.lantern[1];
     S.lampColor = new THREE.Color(e ? e.lamp : 0xffe7bf);
     S.flicker = lob ? 'none' : e ? e.flicker : (t.flicker ? 'normal' : 'none');
-    if (lobby) lobby.setTheme(bright);
+    if (lobby1) { lobby1.setTheme(bright); lobby2.setTheme(bright); }
     const set = bright ? texSet.bright : texSet.dark;
-    floorMat.map = set.floor; floorMat.needsUpdate = true;
+    floorMat.map = !lob && S.streetId ? streets.ground(S.streetId, bright) : set.floor; floorMat.needsUpdate = true;
+    if (!lob) applyStreet();
     wallMat.map = set.wall; wallMat.needsUpdate = true;
     if (!S.exitRoom) wallMat.color.copy(wallTint(room().wall || 0xffffff));
     ceilMat.color.setHex(t.ceil); endMat.color.setHex(t.end);
@@ -1322,6 +1385,7 @@
     Object.values(slots).forEach(s => { s.group.visible = false; s.key = null; });
     buildCenter(null);
     S.docSpeech = '';
+    applyStreet();
     if (S.exitRoom) return;
     wallMat.color.copy(wallTint(r.wall || 0xffffff));
     Object.keys(r.exhibits).forEach(key => {
@@ -1343,9 +1407,18 @@
     });
   }
 
+  // 2층 재현 거리: 진열장 대신 거리를 세우고, 달라진 소품·인형을 놓는다
+  function applyStreet() {
+    if (!streets) return;
+    const id = !S.exitRoom && room().street ? room().street : null;
+    S.streetId = id;
+    museumParts.forEach(m => { m.visible = !id; });
+    streets.show(id, scene, isBright(), S.anomaly && S.anomaly.street || null);
+  }
+
   function rulesInfo() {
     const scope = modeRooms();
-    const remain = window.ANOMALIES.filter(a => scope.includes(a.room) && !found.has(a.id)).length;
+    const remain = ALL_ANOMALIES.filter(a => scope.includes(a.room) && !found.has(a.id)).length;
     if (!cleared) return '';
     if (remain === 0) return '모든 이상 현상을 발견했습니다. 관람해 주셔서 감사합니다.';
     return `아직 발견하지 못한 이상 현상: ${remain}개`;
@@ -1355,6 +1428,11 @@
     if (S.forced) { const f = S.forced; S.forced = null; return f; }
     if (S.firstGallery || S.exitRoom) return null;
     if (Math.random() > ANOMALY_RATE) return null;
+    // 재현 거리: 소품은 누구나, 인형이 움직인 것은 으스스한 박물관에서 순한 맛이 꺼져 있고 깜짝 효과가 켜져 있을 때만
+    if (room().street && Math.random() < STREET_RATE) {
+      const list = window.STREET_ANOMALIES.filter(a => !a.scary || scaryChase());
+      return Object.assign({ room: S.roomIdx }, list[Math.floor(Math.random() * list.length)]);
+    }
     const all = room().anomalies;
     let pool = all.filter(a => !found.has(a.id));
     if (pool.length === 0) pool = all.slice();
@@ -1466,23 +1544,23 @@
     const roomName = S.exitRoom ? '' : `제 ${S.streak} 전시실 · ${room().name}`;
     const roomIdx = S.roomIdx;
     // 앞으로: 이상 현상이 없어야 정답 / 되돌아가기: 이상 현상이 있고, 고른 전시물까지 맞아야 정답
-    const correct = dir === 'forward' ? !had : (!!had && picked === had.target);
+    const hit = !!had && (picked === had.target || !!(had.patch.also && had.patch.also[picked]));
+    const correct = dir === 'forward' ? !had : hit;
     const helped = S.helped;
     let note = null;
     if (correct) {
       S.streak++;
       S.wrongStreak[roomIdx] = 0;
       if (had) {
-        const isNew = !found.has(had.id);
-        found.add(had.id); store.set('found_v2', Array.from(found));
-        S.foundThisRun++;
+        const isNew = !!had.street || !found.has(had.id);
+        if (!had.street) { found.add(had.id); store.set('found_v2', Array.from(found)); S.foundThisRun++; }
         note = { good: true, a: had, isNew, roomName, helped };
       }
     } else {
       S.streak = S.checkpoint;
       S.mistakes++;
       S.wrongStreak[roomIdx] = (S.wrongStreak[roomIdx] || 0) + 1;
-      const pickedWrong = dir === 'back' && !!had && picked !== had.target;
+      const pickedWrong = dir === 'back' && !!had && !hit;
       note = { good: false, a: had, roomName, to: S.streak, roomIdx, helped, pickedWrong, picked: picked ? exhibitName(room().exhibits[picked], picked) : '' };
     }
 
@@ -1504,6 +1582,7 @@
 
   function showNote(n, done) {
     S.mode = 'note';
+    const factK = n.a && n.a.street ? '재현 거리의 규칙' : '교과서 속 사실';
     const card = $('noteCard');
     const back = !n.to ? '처음부터 다시.' : `제 ${n.to} 전시실${n.to === S.checkpoint ? '(중간 저장)' : ''}부터 다시.`;
     let html = n.roomName ? `<div class="k" style="margin-top:0">${n.roomName}</div>` : '';
@@ -1511,16 +1590,16 @@
     if (n.good) {
       html += `<h2 class="good">${isBright() ? '이상 현상을 찾았어요!' : '이상 현상을 발견했다'}${n.isNew ? '' : ' (이미 기록됨)'}</h2>
         <div class="k">이상했던 점</div><p class="wrongtxt">${n.a.wrong}</p>
-        <div class="k">교과서 속 사실</div><p class="right">${n.a.right}</p>`;
+        <div class="k">${factK}</div><p class="right">${n.a.right}</p>`;
     } else if (n.pickedWrong) {
       html += `<h2 class="bad">${isBright() ? '되돌아간 건 맞았지만, 고른 전시물이 달라요!' : '…되돌아간 것은 맞았다. 하지만 고른 전시물이 틀렸다.'} ${back}</h2>
         <div class="k">내가 고른 전시물</div><p>${n.picked}</p>
         <div class="k">이 전시실의 진짜 이상 현상</div><p class="wrongtxt">${n.a.wrong}</p>
-        <div class="k">교과서 속 사실</div><p class="right">${n.a.right}</p>`;
+        <div class="k">${factK}</div><p class="right">${n.a.right}</p>`;
     } else if (n.a) {
       html += `<h2 class="bad">${isBright() ? '앗, 놓쳤어요!' : '…놓쳤다.'} ${back}</h2>
         <div class="k">이 전시실의 이상 현상</div><p class="wrongtxt">${n.a.wrong}</p>
-        <div class="k">교과서 속 사실</div><p class="right">${n.a.right}</p>`;
+        <div class="k">${factK}</div><p class="right">${n.a.right}</p>`;
     } else {
       html += `<h2 class="bad">${isBright() ? '이 전시실은 정상이었어요.' : '…되돌아갈 필요가 없었다.'}</h2>
         <p>이 전시실에는 이상한 전시가 하나도 없었다.<br>교과서 내용과 꼼꼼히 비교해 보면, 다음엔 헷갈리지 않을 것이다.</p>
@@ -1547,32 +1626,34 @@
     const m = curMode(), newKey = m.room != null && !clearedModes.has(m.id);
     clearedModes.add(m.id); store.set('clearedModes', [...clearedModes]);
     // 시대별 전시실: 그 시대의 유물 모양 열쇠 조각
-    $('endKey').innerHTML = m.room != null
+    const list2F = m.floor === 2, floorList = list2F ? window.ANOMALIES2 : window.ANOMALIES;
+    $('endKey').innerHTML = list2F ? `「${m.name}」 재현 거리를 빠져나왔다.` : m.room != null
       ? `<img src="${keyURL(m.room, 'gold')}" alt="">🗝 「${KEY_NAMES[m.room]}」 조각${newKey ? '을 얻었다! 가방에 넣어 두었다.' : '은 이미 가방에 있다.'}`
-        + `<br><small style="font-size:14px">가진 조각 ${ROOMS.filter((r, i) => hasKey(i)).length} / 9 · 9개를 모두 모으면 로비 어딘가의 문이 열린다…</small>`
+        + `<br><small style="font-size:14px">가진 조각 ${ROOMS1.filter((r, i) => hasKey(i)).length} / 9 · 9개를 모두 모으면 로비 어딘가의 문이 열린다…</small>`
       : '최고 난이도 미스터리 전시실을 탈출했다!';
     const sec = Math.round(playTime() / 1000);
     S.started = false;
     clearProgress();
-    const remain = window.ANOMALIES.filter(a => !found.has(a.id)).length;
+    const remain = floorList.length - foundIn(floorList);
     $('endStat').innerHTML = `
       당신은 「${curMode().name}」에서 빠져나왔다.<br>
       걸린 시간: ${Math.floor(sec / 60)}분 ${sec % 60}초 · 놓친 횟수: ${S.mistakes}번<br>
       이번에 발견한 이상 현상: ${S.foundThisRun}개${S.helpCount ? ` · 힌트 등불 도움: ${S.helpCount}번` : ''}<br>
-      전체 기록: ${found.size} / ${window.ANOMALIES.length}개<br>
+      전체 기록: ${foundIn(floorList)} / ${floorList.length}개<br>
       ${remain ? `<b>아직 ${remain}개의 이상 현상이 박물관 어딘가에 남아 있다…</b>` : '<b>모든 이상 현상을 발견했다!</b>'}
       ${firstClear ? '<br><span style="font-size:15px">다시 들어가면 안내판의 내용이 달라져 있을지도…</span>' : ''}`;
     showScreen('ending');
     $('hud').classList.remove('on');
     closeBag();
     // 아직 탈출하지 못한 전시실이 남아 있으면 마지막으로 한 번 더 놀라게 한다
-    const scare = !isBright() && !settings.mild && clearedModes.size < MODES.length;
+    const scare = !isBright() && !settings.mild && MODES.some(x => !clearedModes.has(x.id));
     if (scare) setTimeout(playMeetAgain, 2600);
     // 정복자 명단에 이름 올리기 (탈출할 때마다 한 번)
     S.clearKey = m.id + ':' + Date.now();
-    $('nickBtn').style.display = BOARD.enabled() ? '' : 'none';
+    const canReg = BOARD.enabled() && !list2F;   // 2층 명단은 아직 없다
+    $('nickBtn').style.display = canReg ? '' : 'none';
     $('nickBtn').textContent = m.room == null ? '탈출자 명단에 올리기' : '정복자 명단에 올리기';
-    if (BOARD.enabled()) setTimeout(() => { if (S.mode === 'ending') BOARD.openRegister(m.id, S.clearKey); }, scare ? 8200 : 1500);
+    if (canReg) setTimeout(() => { if (S.mode === 'ending') BOARD.openRegister(m.id, S.clearKey); }, scare ? 8200 : 1500);
   }
 
   // 갑자기 화면이 검어지고 빨간 글씨 "넌, 또 만나게 될 거야." + 쿵 소리와 낮은 목소리
@@ -1605,7 +1686,8 @@
     S.mode = 'record'; keys.fwd = keys.back = false;
     const list = $('recordList');
     list.innerHTML = '';
-    ROOMS.forEach((r, no) => {
+    const floorRooms = S.floor === 2 ? ROOMS2 : ROOMS1, floorList = S.floor === 2 ? window.ANOMALIES2 : window.ANOMALIES;
+    floorRooms.forEach((r, no) => {
       const got = r.anomalies.filter(a => found.has(a.id)).length;
       const h = document.createElement('div');
       h.className = 'roomhead';
@@ -1625,7 +1707,7 @@
         list.appendChild(d);
       });
     });
-    $('recordCount').textContent = `발견한 이상 현상 ${found.size} / ${window.ANOMALIES.length}`;
+    $('recordCount').textContent = `발견한 이상 현상 ${foundIn(floorList)} / ${floorList.length}`;
     showScreen('record');
   }
 
@@ -1784,7 +1866,7 @@
   function stopTalk() { talkQ.length = 0; talkCur = null; SFX.stopSpeak(); }
 
   /* ---------- 도움: 관람 수, 힌트 등불, 해설사의 귀띔, 정상 전시 다시 보기 ---------- */
-  function exhibitName(ex, key) { return key === 'docent' ? '해설사의 말' : ex.title; }
+  function exhibitName(ex, key) { return key === 'docent' ? '해설사의 말' : key === 'street' ? '거리의 인형·소품' : ex.title; }
   function markViewed(key) {
     if (!key || S.review) return;
     const wasOpen = doorsShouldOpen();
@@ -1816,6 +1898,7 @@
     updateHelpHud();
     const a = S.anomaly;
     if (!a) { showHint('🏮 등불이 아무 곳도 비추지 않는다… 이 전시실에는 이상한 곳이 없는 것 같다.', 5000); return; }
+    if (a.street) { showHint('🏮 등불이 거리의 인형과 소품 쪽으로 흔들린다…', 5000); return; }
     const slot = a.target === 'docent' ? 'docent' : room().exhibits[a.target].slot;
     const side = slot === 'docent' ? 'docent' : slot === 'C' ? 'center' : slot[0] === 'R' ? 'right' : 'left';
     S.lampTarget = side;
@@ -1862,7 +1945,7 @@
   function showPick(onPick, onCancel) {
     const ex = room().exhibits;
     const keysInRoom = Object.keys(ex).filter(k => k !== 'docent')
-      .sort((a, b) => SLOT_ORDER.indexOf(ex[a].slot) - SLOT_ORDER.indexOf(ex[b].slot)).concat(['docent']);
+      .sort((a, b) => SLOT_ORDER.indexOf(ex[a].slot) - SLOT_ORDER.indexOf(ex[b].slot)).concat(['docent']).concat(room().street ? ['street'] : []);
     const card = $('noteCard');
     card.innerHTML = `<h2>${isBright() ? '어느 전시물이 이상했나요?' : '…무엇이 이상했지?'}</h2>
       <p style="font-size:15px;color:#6d5a3a">이상하다고 생각한 전시물을 하나 고르세요. 틀리게 고르면 정답으로 인정되지 않습니다.</p>
@@ -1930,7 +2013,7 @@
       Object.assign(S, { streak: resume.streak, checkpoint: resume.checkpoint || 0, roomIdx: resume.roomIdx,
         history: resume.history || [], lastAnomalyId: resume.lastAnomalyId, mistakes: resume.mistakes || 0,
         foundThisRun: resume.foundThisRun || 0, elapsed: resume.elapsed || 0, firstGallery: false });
-      S.anomaly = window.ANOMALIES.find(a => a.id === resume.anomaly && a.room === resume.roomIdx) || null;
+      S.anomaly = ALL_ANOMALIES.find(a => a.id === resume.anomaly && a.room === resume.roomIdx) || null;
       newGallery(true);
     } else {
       Object.assign(S, { streak: 0, checkpoint: 0, history: [], firstGallery: true, mistakes: 0, foundThisRun: 0, elapsed: 0 });
@@ -1973,7 +2056,7 @@
     $('skipRegNo').onclick = () => { if (!needCheck()) return; close(); BOARD.openRegister(S.gameMode, S.clearKey); };
   }
   $('lobbyBtn').onclick = () => {
-    if (BOARD.enabled() && !BOARD.registered(S.clearKey) && !S.skipRegOk) return askSkipRegister(() => { S.skipRegOk = true; $('lobbyBtn').onclick(); });
+    if (BOARD.enabled() && !curMode().floor && !BOARD.registered(S.clearKey) && !S.skipRegOk) return askSkipRegister(() => { S.skipRegOk = true; $('lobbyBtn').onclick(); });
     S.skipRegOk = false;
     fadeEl.style.opacity = 1;
     if (curMode().room != null) {
@@ -1992,10 +2075,10 @@
   // 정복자 명단 창이 떠 있는 동안은 움직이지 않는다
   let boardPrev = 'play';
   BOARD.init({
-    modes: MODES.map(m => ({ id: m.id, name: m.name })),
+    modes: MODES.filter(m => !m.floor).map(m => ({ id: m.id, name: m.name })),
     onOpen: () => { if (S.mode !== 'board') boardPrev = S.mode; S.mode = 'board'; keys.fwd = keys.back = keys.run = false; },
     onClose: () => { S.mode = boardPrev; },
-    onBoard: b => { if (lobby) lobby.setBoard(b, BOARD.enabled()); }
+    onBoard: b => { if (lobby1) lobby1.setBoard(b, BOARD.enabled()); }
   });
 
   $('controlsInfo').innerHTML = isTouch
@@ -2010,19 +2093,30 @@
   }
   function lobbyState() {
     return {
-      cleared: ROOMS.map((r, i) => hasKey(i)),
-      saved: ROOMS.map((r, i) => { const p = loadProgress('era' + i); return p ? p.streak : 0; }),
+      cleared: ROOMS1.map((r, i) => hasKey(i)),
+      saved: ROOMS1.map((r, i) => { const p = loadProgress('era' + i); return p ? p.streak : 0; }),
       keys: keysIn, open: keysIn.size >= KEY_ART.length,
-      rooms: ROOMS.map(r => [r.anomalies.filter(a => found.has(a.id)).length, r.anomalies.length]),
-      total: [found.size, window.ANOMALIES.length]
+      rooms: ROOMS1.map(r => [foundIn(r.anomalies), r.anomalies.length]),
+      total: [foundIn(window.ANOMALIES), window.ANOMALIES.length]
     };
   }
-  function lobbyRefresh() { if (lobby) lobby.refresh(lobbyState()); renderBag(); }
+  function lobby2State() {
+    return {
+      done: ROOMS2.map((r, i) => clearedModes.has('f2era' + i)),
+      saved: ROOMS2.map((r, i) => { const p = loadProgress('f2era' + i); return p ? p.streak : 0; }),
+      rooms: ROOMS2.map(r => [foundIn(r.anomalies), r.anomalies.length]),
+      total: [foundIn(window.ANOMALIES2), window.ANOMALIES2.length]
+    };
+  }
+  function lobbyRefresh() { if (lobby1) { lobby1.refresh(lobbyState()); lobby2.refresh(lobby2State()); } renderBag(); }
+  function useFloor(f) { S.floor = f; lobby = f === 2 ? lobby2 : lobby1; }
+  const spawnKey = m => m ? (m.floor ? m.idx : m.room != null ? m.room : 'mystery') : null;
   // 로비로: 처음이면 정문 앞, 전시실에서 돌아오면 그 통로 앞에 선다
   function goLobby(fromMode) {
     if (S.chase) endChase();
     const m = modeOf(fromMode);
-    const sp = lobby.spawn(m ? (m.room != null ? m.room : 'mystery') : null);
+    if (m) useFloor(m.floor || 1);
+    const sp = lobby.spawn(spawnKey(m));
     S.place = 'lobby'; S.started = false; S.entering = false; S.review = false;
     document.body.classList.add('in-lobby');
     S.lx = sp.x; S.lz = sp.z; S.yaw = sp.yaw; S.pitch = 0; S.turning = 0;
@@ -2033,7 +2127,7 @@
     document.body.classList.remove('tense');
     hideSubtitle(); stopTalk();
     lobbyRefresh(); applyTheme(); updateHelpHud();
-    BOARD.refresh().then(b => lobby.setBoard(b, BOARD.enabled()));
+    BOARD.refresh().then(b => lobby1.setBoard(b, BOARD.enabled()));
     showScreen(null);
     $('hud').classList.add('on'); $('touch').classList.add('on');
     $('lookHint').style.display = isTouch ? '' : 'none';
@@ -2062,7 +2156,7 @@
     $('rsNew').onclick = () => { close(); clearProgress(id); lobbyRefresh(); go(null); };
     $('rsStay').onclick = () => {
       close();
-      const sp = lobby.spawn(m.room != null ? m.room : 'mystery');
+      const sp = lobby.spawn(spawnKey(m));
       S.lx = sp.x; S.lz = sp.z; S.yaw = sp.yaw; S.entering = false; S.mode = 'play';
     };
   }
@@ -2073,6 +2167,8 @@
     if (u.lobby === 'sign') return openInspect(lobby.signCanvas(u.idx));
     if (u.lobby === 'door') { if (keysIn.size < KEY_ART.length) SFX.chain(); return openDoor(); }
     if (u.lobby === 'stair') return showHint('🚧 2층 전시실은 아직 공사 중이에요', 2600);
+    if (u.lobby === 'up') return showHint('🚧 3층 전시실은 아직 공사 중이에요', 2600);
+    if (u.lobby === 'down') return showHint('계단으로 걸어 들어가면 1층으로 내려갑니다', 2600);
     if (u.lobby === 'entrance') return SFX.chain(), showHint(isBright() ? '정문은 지금 닫혀 있어요. 통로로 들어가 전시실을 둘러보세요!' : '문이 굳게 잠겨 있다… 돌아갈 수 없다.', 3000);
   }
   // 로비에서 걷기: 바라보는 쪽으로 자유롭게 (벽·기둥·계단에 막힌다)
@@ -2094,16 +2190,19 @@
     S.lx = r.x; S.lz = r.z;
     S.touchCool = Math.max(0, (S.touchCool || 0) - dt);
     S.chainCool = Math.max(0, (S.chainCool || 0) - dt);
-    if (r.touch && r.touch !== 'stair' && input && !S.chainCool) { S.chainCool = 1.5; SFX.chain(); }
+    if (r.touch && r.touch !== 'stair' && r.touch !== 'up' && input && !S.chainCool) { S.chainCool = 1.5; SFX.chain(); }
     if (r.touch && input && !S.touchCool) {
       S.touchCool = 3;
-      showHint(r.touch === 'stair' ? '🚧 2층 전시실은 아직 공사 중이에요'
+      showHint(r.touch === 'up' ? '🚧 3층 전시실은 아직 공사 중이에요' : r.touch === 'stair' ? '🚧 2층 전시실은 아직 공사 중이에요'
         : r.touch === 'entrance' ? (isBright() ? '정문은 쇠사슬로 잠겨 있어요. 통로로 들어가 전시실을 둘러보세요!' : '쇠사슬이 철컹거린다… 돌아갈 수 없다.')
         : `🗝 쇠사슬로 잠긴 문… 열쇠 조각 ${keysIn.size} / 9 (문을 눌러 보세요)`, 2600);
     }
     if (r.enter != null && !S.entering) {
       S.entering = true;
-      enterMode(r.enter === 'mystery' ? 'mystery' : 'era' + r.enter);
+      if (r.enter === 'down') {   // 2층에서 1층으로
+        S.mode = 'trans'; keys.fwd = keys.back = keys.run = false; SFX.whoosh();
+        fadeTo(1, 600).then(() => { useFloor(1); goLobby(null); });
+      } else enterMode(r.enter === 'mystery' ? 'mystery' : (S.floor === 2 ? 'f2era' : 'era') + r.enter);
     }
     return moving;
   }
@@ -2112,9 +2211,9 @@
   let bagOpen = false;
   function renderBag() {
     if (!$('bagGrid')) return;
-    const have = ROOMS.filter((r, i) => hasKey(i)).length;
+    const have = ROOMS1.filter((r, i) => hasKey(i)).length;
     $('bagCount').textContent = `열쇠 조각 ${have} / 9 · 입구에 끼운 조각 ${keysIn.size} / 9`;
-    $('bagGrid').innerHTML = ROOMS.map((r, i) => {
+    $('bagGrid').innerHTML = ROOMS1.map((r, i) => {
       const got = hasKey(i), used = keysIn.has(i);
       const cls = got && !used ? 'kcell piece' : used ? 'kcell used' : 'kcell';
       return `<div class="${cls}" data-i="${i}"><img src="${keyURL(i, got ? 'gold' : 'locked')}" alt="">
@@ -2174,7 +2273,7 @@
     if (!h.uv || h.object.geometry.parameters.height < 3) return showHint('문에 파인 홈 위에 놓아 보세요', 2000);
     const px = h.uv.x * 512, py = (1 - h.uv.y) * 720;
     for (let k = 0; k < KEY_ART.length; k++) {
-      const [hx, hy] = lobby.holePos(k);
+      const [hx, hy] = lobby1.holePos(k);
       if (Math.abs(px - hx) < 75 && Math.abs(py - hy) < 72) return tryInsert(i, k);
     }
     showHint('조각과 같은 모양의 홈 위에 놓아 보세요', 2200);
@@ -2202,11 +2301,11 @@
     $('doorMsg').innerHTML = open
       ? '문이 열렸다. 모든 시대가 무작위로 나오는 <b>제16 전시실</b>까지 이어진다…'
       : '“아홉 시대의 유물을 모두 바쳐라.”<br>시대별 전시실을 탈출해 얻은 열쇠 조각을 같은 모양의 홈에 끌어다 끼우세요.';
-    $('doorBoard').innerHTML = ROOMS.map((r, i) => {
+    $('doorBoard').innerHTML = ROOMS1.map((r, i) => {
       const f = keysIn.has(i);
       return `<div class="hole${f ? ' filled' : ''}" data-i="${i}"><img src="${keyURL(i, f ? 'gold' : 'hole')}" alt=""><span>${f ? LOBBY.SHORT[i] : ''}</span></div>`;
     }).join('');
-    const tray = ROOMS.map((r, i) => i).filter(i => hasKey(i) && !keysIn.has(i));
+    const tray = ROOMS1.map((r, i) => i).filter(i => hasKey(i) && !keysIn.has(i));
     $('doorTray').innerHTML = tray.length
       ? tray.map(i => `<div class="kcell piece" data-i="${i}"><img src="${keyURL(i, 'gold')}" alt=""><small>${KEY_NAMES[i]}</small></div>`).join('')
       : `<div class="empty">${open ? '모든 조각을 끼웠어요.' : `끼울 조각이 없어요. 시대별 전시실을 탈출하면 열쇠 조각을 얻어요. (${keysIn.size} / 9)`}</div>`;
@@ -2266,7 +2365,7 @@
       SFX.init();
       fadeTo(1, 500).then(() => {
         goLobby(null);
-        setTimeout(() => showHint('통로로 걸어 들어가면 그 시대의 전시실로 이동해요', 5000), 1200);
+        setTimeout(() => showHint(S.floor === 2 ? '2층입니다. 통로로 걸어 들어가면 재현 거리 전시관으로 이동해요' : '통로로 걸어 들어가면 그 시대의 전시실로 이동해요', 5000), 1200);
         setTimeout(scaryTip, 1300);
       });
     };
@@ -2282,8 +2381,8 @@
       // 처음 안내 창 뒤로 로비가 천천히 돌아 보인다
       if (S.place === 'lobby' && lobby) {
         S.yaw += dt * 0.05;
-        camera.position.set(LX + S.lx, EYE, S.lz); camera.rotation.set(-0.04, S.yaw, 0);
-        lantern.position.set(LX + S.lx, 2.6, S.lz);
+        camera.position.set(lobbyX() + S.lx, EYE, S.lz); camera.rotation.set(-0.04, S.yaw, 0);
+        lantern.position.set(lobbyX() + S.lx, 2.6, S.lz);
         lobby.update(dt, now / 1000);
       }
       renderer.render(scene, camera); return;
@@ -2341,8 +2440,8 @@
     const sway = Math.sin(S.bob * 0.5) * (moving ? 0.03 : 0);
     camera.rotation.set(-S.pitch, S.yaw, 0);
     if (inLobby) {
-      camera.position.set(LX + S.lx + sway * Math.cos(S.yaw), EYE + bobY, S.lz - sway * Math.sin(S.yaw));
-      lantern.position.set(LX + S.lx - Math.sin(S.yaw) * 1.2, 2.6, S.lz - Math.cos(S.yaw) * 1.2);
+      camera.position.set(lobbyX() + S.lx + sway * Math.cos(S.yaw), EYE + bobY, S.lz - sway * Math.sin(S.yaw));
+      lantern.position.set(lobbyX() + S.lx - Math.sin(S.yaw) * 1.2, 2.6, S.lz - Math.cos(S.yaw) * 1.2);
       lobby.update(dt, now / 1000);
       lantern.intensity = S.lanternBase || 1;
       ambient.intensity = S.ambientBase;
@@ -2476,11 +2575,12 @@
   // ?test=이상현상ID (예: goryeo2.ce_white) → 그 전시실에서 그 이상 현상이 바로 나온다
   const params = new URLSearchParams(location.search);
   const roomParam = parseInt(params.get('room'), 10);
-  if (roomParam >= 0 && roomParam < ROOMS.length) settings.mode = 'era' + roomParam;   // 그 시대 모드
+  const roomMode = n => n < ROOMS1.length ? 'era' + n : 'f2era' + (n - ROOMS1.length);
+  if (roomParam >= 0 && roomParam < ROOMS.length) settings.mode = roomMode(roomParam);   // 그 시대 모드 (9번부터는 2층)
   const testId = params.get('test');
   if (testId) {
-    S.forced = window.ANOMALIES.find(a => a.id === testId || a.id.endsWith('.' + testId)) || null;
-    if (S.forced) settings.mode = 'era' + S.forced.room;
+    S.forced = ALL_ANOMALIES.find(a => a.id === testId || a.id.endsWith('.' + testId)) || null;
+    if (S.forced) settings.mode = roomMode(S.forced.room);
   }
   S.gameMode = settings.mode || 'mystery';
 
@@ -2752,16 +2852,19 @@
     buildMuseum();
     buildDocent();
     buildGuide();
+    streets = STREET.build({ THREE, tex, HW, L, H });
     const forced = S.forced;
     S.streak = 0;
     S.place = 'gallery';
     newGallery();
     S.forced = forced;
     S.history = [];
-    lobby = LOBBY.build({ THREE, tex, ART, ROOMS, X0: LX, keyCanvas: (i, kind) => ART.drawKeyPiece(KEY_ART[i], 256, kind) });
-    scene.add(lobby.group);
-    lobby.pickables.forEach(p => pickables.push(p));
-    lobby.setBoard(BOARD.cached(), BOARD.enabled());
+    lobby1 = LOBBY.build({ THREE, tex, ART, ROOMS: ROOMS1, X0: LX, keyCanvas: (i, kind) => ART.drawKeyPiece(KEY_ART[i], 256, kind) });
+    lobby2 = LOBBY2.build({ THREE, tex, ART, ROOMS: ROOMS2, X0: LX2 });
+    [lobby1, lobby2].forEach(l => { scene.add(l.group); l.pickables.forEach(p => pickables.push(p)); });
+    lobby1.setBoard(BOARD.cached(), BOARD.enabled());
+    // 2층은 아직 계단이 잠겨 있어 ?floor=2 주소로만 들어간다 (처음 흐름은 1층과 똑같고 끝에 2층 로비로)
+    useFloor(params.get('floor') === '2' ? 2 : 1);
     // 처음 안내 창 뒤로는 로비가 보인다
     S.place = 'lobby'; S.lx = 0; S.lz = 4; S.yaw = 0;
     docent.visible = false; docentHit.visible = false; docentGlow.intensity = 0;
@@ -2776,12 +2879,13 @@
 
   window.MHM = {
     state: S,
-    show(id) { S.anomaly = window.ANOMALIES.find(a => a.id === id) || null; setupRoom(); },
+    show(id) { S.anomaly = ALL_ANOMALIES.concat(window.STREET_ANOMALIES).find(a => a.id === id) || null; setupRoom(); },
     goRoom(n) { S.forcedRoom = n; newGallery(); S.anomaly = null; setupRoom(); },
     tick(n) { for (let i = 0; i < (n || 1); i++) frame(last + 16.7); },   // 화면이 가려져도 몇 프레임 진행 (점검용)
     view(n) { room(); Object.keys(room().exhibits).slice(0, n).forEach(markViewed); },
     ending: () => showEnding(),   // 탈출 화면 바로 보기 (점검용)
     lobby: () => goLobby(null),
+    street: id => { const a = window.STREET_ANOMALIES.find(x => x.street === id); S.anomaly = a ? Object.assign({ room: S.roomIdx }, a) : null; setupRoom(); },
     guidePos: () => Object.assign({}, GUIDE),   // 안내원 자리 (점검용)
     // 전시실별 유령·검은 그림자 모습을 한 장에 (점검용)
     chaseSheet() {
