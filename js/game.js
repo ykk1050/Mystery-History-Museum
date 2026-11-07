@@ -16,7 +16,7 @@
   const EYE = 1.6;       // 눈 높이
   // 모드: 최고 난이도 미스터리 전시실(모든 시대 무작위, 제0~16) / 시대별 전시실(그 시대만, 제0~8)
   //   checks: 중간 저장되는 전시실 번호
-  const MODES = [{ id: 'mystery', name: '최고 난이도 미스터리 전시실', goal: 17, checks: [4, 8, 12] }]
+  const MODES = [{ id: 'mystery', name: '최고 난이도 미스터리 전시실', goal: 17, checks: [4, 8, 12, 14] }]
     .concat(ROOMS1.map((r, i) => ({ id: 'era' + i, name: r.name, goal: 9, checks: [4, 6], room: i })))
     .concat(ROOMS2.map((r, i) => ({ id: 'f2era' + i, name: r.name, goal: 9, checks: [4, 6], room: 9 + i, floor: 2, idx: i })));   // 2층 재현 거리 전시관
   // 시대별 전시실을 탈출하면 얻는 유물 모양 열쇠 조각 (9개를 모두 끼우면 미스터리 전시실이 열린다)
