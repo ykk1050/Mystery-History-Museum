@@ -632,6 +632,13 @@
                 ghost: { robe: '190,186,170', face: 'hollow', hair: 'long', acc: 'none' },          person: { head: 'scholar', prop: 'none' } }
   };
   const chaseTexCache = {};
+  function dollChaseTex(kind) {
+    const k = 'doll:' + kind;
+    if (chaseTexCache[k]) return chaseTexCache[k];
+    const c = document.createElement('canvas'); c.width = 256; c.height = 512;
+    PEOPLE.draw(c.getContext('2d'), 128, 500, 480, kind, 'stare');
+    return (chaseTexCache[k] = tex(c));
+  }
   function chaseTex(kind, eraId) {
     const k = kind + ':' + eraId;
     if (chaseTexCache[k]) return chaseTexCache[k];
@@ -820,11 +827,21 @@
     part.person = new THREE.Group();
     part.person.aura = sp(tex(ART.glowTex('rgba(255,255,255,0.75)')), 3.2, 3.8, true); part.person.aura.position.set(0, 1.4, 0.2); part.person.add(part.person.aura);   // 어둠 속에서도 보이게
     part.person.main = sp(chaseTex('person', 'paleo'), 1.4, 2.8, false); part.person.main.position.set(0, 1.4, 0); part.person.add(part.person.main);
+    part.person.horde = [[-2.3, 0.7], [-1.15, 1.6], [1.15, 1.6], [2.3, 0.7], [-1.7, 2.6], [1.7, 2.6]].map(([x, z]) => {
+      const s = sp(chaseTex('person', 'paleo'), 1.0, 2.0, false); s.position.set(x, 1.0, z); s.userData = { x, ph: Math.random() * 6 }; part.person.add(s); return s;
+    });
     Object.values(part).forEach(g => { g.visible = false; root.add(g); });
     chaseFx = { root, part };
   }
   const CHASE_KINDS = ['fire', 'flood', 'dark', 'ghost', 'person'];
-  const chaseTest = (() => { const v = new URLSearchParams(location.search).get('chase'); return v === 'all' || CHASE_KINDS.includes(v) ? v : null; })();
+  /* 2층 재현 거리의 도망 전시실: 인형 3종류 (kind 는 'person', c.doll 로 구분)
+     one   눈을 뜬 인형 하나 ─ 멈칫했다가 덮친다
+     horde 인형 떼 ─ 줄지어 몰려온다
+     watch "나만 바라봐!!!" ─ 바라보는 동안은 멈추고, 눈을 떼거나 불이 깜빡이는 순간 다가온다 → 인형을 보며 뒷걸음질로 */
+  const DOLLS = ['one', 'horde', 'watch'];
+  const DOLL_STYLE = { one: { enter: 'rise', move: 'lunge' }, horde: { enter: 'rush', move: 'horde' }, watch: { enter: 'blinkIn', move: 'watch' } };
+  const DOLL_MSG = { one: '인형으로부터 도망쳐라!', horde: '인형 떼로부터 도망쳐라!', watch: '나만 바라봐!!!' };
+  const chaseTest = (() => { const v = new URLSearchParams(location.search).get('chase'); return v === 'all' || CHASE_KINDS.includes(v) || DOLLS.includes(v) ? v : null; })();
   let chaseTestN = 0, chaseTestEra = 0;
   function chaseEligible(restore) {
     if (chaseTest && !restore && S.place === 'gallery' && !S.review) { S.noChase = false; return true; }   // 시험 주소: 매번 도망 전시실
@@ -836,11 +853,15 @@
   }
   function setupChase() {
     if (!chaseFx) buildChaseFx();
-    const kinds = !scaryChase() ? ['fire', 'flood'] : curMode().floor === 2 ? ['fire', 'flood', 'person'] : ['fire', 'flood', 'dark', 'ghost', 'person'];
+    const f2 = curMode().floor === 2;
+    const kinds = !scaryChase() ? ['fire', 'flood'] : f2 ? ['fire', 'flood', 'person', 'person', 'person'] : ['fire', 'flood', 'dark', 'ghost', 'person'];
     let kind = kinds[Math.floor(Math.random() * kinds.length)];
-    if (chaseTest) kind = chaseTest === 'all' ? CHASE_KINDS[chaseTestN++ % CHASE_KINDS.length] : chaseTest;   // 시험 주소는 분위기와 상관없이 고른 위험
+    let doll = f2 ? DOLLS[Math.floor(Math.random() * DOLLS.length)] : null;
+    if (chaseTest) kind = chaseTest === 'all' ? CHASE_KINDS[chaseTestN++ % CHASE_KINDS.length] : DOLLS.includes(chaseTest) ? 'person' : chaseTest;
+    if (DOLLS.includes(chaseTest)) doll = chaseTest;   // 시험 주소는 분위기와 상관없이 고른 위험
     const from = Math.random() < 0.5 ? 'front' : 'back';
-    S.chase = { kind, from, phase: 'wait', t: 0, z: from === 'front' ? -L + 0.8 : -0.8, done: false, stepT: 0 };
+    S.chase = { kind, from, phase: 'wait', t: 0, z: from === 'front' ? -L + 0.8 : -0.8, done: false, stepT: 0, doll: kind === 'person' && f2 ? doll : null };
+    if (S.chase.doll === 'watch') S.chase.z = -L / 2 + (from === 'front' ? -9 : 9);   // "나만 바라봐" 인형은 복도 안에서 나타난다
     const rooms = modeRooms();
     S.roomIdx = rooms[Math.floor(Math.random() * rooms.length)];
     if (chaseTest) S.roomIdx = (curMode().floor ? 9 + chaseTestEra++ % ROOMS2.length : chaseTestEra++ % ROOMS1.length);   // 시험 주소: 9개 시대가 차례로 (시대마다 모습·등장·이동이 다름)
@@ -872,6 +893,11 @@
     const gm = chaseTex('ghost', eraId), pm = chaseTex('person', eraId);
     [P.ghost.main].concat(P.ghost.trail).forEach(s => { s.material.map = gm; s.material.needsUpdate = true; });
     P.person.main.material.map = pm; P.person.main.material.needsUpdate = true;
+    const doll = S.chase && S.chase.doll, kinds = room().street ? STREET.STREETS[room().street].dolls : [];
+    P.person.horde.forEach((s, i) => {
+      s.visible = doll === 'horde';
+      if (s.visible) { s.material.map = dollChaseTex(kinds[(i + 1) % kinds.length]); s.material.needsUpdate = true; }
+    });
     P.ghost.aura.material.color.set(new THREE.Color().setStyle(st.aura.replace(/rgba\(([^)]+),[^,]+\)/, 'rgb($1)')));
     P.person.aura.material.color.set(st.ghost && st.person.stone ? 0x8a8070 : 0xc81408);
     P.ghost.position.set(0, 0, 0); P.person.position.set(0, 0, 0);
@@ -896,14 +922,16 @@
       setDoors(true, true); SFX.clunk(); S.shake = 0.35;
       chaseFx.root.visible = true;
       $('chaseMsg').textContent = { fire: '불길로부터 도망쳐라!', flood: '홍수로부터 도망쳐라!', dark: '어둠으로부터 도망쳐라!', ghost: '유령으로부터 도망쳐라!', person: '검은 그림자로부터 도망쳐라!' }[c.kind];
-      if (c.kind === 'person' && room().street) $('chaseMsg').textContent = '인형으로부터 도망쳐라!';
+      if (c.doll) $('chaseMsg').textContent = DOLL_MSG[c.doll];
+      $('chaseMsg').classList.toggle('watch', c.doll === 'watch');
+      if (c.doll === 'watch') setTimeout(() => { if (S.chase === c && !c.done) showHint(`인형에게서 눈을 떼지 말고, 뒷걸음질(${isTouch ? '▼' : 'S 키'})로 반대쪽 문까지!`, 4200); }, 600);
       chaseMsg(true);
       SFX.chaseStart(c.kind);
     }
     let gap = Math.abs(S.z - c.z);
     const dir = Math.sign(S.z - c.z) || 1;
     const styled = c.kind === 'ghost' || c.kind === 'person';
-    const st = styled ? (CHASE_STYLE[room().id] || CHASE_STYLE.street2) : null;
+    const st = styled ? (c.doll ? DOLL_STYLE[c.doll] : CHASE_STYLE[room().id] || CHASE_STYLE.street2) : null;
     const grp = chaseFx.part[c.kind];
     if (styled && !c.entered) {
       // 등장: 처음 한 번
@@ -916,7 +944,7 @@
       const e = c.enter; e.t += dt;
       let done = false, yo = 0, xo = 0;
       if (e.kind === 'rush') { const sp = gap > CHASE_NEAR ? CHASE_RUSH : 0; c.z += dir * sp * dt; done = gap <= CHASE_NEAR; }
-      if (e.kind === 'blinkIn') { e.b = (e.b || 0) - dt; if (e.b <= 0) { e.b = 0.24; c.z += dir * Math.min(3, Math.max(0, gap - CHASE_NEAR)); } grp.visible = e.b > 0.08; done = gap <= CHASE_NEAR + 0.01; }
+      if (e.kind === 'blinkIn') { const near = c.doll === 'watch' ? 6 : CHASE_NEAR; e.b = (e.b || 0) - dt; if (e.b <= 0) { e.b = 0.24; c.z += dir * Math.min(3, Math.max(0, gap - near)); } grp.visible = e.b > 0.08; done = gap <= near + 0.01 || (!!c.doll && e.t > 2.4); }   // 인형은 2.4초 뒤면 그 자리에서 쫓기 시작
       if (e.kind === 'drop') { const k = Math.min(1, e.t / 0.5); yo = (1 - k * k) * 5; done = k >= 1; if (done) S.shake = 0.3; }
       if (e.kind === 'rise') { const k = Math.min(1, e.t / 0.9); yo = -3.2 * (1 - k); done = k >= 1; }
       if (e.kind === 'wallOut') { const k = Math.min(1, e.t / 0.8); xo = (c.wallSide || (c.wallSide = Math.random() < 0.5 ? -1 : 1)) * 3.4 * (1 - k); done = k >= 1; }
@@ -936,6 +964,15 @@
         if (st.move === 'teleport') {
           speed = 0; c.tp = (c.tp == null ? 0.85 : c.tp) - dt;
           if (c.tp <= 0) { c.tp = 0.85; c.z += dir * Math.min(2.6, gap); grp.visible = false; setTimeout(() => { if (chaseFx && S.chase === c) grp.visible = true; }, 90); }
+        }
+        if (st.move === 'horde') { speed = 3.0; grp.horde.forEach(s => { s.position.x = s.userData.x + Math.sin(c.mt * 5 + s.userData.ph) * 0.12; s.position.y = 1.0 + Math.abs(Math.sin(c.mt * 6 + s.userData.ph)) * 0.08; }); }
+        if (st.move === 'watch') {
+          // 바라보는 동안은 멈춘다. 눈을 떼거나, 조명이 잠깐 꺼지는 순간에만 다가온다
+          c.flick = (c.flick == null ? 2.2 : c.flick) - dt;
+          if (c.flick <= 0) { c.flick = 2.0 + Math.random() * 1.2; S.blackout = 0.28; S.blackoutDelay = 0; SFX.buzz(); }
+          const dz = c.z - camera.position.z, fwdZ = -Math.cos(S.yaw);
+          const seen = Math.sign(dz) === Math.sign(fwdZ) && Math.abs(fwdZ) > 0.5 && !blackoutOn();
+          speed = blackoutOn() ? 13 : seen ? 0 : 7.5;   // 불이 꺼진 순간 성큼 다가오고, 등을 보이면 뛰는 것보다 훨씬 빠르다
         }
         if (st.move === 'statue') {   // 바라보면 거의 멈추고, 등을 보이면 빨라진다
           const dz = c.z - camera.position.z, fwdZ = -Math.cos(S.yaw);
@@ -972,8 +1009,10 @@
       p.trail.forEach((t, k) => { t.position.x = -c.jx * (k + 1) * 0.6; t.material.rotation = -c.jr * 0.5; });
     }
     if (c.kind === 'person') {
-      p.main.position.x = Math.sin(ts * 4) * 0.08;
-      c.stepT -= dt; if (c.stepT <= 0) { c.stepT = 0.42; SFX.step(Math.min(0.9, 0.25 + (1 - gap / 20) * 0.6), 0.45); }
+      const still = c.doll === 'watch' && c.lastZ === c.z;   // 바라보는 동안의 인형은 꼼짝하지 않는다
+      p.main.position.x = still ? 0 : Math.sin(ts * 4) * 0.08;
+      c.stepT -= dt; if (c.stepT <= 0 && !still) { c.stepT = c.doll === 'horde' ? 0.22 : 0.42; SFX.step(Math.min(0.9, 0.25 + (1 - gap / 20) * 0.6), 0.45); }
+      c.lastZ = c.z;
     }
     if (gap < 0.9 && (!styled || c.entered)) chaseFail();
   }
@@ -1014,11 +1053,12 @@
       const line = {
         fire: soft ? '앗, 불길에 길이 막혔어요!' : '불길에 휩싸이고 말았다…',
         flood: soft ? '앗, 물에 휩쓸렸어요!' : '물살에 휩쓸리고 말았다…',
-        dark: '어둠에 삼켜지고 말았다…', ghost: '유령에게 붙잡히고 말았다…', person: '검은 그림자에게 붙잡히고 말았다…'
+        dark: '어둠에 삼켜지고 말았다…', ghost: '유령에게 붙잡히고 말았다…', person: c.doll === 'horde' ? '인형 떼에 둘러싸이고 말았다…' : c.doll ? '인형에게 붙잡히고 말았다…' : '검은 그림자에게 붙잡히고 말았다…'
       }[c.kind];
+      const tip = c.doll === 'watch' ? `다음에는 인형에게서 눈을 떼지 말고, 뒷걸음질(${isTouch ? '▼' : 'S 키'})로 반대쪽 문까지 가세요! 바라보는 동안 인형은 움직이지 않아요.` : null;
       $('noteCard').innerHTML = `<h2 class="bad">${line}</h2>
         <p>${to ? `제 ${to} 전시실(중간 저장)부터 다시.` : '처음부터 다시.'}</p>
-        <p style="margin-top:10px;font-size:15px;color:#6d5a3a">다음에는 ${c.kind === 'person' && room().street ? '인형이' : CHASE_NAMES[c.kind]} 보이면 바로 반대쪽 문으로 달려가세요! (${isTouch ? '» 뛰어서 이동하기' : 'Shift 키를 누른 채 걷기'}로 더 빨리)</p>
+        <p style="margin-top:10px;font-size:15px;color:#6d5a3a">${tip || `다음에는 ${c.doll ? '인형이' : CHASE_NAMES[c.kind]} 보이면 바로 반대쪽 문으로 달려가세요! (${isTouch ? '» 뛰어서 이동하기' : 'Shift 키를 누른 채 걷기'}로 더 빨리)`}</p>
         <button class="btn" id="noteOk">계속</button>`;
       $('noteCard').scrollTop = 0;
       $('note').classList.add('on');
