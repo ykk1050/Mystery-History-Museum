@@ -15,7 +15,7 @@ mkdir -p voice voice_bright
 MALE="asetrate=22050*0.70,aresample=22050,atempo=1.429"   # 음 높이 0.70배, 속도는 그대로
 NORM="loudnorm=I=-21:TP=-2,aresample=22050"              # 모든 음성 크기를 같게
 
-is_male() { case "$1" in gojoseon|samguk|unified|goryeo1|goryeo2) return 0 ;; *) return 1 ;; esac; }
+is_male() { case "$1" in gojoseon|samguk|unified|goryeo1|goryeo2|jo_found|jo_order|jo_sejong|jo_war|jo_late|open_age) return 0 ;; *) return 1 ;; esac; }
 
 era_filter() {
   case "$1" in
@@ -29,6 +29,7 @@ era_filter() {
     samguk)   echo "$MALE,acompressor,aecho=0.8:0.4:60:0.2,$NORM" ;;                                                         # 낮고 단단한 호령
     unified)  echo "$MALE,atempo=0.92,lowpass=f=3000,aecho=0.8:0.6:30:0.4,$NORM" ;;                                          # 느리고 돌처럼 무겁게
     goryeo1)  echo "$MALE,chorus=0.6:0.9:50|60:0.4|0.32:0.25|0.4:2|1.3,aecho=0.8:0.6:90:0.25,$NORM" ;;                      # 여러 겹으로 겹친 목소리
+    jo_found|jo_order|jo_sejong|jo_war|jo_late|open_age) echo "$MALE,lowpass=f=3400,aecho=0.8:0.5:60:0.2,$NORM" ;;   # 2층: 낮고 조용한 재현 거리 안내
     goryeo2)  echo "$MALE,vibrato=f=3:d=0.12,aphaser=type=t:speed=0.6,lowpass=f=3500,aecho=0.8:0.5:70:0.25,$NORM" ;;         # 흔들리고 일렁임
     *)        echo "asetrate=22050*0.86,aresample=22050,atempo=1.08,lowpass=f=3800,aecho=0.8:0.6:70|190:0.22|0.12,$NORM" ;;
   esac

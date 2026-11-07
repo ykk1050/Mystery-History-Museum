@@ -182,6 +182,11 @@
         if (change === 'stare') { const d = s.dolls[1]; d.s.material.map = doll(d.kind, 'stare'); d.s.material.needsUpdate = true; }
         if (change === 'near') { const d = s.dolls[4]; d.s.position.x = 1.0; }
       },
+      // 깜짝 효과: 모든 인형이 눈을 뜬다
+      stareAll() {
+        if (!cur) return;
+        cur.dolls.forEach(d => { d.s.material.map = doll(d.kind, 'stare'); d.s.material.needsUpdate = true; });
+      },
       ground(id, bright) {
         const k = (STREETS[id].rails ? 'r' : 'n') + (bright ? 'b' : 'd');
         return ground[k] || (ground[k] = groundTex(tex, THREE, bright, STREETS[id].rails));

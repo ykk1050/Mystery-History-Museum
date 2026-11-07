@@ -1198,6 +1198,12 @@
     if (sc.flash) { const f = $('scareFlash'); f.style.background = sc.flash; f.style.transition = 'none'; f.style.opacity = 1; setTimeout(() => { f.style.transition = 'opacity 0.9s'; f.style.opacity = 0; }, 80); }
     if (sc.footRing) for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2; S.docX = Math.cos(a) * 0.9; const z = S.docZ; S.docZ = S.z + Math.sin(a) * 0.9; dropFootprint(); S.docZ = z; S.docX = docMove() === 'wallSlide' ? 2.95 : 1.35; }
     if (sc.docentBehind) { S.docZ = Math.min(-0.6, S.z + sc.docentBehind); S.docX = 0.6; }
+    // 재현 거리의 인형들이 잠깐 눈을 뜬다 (순한 맛에서는 인형을 움직이지 않는다)
+    if (sc.dolls && S.streetId && !settings.mild) {
+      const gallery = S.streak;
+      streets.stareAll();
+      setTimeout(() => { if (S.streak === gallery && S.place === 'gallery') applyStreet(); }, sc.dolls * 1000);
+    }
     if (sc.ghost) {
       if (!ghost) {
         ghost = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthWrite: false, fog: false }));
@@ -1234,7 +1240,7 @@
     return sp;
   }
   function planCreeps() {
-    const on = !!era() && settings.scares && !S.review;
+    const on = !!era() && !era().calm && settings.scares && !S.review;
     S.follow = on && Math.random() < 0.35;
     S.knockReady = on && Math.random() < 0.45;
     S.farReady = on && Math.random() < 0.35;
