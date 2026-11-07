@@ -839,7 +839,7 @@
      horde 인형 떼 ─ 줄지어 몰려온다
      watch "나만 바라봐!!!" ─ 바라보는 동안은 멈추고, 눈을 떼거나 불이 깜빡이는 순간 다가온다 → 인형을 보며 뒷걸음질로 */
   const DOLLS = ['one', 'horde', 'watch'];
-  const DOLL_STYLE = { one: { enter: 'rise', move: 'lunge' }, horde: { enter: 'rush', move: 'horde' }, watch: { enter: 'blinkIn', move: 'watch' } };
+  const DOLL_STYLE = { one: { enter: 'rise', move: 'lunge' }, horde: { enter: 'rush', move: 'horde' }, watch: { enter: 'rise', move: 'watch' } };
   const DOLL_MSG = { one: '인형으로부터 도망쳐라!', horde: '인형 떼로부터 도망쳐라!', watch: '나만 바라봐!!!' };
   const chaseTest = (() => { const v = new URLSearchParams(location.search).get('chase'); return v === 'all' || CHASE_KINDS.includes(v) || DOLLS.includes(v) ? v : null; })();
   let chaseTestN = 0, chaseTestEra = 0;
@@ -859,9 +859,10 @@
     let doll = f2 ? DOLLS[Math.floor(Math.random() * DOLLS.length)] : null;
     if (chaseTest) kind = chaseTest === 'all' ? CHASE_KINDS[chaseTestN++ % CHASE_KINDS.length] : DOLLS.includes(chaseTest) ? 'person' : chaseTest;
     if (DOLLS.includes(chaseTest)) doll = chaseTest;   // 시험 주소는 분위기와 상관없이 고른 위험
-    const from = Math.random() < 0.5 ? 'front' : 'back';
+    let from = Math.random() < 0.5 ? 'front' : 'back';
+    if (doll === 'watch' && kind === 'person' && f2) from = 'front';   // "나만 바라봐" 인형은 처음 바라보는 쪽(앞)에 나타난다
     S.chase = { kind, from, phase: 'wait', t: 0, z: from === 'front' ? -L + 0.8 : -0.8, done: false, stepT: 0, doll: kind === 'person' && f2 ? doll : null };
-    if (S.chase.doll === 'watch') S.chase.z = -L / 2 + (from === 'front' ? -9 : 9);   // "나만 바라봐" 인형은 복도 안에서 나타난다
+    if (S.chase.doll === 'watch') S.chase.z = -L / 2 - 9;   // 복도 안, 내 앞 9m에 나타난다
     const rooms = modeRooms();
     S.roomIdx = rooms[Math.floor(Math.random() * rooms.length)];
     if (chaseTest) S.roomIdx = (curMode().floor ? 9 + chaseTestEra++ % ROOMS2.length : chaseTestEra++ % ROOMS1.length);   // 시험 주소: 9개 시대가 차례로 (시대마다 모습·등장·이동이 다름)
@@ -938,7 +939,7 @@
       if (!c.enter) {
         c.enter = { kind: st.enter, t: 0 };
         const side = c.from === 'back' ? 1 : -1;   // 위험이 있는 쪽 (+z: 입구 쪽)
-        if (st.enter === 'drop' || st.enter === 'rise' || st.enter === 'wallOut') c.z = S.z + side * 12;
+        if (st.enter === 'drop' || st.enter === 'rise' || st.enter === 'wallOut') c.z = S.z + side * (c.doll === 'watch' ? 9 : 12);
         if (st.enter === 'drop') SFX.scare('boom');
       }
       const e = c.enter; e.t += dt;
@@ -968,11 +969,12 @@
         if (st.move === 'horde') { speed = 3.0; grp.horde.forEach(s => { s.position.x = s.userData.x + Math.sin(c.mt * 5 + s.userData.ph) * 0.12; s.position.y = 1.0 + Math.abs(Math.sin(c.mt * 6 + s.userData.ph)) * 0.08; }); }
         if (st.move === 'watch') {
           // 바라보는 동안은 멈춘다. 눈을 떼거나, 조명이 잠깐 꺼지는 순간에만 다가온다
+          // 내 앞에 나타나 처음 1초는 가만히 있다. 조명은 가끔 깜빡이지만 바라보는 동안은 움직이지 않는다
           c.flick = (c.flick == null ? 2.2 : c.flick) - dt;
-          if (c.flick <= 0) { c.flick = 2.0 + Math.random() * 1.2; S.blackout = 0.28; S.blackoutDelay = 0; SFX.buzz(); }
+          if (c.flick <= 0) { c.flick = 2.4 + Math.random() * 1.6; S.blackout = 0.18; S.blackoutDelay = 0; SFX.buzz(); }
           const dz = c.z - camera.position.z, fwdZ = -Math.cos(S.yaw);
-          const seen = Math.sign(dz) === Math.sign(fwdZ) && Math.abs(fwdZ) > 0.5 && !blackoutOn();
-          speed = blackoutOn() ? 13 : seen ? 0 : 7.5;   // 불이 꺼진 순간 성큼 다가오고, 등을 보이면 뛰는 것보다 훨씬 빠르다
+          const seen = Math.sign(dz) === Math.sign(fwdZ) && Math.abs(fwdZ) > 0.35;
+          speed = c.mt < 1 || seen ? 0 : 6.5;   // 바라보는 동안은 0, 등을 보이면 뛰는 것보다 빠르다
         }
         if (st.move === 'statue') {   // 바라보면 거의 멈추고, 등을 보이면 빨라진다
           const dz = c.z - camera.position.z, fwdZ = -Math.cos(S.yaw);
