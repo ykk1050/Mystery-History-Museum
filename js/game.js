@@ -557,6 +557,7 @@
     scene.add(guideHit); pickables.push(guideHit);
   }
   const GUIDE_LINE = '로비로 돌아가서, 잠깐 쉬고 싶나.';
+  const VOICE_V = 2;   // 음성 파일을 다시 만들면 올린다 (예전 파일이 브라우저에 남지 않게)
   // 전시실마다 다른 자리에 (바로 전과 같은 자리는 피함)
   function placeGuide() {
     if (!guide) return;
@@ -578,7 +579,7 @@
     const near = Math.hypot(camera.position.x - GUIDE.x, camera.position.z - GUIDE.z) < 5;
     if (near && !S.guideSpoke && S.mode === 'play') {
       S.guideSpoke = true;
-      showSubtitle(GUIDE_LINE, '— 안내원 —', (bright ? 'voice_bright/' : 'voice/') + 'guide.mp3');
+      showSubtitle(GUIDE_LINE, '— 안내원 —', (bright ? 'voice_bright/' : 'voice/') + 'guide.mp3?v=' + VOICE_V);
     }
   }
   // 안내원을 누르면: 로비로 돌아갈지 묻는 창
@@ -1439,7 +1440,7 @@
   }
   function setDocVoice() {
     const id = S.anomaly && S.anomaly.target === 'docent' ? S.anomaly.id : room().id;
-    S.docVoice = (isBright() ? 'voice_bright/' : 'voice/') + id + '.mp3';
+    S.docVoice = (isBright() ? 'voice_bright/' : 'voice/') + id + '.mp3?v=' + VOICE_V;
     SFX.preloadVoice(S.docVoice);
   }
 
@@ -2025,7 +2026,7 @@
     };
     let key = p && Object.keys(tips).find(k => p[k] !== undefined);
     if (!key) key = Object.keys(tips)[Math.floor(Math.random() * 5)];   // 정상 전시실이어도 귀띔은 한다
-    showSubtitle(tips[key], '— 해설사의 귀띔 —');
+    showSubtitle(tips[key], '— 해설사의 귀띔 —', (isBright() ? 'voice_bright/' : 'voice/') + 'whisper_' + key + '.mp3?v=' + VOICE_V);
   }
   // 틀린 주제의 정상 전시(이상 현상 없음)를 시간 제한 없이 둘러보고 돌아온다
   function startReview(roomIdx) {

@@ -1,0 +1,9 @@
+미스터리 역사 박물관 — 함께 쓴 외부 자료
+
+1. 음성: Supertonic 3 © Supertone Inc. (OpenRAIL-M)
+   https://github.com/supertone-oss-archive/supertonic (BigScience Open RAIL-M License)
+   해설사, 귀신 안내원, 해설사의 귀띔 음성(voice/, voice_bright/)은 Supertonic 3 모델로 만든 뒤
+   메아리·음 높이 같은 효과를 입힌 것입니다. 모델 자체는 이 게임에 들어 있지 않습니다.
+   OpenRAIL-M 라이선스에 따라 이 음성을 사람을 사칭하거나 속이는 데 쓰지 않습니다.
+
+2. 3D: three.js r149 © three.js authors (MIT License) — vendor/three.min.js
