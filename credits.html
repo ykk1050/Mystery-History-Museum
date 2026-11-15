@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>출처와 라이선스 · 미스터리 역사 박물관</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"><link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@500;700&family=Noto+Serif+KR:wght@500;700&display=swap" rel="stylesheet">
+<style>
+:root { --bg:#0f0c09; --card:#1b1611; --ink:#efe4cf; --muted:#a8987c; --line:#3a3024; --accent:#d9b56a; --link:#e7c98a; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: 'Noto Sans KR', sans-serif; line-height: 1.7; }
+.wrap { max-width: 760px; margin: 0 auto; padding: 20px 16px 48px; }
+.back { display: inline-block; color: var(--ink); text-decoration: none; background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 6px 14px; }
+h1 { font-family: 'Noto Serif KR', serif; font-weight: 400; font-size: 30px; margin: 18px 0 4px; color: var(--accent); }
+.lead { color: var(--muted); margin: 0 0 16px; }
+section { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 18px; margin: 14px 0; }
+h2 { font-family: 'Noto Serif KR', serif; font-weight: 400; font-size: 21px; margin: 0 0 8px; color: var(--accent); }
+ul { margin: 0; padding-left: 20px; } li { margin: 5px 0; }
+.small { color: var(--muted); font-size: 14px; }
+a { color: var(--link); }
+details { margin-top: 8px; } summary { cursor: pointer; color: var(--link); }
+table { border-collapse: collapse; width: 100%; font-size: 13px; margin-top: 6px; }
+td, th { border-bottom: 1px solid var(--line); padding: 4px 6px; text-align: left; vertical-align: top; }
+.table-wrap { overflow-x: auto; }
+footer { text-align: center; color: var(--muted); font-size: 13px; margin-top: 24px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<a class="back" id="back" href="./">← 게임으로</a>
+<h1>출처와 라이선스</h1>
+<p class="lead">이 게임을 만들 때 쓴 것들과 만든 사람을 적어 두었어요.</p>
+<section><h2>🏺 그림·3D</h2><ul><li>박물관 건물, 유물, 해설사 그림: <b>코드로 직접 그림</b></li><li>3D 화면: <b>three.js</b> r149 — three.js authors, MIT License · <a href='https://threejs.org/' target='_blank' rel='noopener'>threejs.org</a></li></ul></section>
+<section><h2>🎬 AI로 만든 영상</h2><ul><li>인트로·탈출 영상: <b>선생님이 Gemini(Veo)로 만든 영상</b></li></ul></section>
+<section><h2>🗣️ 목소리</h2><ul><li>해설사·귀신 안내원 목소리: <b>Supertonic 3</b> © Supertone Inc. (OpenRAIL-M)으로 만든 뒤 효과를 입힘. 사람을 사칭하거나 속이는 데 쓰지 않아요.</li></ul></section>
+<section><h2>🔊 소리</h2><ul><li>쇠사슬·문 여는 소리: <b>Pixabay</b> 효과음을 잘라서 씀 (Pixabay 콘텐츠 라이선스)</li><li>배경음악과 나머지 효과음: <b>코드로 직접 만듦</b> (웹 브라우저 소리 기능)</li></ul></section>
+<section><h2>🔤 글꼴</h2><ul><li><b>Noto Sans KR</b> — Google·Adobe (Noto 프로젝트), SIL Open Font License 1.1 · <a href="https://fonts.google.com/specimen/Noto+Sans+KR" target="_blank" rel="noopener">Google Fonts</a></li><li><b>Noto Serif KR</b> — Google·Adobe (Noto 프로젝트), SIL Open Font License 1.1 · <a href="https://fonts.google.com/specimen/Noto+Serif+KR" target="_blank" rel="noopener">Google Fonts</a></li></ul></section>
+<section><h2>📄 라이선스 전문</h2><p>라이선스 전문은 <a href="THIRD-PARTY-NOTICES.txt" target="_blank" rel="noopener">THIRD-PARTY-NOTICES.txt</a>에서 볼 수 있어요.</p></section>
+<footer>Created by gamtudyssam using AI</footer>
+</div>
+<script>
+document.getElementById('back').addEventListener('click', function (e) {
+  if (window.opener) { e.preventDefault(); window.close(); }
+  else if (history.length > 1) { e.preventDefault(); history.back(); }
+});
+</script>
+</body>
+</html>
